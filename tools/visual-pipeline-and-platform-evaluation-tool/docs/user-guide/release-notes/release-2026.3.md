@@ -40,12 +40,12 @@ and reported device and performance data tied to the same runtime.
 
 Three new predefined vision and media pipelines extend the workloads that can be evaluated in ViPPET.
 
-| Pipeline | Description | Variants |
-| --- | --- | --- |
-| ![Face Recognition](../_assets/face-recognition.png) | **Face Recognition**: Detects and tracks faces, then extracts face embeddings for downstream matching against a gallery. | CPU, GPU, GPU (WSL), NPU, and GPU + NPU |
-| ![CV-Triggered VLM](../_assets/cv-triggered-vlm-pipeline.png) | **CV-Triggered VLM**: Object detection triggers a vision-language model to assess a nearby car and person; a parallel branch records annotated video. | CPU + GPU (detection on CPU, VLM on GPU) |
-| ![Alerting VLM](../_assets/alerting-vlm.png) | **Alerting VLM**: Analyzes traffic video and briefly describes dangerous behavior by road users. | CPU and GPU |
-| ![Media Decode](../_assets/media-decode.png) | **Media Decode**: Measures video decode throughput and CPU utilization without inference, scaling, recording, or rendering. With CPU pinning on a supported Intel GPU, it can use VDBox; otherwise, it uses the default decoder. | Single **Decode** variant; VDBox requires CPU pinning and a supported GPU. |
+| Pipeline                                                      | Description                                                                                                                                                                                                                      | Variants                                                                   |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| ![Face Recognition](../_assets/face-recognition.png)          | **Face Recognition**: Detects and tracks faces, then extracts face embeddings for downstream matching against a gallery.                                                                                                         | CPU, GPU, GPU (WSL), NPU, and GPU + NPU                                    |
+| ![CV-Triggered VLM](../_assets/cv-triggered-vlm-pipeline.png) | **CV-Triggered VLM**: Object detection triggers a vision-language model to assess a nearby car and person; a parallel branch records annotated video.                                                                            | CPU + GPU (detection on CPU, VLM on GPU)                                   |
+| ![Alerting VLM](../_assets/alerting-vlm.png)                  | **Alerting VLM**: Analyzes traffic video and briefly describes dangerous behavior by road users.                                                                                                                                 | CPU and GPU                                                                |
+| ![Media Decode](../_assets/media-decode.png)                  | **Media Decode**: Measures video decode throughput and CPU utilization without inference, scaling, recording, or rendering. With CPU pinning on a supported Intel GPU, it can use VDBox; otherwise, it uses the default decoder. | Single **Decode** variant; VDBox requires CPU pinning and a supported GPU. |
 
 See [Using Predefined Pipelines](../user-guide/pipeline-management/predefined-pipelines.md)
 for pipeline information.
@@ -55,10 +55,10 @@ for pipeline information.
 ViPPET adds audio workflows for speech recognition and speech synthesis, using the
 Audio Analyzer and Text to Speech services.
 
-| Pipeline | Description | Variants |
-| --- | --- | --- |
+| Pipeline                                         | Description                                                                                                    | Variants          |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------- |
 | ![Speech to Text](../_assets/speech-to-text.png) | **Speech to Text**: Transcribes a bundled sample recording with the Audio Analyzer service using Whisper Base. | CPU, GPU, and NPU |
-| ![Text to Speech](../_assets/text-to-speech.png) | **Text to Speech**: Generates a WAV recording from text using the Text to Speech service and SpeechT5. | CPU |
+| ![Text to Speech](../_assets/text-to-speech.png) | **Text to Speech**: Generates a WAV recording from text using the Text to Speech service and SpeechT5.         | CPU               |
 
 ### Camera support with Sensor Manager
 

@@ -4,7 +4,8 @@
 <!--hide_directive
 ```{eval-rst}
 .. meta::
-   :description: Export a Visual Pipeline and Platform Evaluation Tool (ViPPET) pipeline variant as a standalone application that runs with Docker Compose.
+   :description: Export a Visual Pipeline and Platform Evaluation Tool (ViPPET) pipeline variant
+      as a standalone application that runs with Docker Compose.
    :keywords: ViPPET, export as app, pipeline variant, DL Streamer Pipeline Server, Docker Compose, MediaMTX.
 ```
 hide_directive-->
@@ -27,9 +28,9 @@ host and run it there.
 
 1. Open the pipeline in the Pipeline Builder and select the variant, for example *CPU*,
    *GPU*, or *NPU*.
-2. Save your changes. The application is built from the saved variant, so *Export as app* is
+1. Save your changes. The application is built from the saved variant, so *Export as app* is
    disabled while the variant has unsaved changes.
-3. Open the actions menu (the **⋮** button next to *Run pipeline*) and select *Export as app*.
+1. Open the actions menu (the **⋮** button next to *Run pipeline*) and select *Export as app*.
 
 The browser downloads `<pipeline>-<variant>-app.zip`, for example `defect-detection-cpu-app.zip`.
 

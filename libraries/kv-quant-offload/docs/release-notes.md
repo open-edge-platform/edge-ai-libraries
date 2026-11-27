@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Version 2026.3.0
 
+**Release Date**: December 7, 2026
+
 This release adds XPU quantization in the LMCache transfer path and hybrid model support, based on vLLM v0.26.0 and LMCache v0.5.5.
 
 **Features**:
@@ -15,7 +17,7 @@ This release adds XPU quantization in the LMCache transfer path and hybrid model
 - Hybrid (Mamba / linear-attention) model support.
 - Separate quantization switches for full-attention and linear-attention layers.
 - Faster quantized KV transfers.
-- Docker deployment upgraded to vLLM v0.26.0, LMCache v0.5.5 and PyTorch 2.12.0+xpu.
+- Docker deployment upgraded to vLLM v0.26.0, LMCache v0.5.5, and PyTorch 2.12.0+xpu.
 
 ## Version 2026.2.0
 

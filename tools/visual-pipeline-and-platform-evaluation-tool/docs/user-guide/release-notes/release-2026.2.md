@@ -30,10 +30,10 @@ In the 2026.2 release, two new predefined pipelines were added for showcasing
 People Detection and Tracking using DeepSORT for tracking and Wind Turbine
 time-series anomaly detection pipeline.
 
-| Pipeline | Description | Variants |
-|----------|----------|----------|
-| ![alt text](../_assets/people-detection-and-tracking.png "Title") | **People Detection and Tracking**: People detection and tracking pipeline using YOLO object detection, person re-identification, and Deep SORT (Simple Online and Realtime Tracking with a Deep Association Metric) tracking, which combines motion prediction, appearance features & robust association. | Available in GPU variant. |
-| ![alt text](../_assets/wind-turbine-anomaly-detection.png "Title") |  **Wind Turbine Anomaly Detection**: Experimental, time-series anomaly detection pipeline that ingests wind turbine sensor data (grid active power, wind speed), processes it through the Time Series Analytics Microservice (TSAM) using a trained anomaly detection model, and outputs anomaly classification results. | Available in CPU variant. |
+| Pipeline                                                           | Description                                                                                                                                                                                                                                                                                                             | Variants                  |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| ![alt text](../_assets/people-detection-and-tracking.png "Title")  | **People Detection and Tracking**: People detection and tracking pipeline using YOLO object detection, person re-identification, and Deep SORT (Simple Online and Realtime Tracking with a Deep Association Metric) tracking, which combines motion prediction, appearance features & robust association.               | Available in GPU variant. |
+| ![alt text](../_assets/wind-turbine-anomaly-detection.png "Title") | **Wind Turbine Anomaly Detection**: Experimental, time-series anomaly detection pipeline that ingests wind turbine sensor data (grid active power, wind speed), processes it through the Time Series Analytics Microservice (TSAM) using a trained anomaly detection model, and outputs anomaly classification results. | Available in CPU variant. |
 
 New predefined pipelines include matching sample videos and model configurations.
 
@@ -90,10 +90,10 @@ section.
 ViPPET now supports two new VLM models: InternVL2-2B INT4 & MiniCPM-v4.5-8B INT4.
 When in comes to new Ultralytics models, ViPPET supports:
 
-| Model family | Detection | Pose | Segmentation |
-|--------------|-----------|------|--------------|
+| Model family                         | Detection        | Pose                       | Segmentation             |
+| ------------------------------------ | ---------------- | -------------------------- | ------------------------ |
 | Ultralytics YOLO26 FP32/FP16 (s & n) | YOLO26s, YOLO26n | YOLO26s-pose, YOLO26n-pose | YOLO26s-seg, YOLO26n-seg |
-| Ultralytics YOLO11 (s & n) | YOLO11s, YOLO11n | YOLO11s-pose, YOLO11n-pose | YOLO11s-seg, YOLO11n-seg |
+| Ultralytics YOLO11 (s & n)           | YOLO11s, YOLO11n | YOLO11s-pose, YOLO11n-pose | YOLO11s-seg, YOLO11n-seg |
 
 ### Support for machine vision cameras
 
@@ -101,7 +101,8 @@ Added proof-of-concept support for GigE/GenICam-compliant machine vision cameras
 The POC uses `gencamsrc` (our generic GenICam implementation) and `pylonsrc`
 (Basler gstreamer element) camera sources. The POC will be merged into the
 upcoming Sensor Manager microservice in 2026.3 timeframe. In the meantime, the
-POC is available [here](https://github.com/staszczuk/edge-ai-libraries).
+POC is available in the
+[staszczuk/edge-ai-libraries repository](https://github.com/staszczuk/edge-ai-libraries).
 
 ### Extended density benchmarking
 
