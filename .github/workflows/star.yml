@@ -33,4 +33,7 @@ jobs:
       - name: Run tests
         working-directory: libraries/star
         run: make tests-run
+      - name: Check OpenAPI specs match docs
+        working-directory: libraries/star
+        run: make check-openapi-specs
  
