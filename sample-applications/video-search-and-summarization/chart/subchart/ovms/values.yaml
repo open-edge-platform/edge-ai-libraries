@@ -39,8 +39,10 @@ ovms:
   name: ovms
   image:
     repository: openvino/model_server
-    tag: "2026.4.1"
-    Gputag: "2026.4.1-gpu"
+    # OVMS 2026.5.0 weekly, pinned by digest: 2026.4.x crashes (SIGSEGV) on Nova Lake CPUs.
+    # The same image carries the CPU, GPU and NPU plugins. Move to the 2026.5.0 release tag once published.
+    tag: "weekly@sha256:9b750a5cc0cf23190830bdfb6b5ad07997b6cb69a42bf8d2e774cbaaa1d1588f"
+    Gputag: "weekly@sha256:9b750a5cc0cf23190830bdfb6b5ad07997b6cb69a42bf8d2e774cbaaa1d1588f"
     pullPolicy: IfNotPresent
 
   containerPort: 8300   # Port on which container application listens internally

@@ -22,6 +22,9 @@ spec:
         container.apparmor.security.beta.kubernetes.io/metrics-manager: unconfined
     spec:
       hostPID: true
+      # The read-only host /run mount blocks creation of the token mountpoint
+      # at /var/run/secrets; the service does not use the Kubernetes API.
+      automountServiceAccountToken: false
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
