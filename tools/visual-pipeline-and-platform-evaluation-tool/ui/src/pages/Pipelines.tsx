@@ -4,6 +4,7 @@ import {
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
   useGetVideosQuery,
+  useLazyGetPerformanceJobStatusQuery,
   useRunPerformanceTestMutation,
   useStopPerformanceTestJobMutation,
   useUpdateVariantMutation,
@@ -14,7 +15,7 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
@@ -27,6 +28,12 @@ import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButt
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
 import TimeseriesOutputPanel from "@/features/pipeline-editor/TimeseriesOutputPanel.tsx";
+import {
+  clearEditorRunJob,
+  loadEditorRunJob,
+  saveEditorRunJob,
+  type EditorRunJob,
+} from "@/features/pipeline-editor/editorRunJob.ts";
 import { aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
@@ -34,6 +41,7 @@ import { PipelineActionsMenu } from "@/features/pipeline-editor/PipelineActionsM
 import {
   handleApiError,
   handleAsyncJobError,
+  isApiError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
 import {
@@ -43,6 +51,7 @@ import {
 import type {
   Node as GraphNode,
   OutputMode,
+  PerformanceJobStatus,
   PipelineGraph,
 } from "@/api/api.generated";
 import {
@@ -220,6 +229,7 @@ export const Pipelines = () => {
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
   const startedToastJobIdRef = useRef<string | null>(null);
+  const pendingRunRef = useRef<Omit<EditorRunJob, "jobId"> | null>(null);
 
   const {
     currentNodes,
@@ -258,6 +268,7 @@ export const Pipelines = () => {
 
   const [stopPerformanceTest, { isLoading: isStopping }] =
     useStopPerformanceTestJobMutation();
+  const [getPerformanceJobStatus] = useLazyGetPerformanceJobStatusQuery();
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
   const [updateVariant] = useUpdateVariantMutation();
 
@@ -310,6 +321,7 @@ export const Pipelines = () => {
 
   const {
     execute: runPipeline,
+    attach: attachRun,
     isLoading: isPipelineRunning,
     isPolling: isPipelinePolling,
     isJobCancelled,
@@ -321,6 +333,12 @@ export const Pipelines = () => {
   });
 
   useActiveJobSync(jobId);
+
+  useEffect(() => {
+    if (!jobId || !pendingRunRef.current) return;
+    saveEditorRunJob({ jobId, ...pendingRunRef.current });
+    pendingRunRef.current = null;
+  }, [jobId]);
 
   useEffect(() => {
     if (!jobId || startedToastJobIdRef.current === jobId) {
@@ -370,6 +388,92 @@ export const Pipelines = () => {
   useEffect(() => {
     setMetadataEnabled(isVlmPipeline);
   }, [isVlmPipeline]);
+
+  const finishPipelineRun = useCallback(
+    async (run: Promise<PerformanceJobStatus>, saveVideoOutput: boolean) => {
+      try {
+        const status = await run;
+        clearEditorRunJob(status.id);
+
+        if (isJobCancelled(status)) {
+          toast.info("Pipeline run cancelled", {
+            description: new Date().toISOString(),
+          });
+          return;
+        }
+
+        toast.success("Pipeline run completed", {
+          description: new Date().toISOString(),
+        });
+
+        if (saveVideoOutput && status.video_output_paths) {
+          const paths = Object.values(status.video_output_paths)[0];
+          const videoPath = paths?.at(-1);
+          if (videoPath) {
+            setCompletedVideoPath(videoPath);
+          }
+        }
+      } catch (error) {
+        if (!isAsyncJobError(error)) throw error;
+        clearEditorRunJob(error.id);
+        handleAsyncJobError(error, "Pipeline run");
+        console.error("Pipeline run failed:", error);
+      }
+    },
+    [isJobCancelled],
+  );
+
+  // Reattach to a run this editor started before a reload or navigation.
+  useEffect(() => {
+    if (!id || !variant || !isSuccess) return;
+
+    const saved = loadEditorRunJob();
+    if (!saved || saved.pipelineId !== id || saved.variantId !== variant) {
+      return;
+    }
+
+    let cancelled = false;
+    getPerformanceJobStatus({ jobId: saved.jobId })
+      .unwrap()
+      .then((status) => {
+        if (cancelled) return;
+        if (status.state !== "RUNNING") {
+          clearEditorRunJob(saved.jobId);
+          return;
+        }
+
+        setLivePreviewEnabled(saved.outputMode === "live_stream");
+        if (saved.outputMode !== "live_stream") {
+          setVideoOutputEnabled(saved.outputMode === "file");
+        }
+        setMetadataEnabled(saved.metadataEnabled);
+        setLatencyMetricsEnabled(saved.latencyMetricsEnabled);
+        setCompletedVideoPath(null);
+        setSelectedNode(null);
+        setShowDetailsPanel(true);
+        startedToastJobIdRef.current = saved.jobId;
+        void finishPipelineRun(
+          attachRun(saved.jobId),
+          saved.outputMode === "file",
+        ).catch((error) => {
+          handleApiError(error, "Failed to resume pipeline run");
+        });
+      })
+      .catch(() => {
+        if (!cancelled) clearEditorRunJob(saved.jobId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    id,
+    variant,
+    isSuccess,
+    getPerformanceJobStatus,
+    attachRun,
+    finishPipelineRun,
+  ]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
@@ -502,7 +606,15 @@ export const Pipelines = () => {
 
       const hasMetadata = hasFileMetadataPublisher(payloadGraphData.nodes);
 
-      const status = await runPipeline({
+      pendingRunRef.current = {
+        pipelineId: id,
+        variantId: variant,
+        outputMode,
+        metadataEnabled,
+        latencyMetricsEnabled,
+      };
+
+      const run = runPipeline({
         performanceTestSpec: {
           pipeline_performance_specs: [
             {
@@ -523,28 +635,20 @@ export const Pipelines = () => {
         },
       });
 
-      if (isJobCancelled(status)) {
-        toast.info("Pipeline run cancelled", {
-          description: new Date().toISOString(),
-        });
-      } else {
-        toast.success("Pipeline run completed", {
-          description: new Date().toISOString(),
-        });
-
-        if (videoOutputEnabled && status.video_output_paths) {
-          const paths = Object.values(status.video_output_paths)[0];
-          if (paths && paths.length > 0) {
-            const videoPath = [...paths].pop();
-            if (videoPath) {
-              setCompletedVideoPath(videoPath);
-            }
-          }
-        }
-      }
+      await finishPipelineRun(run, videoOutputEnabled);
     } catch (error) {
-      if (isAsyncJobError(error)) {
-        handleAsyncJobError(error, "Pipeline run");
+      // The run never started, so there is nothing to show in the panel.
+      pendingRunRef.current = null;
+      setShowDetailsPanel(false);
+
+      if (isApiError(error) && error.status === 409) {
+        toast.error("Another job is already running", {
+          description: `${error.data.message} Stop it on the Jobs page to start a new run.`,
+          action: {
+            label: "Open Jobs",
+            onClick: () => navigate("/jobs/performance"),
+          },
+        });
       } else {
         handleApiError(error, "Failed to start pipeline");
       }

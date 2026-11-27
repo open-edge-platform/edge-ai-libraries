@@ -146,6 +146,8 @@ export function useAsyncJob<
   >,
 ): UseAsyncJobReturnBase<TStatus> & {
   execute: (args: TMutationArgs) => Promise<TStatus>;
+  /** Start polling a job that is already running, e.g. after a page reload. */
+  attach: (jobId: string) => Promise<TStatus>;
 };
 
 export function useAsyncJob<
@@ -279,6 +281,15 @@ export function useAsyncJob<
     handleJobCompletion();
   }, [jobStatus, jobId, isJobCancelled]);
 
+  const attach = useCallback((id: string) => {
+    setJobId(id);
+
+    return new Promise<TStatus>((resolve, reject) => {
+      jobResolveRef.current = resolve;
+      jobRejectRef.current = reject;
+    });
+  }, []);
+
   const execute = async (args: TMutationArgs) => {
     const response = await triggerMutation(args).unwrap();
 
@@ -384,12 +395,7 @@ export function useAsyncJob<
       throw new Error("Response does not contain job_id");
     }
 
-    setJobId(id);
-
-    return new Promise<TStatus>((resolve, reject) => {
-      jobResolveRef.current = resolve;
-      jobRejectRef.current = reject;
-    });
+    return attach(id);
   };
 
   const reset = () => {
@@ -410,6 +416,7 @@ export function useAsyncJob<
 
   return {
     execute,
+    attach,
     isLoading: isMutating || isPolling,
     isMutating,
     isPolling,
