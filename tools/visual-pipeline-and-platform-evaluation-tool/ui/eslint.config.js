@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import globals from "globals";
+import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
@@ -20,9 +21,15 @@ export default defineConfig([
     ],
     plugins: {
       prettier: prettierPlugin,
+      react,
+    },
+    settings: {
+      react: { version: "detect" },
     },
     rules: {
       "prettier/prettier": "error",
+      // Render-prop callbacks (e.g. chart tooltip formatters) are called, not mounted.
+      "react/no-unstable-nested-components": ["error", { allowAsProps: true }],
     },
     languageOptions: {
       ecmaVersion: 2020,

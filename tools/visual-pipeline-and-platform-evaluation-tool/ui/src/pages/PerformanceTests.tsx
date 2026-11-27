@@ -9,7 +9,10 @@ import {
   useStopPerformanceTestJobMutation,
 } from "@/api/api.generated";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
-import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import {
+  PipelineName,
+  PipelineReferenceName,
+} from "@/features/pipelines/PipelineName.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectPipelines } from "@/store/reducers/pipelines";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
@@ -644,8 +647,6 @@ export const PerformanceTests = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(testResult.video_output_paths).map(
                       ([pipelineRefKey, paths]) => {
-                        const reference =
-                          parsePipelineVariantReference(pipelineRefKey);
                         const videoPath =
                           paths && paths.length > 0 ? [...paths].pop() : null;
 
@@ -656,9 +657,8 @@ export const PerformanceTests = () => {
                           >
                             <div className="bg-status-bg px-3 py-2">
                               <p className="text-xs font-medium text-status-fg">
-                                <PipelineName
-                                  pipelineId={reference.pipelineId}
-                                  variantId={reference.variantId}
+                                <PipelineReferenceName
+                                  reference={pipelineRefKey}
                                 />
                               </p>
                             </div>

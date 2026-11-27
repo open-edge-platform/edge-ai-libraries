@@ -21,16 +21,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
-import { parsePipelineVariantReference } from "@/features/pipeline-tests/pipelineVariantReference";
+import { PipelineReferenceName } from "@/features/pipelines/PipelineName.tsx";
 import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils.ts";
 import { handleApiError } from "@/lib/apiUtils.ts";
 import { cn } from "@/lib/utils";
-
-const JobPipelineName = ({ id }: { id: string }) => {
-  const { pipelineId, variantId } = parsePipelineVariantReference(id);
-  return <PipelineName pipelineId={pipelineId} variantId={variantId} />;
-};
 
 export const Jobs = () => {
   const location = useLocation();
@@ -276,7 +270,9 @@ export const Jobs = () => {
                                 key={pipeline.id}
                                 className="text-sm truncate"
                               >
-                                <JobPipelineName id={pipeline.id} />
+                                <PipelineReferenceName
+                                  reference={pipeline.id}
+                                />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
                                 </span>
@@ -418,7 +414,9 @@ export const Jobs = () => {
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
                               <div key={pipeline.id} className="text-sm">
-                                <JobPipelineName id={pipeline.id} />
+                                <PipelineReferenceName
+                                  reference={pipeline.id}
+                                />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
                                 </span>
