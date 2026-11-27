@@ -9,6 +9,20 @@ import {validateRuntimeTap} from "./tap-summary.mjs";
 
 export const stages = ["preflight", "prepare", "integration", "uninstall"];
 
+export function candidatePins(source, version, checksum) {
+  if (typeof version !== "string" || version.length > 128 ||
+      !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version))
+    throw Error("Invalid candidate OpenShell version");
+  if (typeof checksum !== "string" || !/^[a-f0-9]{64}$/.test(checksum))
+    throw Error("Invalid candidate installer SHA-256");
+  for (const [name, value] of [["HARNESS_OPENSHELL_VERSION", version], ["HARNESS_OPENSHELL_INSTALL_SHA256", checksum]]) {
+    const pattern = new RegExp(`^${name}="[^"\\r\\n]*"$`, "gm");
+    if ([...source.matchAll(pattern)].length !== 1) throw Error(`Expected exactly one ${name} pin`);
+    source = source.replace(pattern, `${name}="${value}"`);
+  }
+  return source;
+}
+
 export function retryAcceptanceCleanup(stateDirectory, {
   home = process.env.HOME,
   uninstaller = fileURLToPath(new URL("../uninstall.sh", import.meta.url)),
@@ -95,6 +109,9 @@ export function buildSummary(directory, outcomes) {
   });
   let success = records.every(record => outcomes[record.stage] === "success" && record.code === 0 &&
     record.signal === null && Number.isFinite(record.seconds) && record.seconds >= 0);
+  if (metadata.candidateVersion || metadata.candidateInstallerSha256)
+    success &&= /^[a-f0-9]{64}$/.test(metadata.candidateInstallerSha256 ?? "") &&
+      metadata.openshellVersion === `openshell ${metadata.candidateVersion}`;
   let acceptance;
   try {
     const result = validateRuntimeTap(fs.readFileSync(path.join(directory, "integration.tap"), "utf8"));
@@ -116,6 +133,9 @@ export function buildSummary(directory, outcomes) {
     "## GitHub-hosted OpenShell live validation", "",
     `**Result: ${success ? "passed" : "failed or incomplete"}.** ${acceptance}.`, "",
     `Commit: ${escape(metadata.commit)}; OpenShell: ${escape(metadata.openshellVersion)}.`,
+    ...(metadata.candidateVersion || metadata.candidateInstallerSha256 ? [
+      `Requested candidate: ${escape(metadata.candidateVersion)}; installer SHA-256: ${escape(metadata.candidateInstallerSha256)}.`
+    ] : []),
     `Runner: ${escape(metadata.imageOS)} ${escape(metadata.imageVersion)}; kernel: ${escape(metadata.kernel)}.`,
     `CPU model: ${escape(metadata.model)} @ ${escape(metadata.modelRevision)}.`, "",
     "| Stage | Outcome | Seconds |", "|---|---|---:|",
@@ -151,6 +171,8 @@ function writeMetadata(directory) {
     kernel: os.release(),
     model: process.env.HOSTED_MODEL_REPO,
     modelRevision: process.env.HARNESS_HF_MODEL_REVISION,
+    candidateVersion: process.env.HOSTED_CANDIDATE_VERSION,
+    candidateInstallerSha256: process.env.HOSTED_CANDIDATE_INSTALLER_SHA256,
     openshellVersion
   }, null, 2));
 }
@@ -158,6 +180,8 @@ function writeMetadata(directory) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [operation, ...args] = process.argv.slice(2);
   if (operation === "metadata" && args.length === 1) writeMetadata(args[0]);
+  else if (operation === "candidate" && args.length === 3)
+    fs.writeFileSync(args[2], candidatePins(fs.readFileSync(args[2], "utf8"), args[0], args[1]));
   else if (operation === "cleanup" && args.length === 1)
     process.exitCode = retryAcceptanceCleanup(args[0]);
   else if (operation === "run" && args[2] === "--")

@@ -5,7 +5,39 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import {buildSummary, retryAcceptanceCleanup, runStage, stages} from "./hosted-openshell-report.mjs";
+import {spawnSync} from "node:child_process";
+import {fileURLToPath} from "node:url";
+import {buildSummary, candidatePins, retryAcceptanceCleanup, runStage, stages} from "./hosted-openshell-report.mjs";
+
+test("candidate pins replace only the exact version and checksum assignments", () => {
+  const source = 'HARNESS_OPENSHELL_VERSION="0.1.5"\r\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\r\nother=value\r\n';
+  assert.equal(candidatePins(source, "0.2.0-rc.1", "a".repeat(64)),
+    `HARNESS_OPENSHELL_VERSION="0.2.0-rc.1"\r\nHARNESS_OPENSHELL_INSTALL_SHA256="${"a".repeat(64)}"\r\nother=value\r\n`);
+});
+
+test("candidate pins reject unsafe inputs and missing or duplicate assignments", () => {
+  const source = 'HARNESS_OPENSHELL_VERSION="0.1.5"\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\n';
+  for (const version of ["", "v0.2.0", "0.2.0\nINJECTED=1", "../0.2.0", "01.2.3", "0.2.0+build"])
+    assert.throws(() => candidatePins(source, version, "a".repeat(64)), /Invalid candidate/);
+  for (const checksum of ["", "a".repeat(63), "A".repeat(64), "g".repeat(64)])
+    assert.throws(() => candidatePins(source, "0.2.0", checksum), /SHA-256/);
+  assert.throws(() => candidatePins("", "0.2.0", "a".repeat(64)), /exactly one/);
+  assert.throws(() => candidatePins(source + source, "0.2.0", "a".repeat(64)), /exactly one/);
+});
+
+test("candidate CLI updates only valid disposable pin files", context => {
+  const {directory} = fixture(context);
+  const file = path.join(directory, "pins.sh");
+  const source = 'HARNESS_OPENSHELL_VERSION="0.1.5"\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\n';
+  fs.writeFileSync(file, source);
+  const cli = fileURLToPath(new URL("./hosted-openshell-report.mjs", import.meta.url));
+  const invalid = spawnSync(process.execPath, [cli, "candidate", "0.2.0", "bad", file]);
+  assert.notEqual(invalid.status, 0);
+  assert.equal(fs.readFileSync(file, "utf8"), source);
+  const valid = spawnSync(process.execPath, [cli, "candidate", "0.2.0", "b".repeat(64), file]);
+  assert.equal(valid.status, 0);
+  assert.equal(fs.readFileSync(file, "utf8"), candidatePins(source, "0.2.0", "b".repeat(64)));
+});
 
 function fixture(context) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "hosted-openshell-"));
@@ -24,6 +56,19 @@ test("complete acceptance and successful stages produce a public-runner usage su
   assert.match(result.markdown, /compute: \$0/);
   assert.match(result.markdown, /4-core \$0.05; 8-core \$0.09/);
   assert.match(result.markdown, /planning estimates, not billed usage/);
+});
+
+test("candidate evidence requires the requested version and installer checksum", context => {
+  const {directory, outcomes, write} = fixture(context);
+  const metadata = {candidateVersion: "0.2.0-rc.1", candidateInstallerSha256: "a".repeat(64), openshellVersion: "openshell 0.2.0-rc.1"};
+  write("metadata.json", metadata);
+  const result = buildSummary(directory, outcomes);
+  assert.equal(result.success, true);
+  assert.match(result.markdown, /Requested candidate: 0\.2\.0-rc\.1; installer SHA-256:/);
+  write("metadata.json", {...metadata, openshellVersion: "openshell 0.1.5"});
+  assert.equal(buildSummary(directory, outcomes).success, false);
+  write("metadata.json", {...metadata, candidateInstallerSha256: ""});
+  assert.equal(buildSummary(directory, outcomes).success, false);
 });
 
 for (const stage of stages) {

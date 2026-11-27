@@ -10,7 +10,25 @@ on:
   schedule:
     - cron: '23 3 * * 1'
   workflow_dispatch:
+    inputs:
+      candidate_version:
+        description: Exact OpenShell candidate version without the v prefix (leave both inputs empty for the production pin)
+        type: string
+        required: false
+      candidate_installer_sha256:
+        description: Trusted SHA-256 of the candidate release's install.sh (lowercase hexadecimal)
+        type: string
+        required: false
   workflow_call:
+    inputs:
+      candidate_version:
+        type: string
+        required: false
+        default: ''
+      candidate_installer_sha256:
+        type: string
+        required: false
+        default: ''
 
 permissions: {}
 
@@ -66,6 +84,8 @@ jobs:
       HARNESS_HF_MODEL_REVISION: f864c6106efb6c7f7b4ef274a78a98e37210dddd
       HOSTED_MODEL_REPO: OpenVINO/Qwen3-0.6B-int4-ov
       HOSTED_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+      HOSTED_CANDIDATE_VERSION: ${{ inputs.candidate_version }}
+      HOSTED_CANDIDATE_INSTALLER_SHA256: ${{ inputs.candidate_installer_sha256 }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -81,6 +101,13 @@ jobs:
           printf 'HOSTED_REPORT_DIR=%s\n' "$report_dir" >>"$GITHUB_ENV"
           acceptance_state=".agent-harness-ci-$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')"
           printf 'HARNESS_ACCEPTANCE_STATE_DIRNAME=%s\n' "$acceptance_state" >>"$GITHUB_ENV"
+          node test/hosted-openshell-report.mjs metadata "$report_dir"
+      - name: Apply candidate pins to disposable checkout
+        if: ${{ inputs.candidate_version != '' || inputs.candidate_installer_sha256 != '' }}
+        run: |
+          set -euo pipefail
+          node test/hosted-openshell-report.mjs candidate \
+            "$HOSTED_CANDIDATE_VERSION" "$HOSTED_CANDIDATE_INSTALLER_SHA256" scripts/lib/openshell.sh
       - name: Check fresh hosted VM and record baseline
         id: preflight
         run: |

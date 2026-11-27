@@ -356,7 +356,8 @@ job only starts after those checks pass. On a fresh disposable VM it:
   generates one before the normal inference install command registers and
   serves the model. This does not test the default-model download/export path.
 3. Provisions real OVMS/IR and installer-owned OpenShell, using the current
-  production OpenShell version and installer checksum without overrides.
+  production OpenShell version and installer checksum unless a manual or
+  reusable-workflow candidate is explicitly supplied.
 4. Executes `test/openshell-integration-test.sh` for all three harnesses,
   including real CPU inference, policy boundaries and restart persistence.
   A complete, nonempty TAP report with zero failures and zero skips is required.
@@ -397,6 +398,25 @@ For manual execution after the workflow is on the default branch, select
 gh workflow run agent-harness-openshell-hosted.yml --ref main
 gh run list --workflow agent-harness-openshell-hosted.yml
 ```
+
+To validate a candidate release, supply both `candidate_version` (for example,
+`0.2.0-rc.1`, without `v`) and `candidate_installer_sha256` (64 lowercase hex
+digits) to manual dispatch or `workflow_call`. Independently verify the
+checksum for the exact NVIDIA OpenShell release's `install.sh` before using
+it: a caller-provided digest establishes byte integrity, not publisher identity.
+Both inputs are required together and invalid values fail closed. The job updates
+the pins only in its disposable checkout and then uses the normal installer,
+version checks, live acceptance and ownership-aware cleanup. The report records
+the requested version, installer checksum, actual CLI version and tested commit;
+a version mismatch cannot pass. Preserve the workflow URL and uploaded
+`openshell-hosted-results` artifact as evidence for a separately reviewed
+upgrade PR. Passing acceptance is not a security review or a guarantee for
+other models, hardware or deployments.
+
+Automatic release discovery, committed version-pin updates and upgrade PR
+creation are follow-up work; this workflow has no write token and performs none
+of them. Normal PR, scheduled and manual runs without candidate inputs continue
+to use the production pin.
 
 The schedule then runs without manual intervention. GitHub scheduling can be
 delayed; public-repository schedules can also be disabled after prolonged
