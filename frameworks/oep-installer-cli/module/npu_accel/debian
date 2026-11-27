@@ -1,5 +1,5 @@
 configure_npu_accel () {
-  version="$(ensure_parse_value_option version --version=1.38.0 "$@")"
+  version="$(ensure_parse_value_option version --version=1.39.1 "$@")"
   repository=https://api.github.com/repos/intel/linux-npu-driver
   releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
@@ -72,7 +72,7 @@ debian_40_remove_npu_accel () {
   [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0
 
   configure_npu_accel "$@"
-  ensure_apt purge --auto-remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+  ensure_apt remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
   ensure_rm "$workspace"
 }
 

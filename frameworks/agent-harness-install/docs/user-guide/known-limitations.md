@@ -138,6 +138,30 @@ For sandbox setup, architecture and lifecycle guidance, see
 - `mcp register` has Hermes's configuration shape and OpenClaw's `mcp set` command
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
   registration script.
+- `./install.sh observability` for OpenClaw with the
+  `sqlite` backend starts a loopback OTLP receiver that does not survive a
+  reboot; re-run `observability enable` to start it again. OpenClaw spans carry
+  no session id, and OpenClaw's configuration and plugin changes need its
+  gateway stopped: stop it (`openclaw gateway stop`) before enable or disable
+  and start it again afterwards. With `--runtime openshell`, OpenClaw and Hermes
+  are supported (Hermes with the receiver for `sqlite` too), only the
+  `sqlite` backend, the managed Jaeger, or an external `--endpoint` reachable by
+  hostname or IPv4 (not loopback; it must use `https`, except
+  `host.openshell.internal`, and is only as
+  reachable as the sandbox's network allows) can be used, with sandbox egress
+  limited to `POST` on the traces path from the agent's own executables (an
+  unusual Python layout inside a Hermes sandbox may need the policy adjusted),
+  enabling
+  or disabling for OpenClaw restarts the sandbox (for Hermes the Hermes gateway
+  process inside it is restarted), and a sandbox installed before this support
+  lacks the exporter (remove it and install it again to rebuild its image). A
+  Hermes sandbox also keeps the plugin's own local store inside the sandbox.
+  `--content preview` needs the `sqlite`
+  backend for OpenClaw. Hermes `--content off` needs a `hermes-otel` plugin that
+  supports `capture_tool_command` (the default pin does; an older plugin that is
+  already installed, or a custom `HARNESS_HERMES_OTEL_REF`, may not, and `enable`
+  then refuses unless the backend is `sqlite` inside OpenShell,
+  where the receiver drops tool text itself).
 - `HARNESS_OVMS_EXPORTER` normally defaults to `docker-pull` (the OpenShell
   Qwen3.5 default uses `hf-snapshot` instead), which runs OVMS's own
   "-py" Docker image (bundles `optimum-cli`) in `--pull` mode to download,

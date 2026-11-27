@@ -17,7 +17,7 @@ WORKDIR /app
 # `patch` is required for the neighbor-protection patch step below; python:slim
 # images don't ship it by default.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
-        ca-certificates curl ocl-icd-libopencl1 libze1 patch \
+        ca-certificates curl git ocl-icd-libopencl1 libze1 patch \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/neo
@@ -46,48 +46,35 @@ WORKDIR /app
 # index to get the lean CPU-only build and avoid the heavy accelerator runtime
 # packages the default PyPI torch wheel pulls in on Linux (unused here, ~GBs).
 RUN pip install --no-cache-dir \
-        torch==2.8.0+cpu \
-        --index-url https://download.pytorch.org/whl/cpu
-
-# Compress Server's own runtime deps (NOT adaptive-token-compressor).
-# All versions are pinned to the validated image (see also the
-# adaptive-token-compressor[compress-server-ov] extras).
-RUN pip install --no-cache-dir \
+        --index-url https://pypi.org/simple \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        torch==2.13.0+cpu \
         llmlingua==0.2.2 \
         huggingface_hub==1.21.0 \
         fastapi==0.141.1 \
         "uvicorn[standard]==0.52.4" \
-        pydantic==2.13.5
-
-# OpenVINO runtime deps used by `--runtime ov`.
-RUN pip install --no-cache-dir \
+        pydantic==2.13.5 \
         openvino==2026.3.1 \
         openvino-tokenizers==2026.3.1.0 \
         "optimum[openvino]==2.3.0" \
-        optimum-intel==2.1.0 \
-        nncf==3.3.0
-
-# Pin the transformer stack. Must stay a separate step AFTER the OV stack:
-# optimum-intel 2.1.0 declares transformers<5.6, but trivy requires
-# transformers>=5.5.0 and 5.16.1 is the validated version, so we override it
-# here (pip warns about the optimum-intel requirement; runtime is unaffected).
-RUN pip install --no-cache-dir \
-        transformers==5.16.1 \
-        tokenizers==0.23.2
-
-# Security: pin transitively-pulled packages flagged by trivy to fixed versions.
-RUN pip install --no-cache-dir \
-        setuptools==84.0.0 \
+        "optimum-intel @ git+https://github.com/huggingface/optimum-intel.git@f09a56ace88149cd341233ddfa2bc018bff7c079" \
+        nncf==3.3.0 \
+        transformers==5.15.1 \
+        tokenizers==0.22.2 \
+        setuptools==84.2.1 \
         wheel==0.48.0 \
         jaraco.context==6.1.2 \
-        msgpack==1.2.2
+        msgpack==1.2.3 \
+        nltk==3.10.4 \
+    && pip check
 
 # Apply the neighbor-protection patch to LLMLingua-2 (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
 COPY src/adaptive_token_compressor/model_servers/compress_server/patches/0001-digit-neighbor-radius.patch /tmp/
 RUN patch -d "$(python -c 'import llmlingua, os; print(os.path.dirname(llmlingua.__file__))')" -p1 \
         < /tmp/0001-digit-neighbor-radius.patch \
-    && rm /tmp/0001-digit-neighbor-radius.patch
+        && rm /tmp/0001-digit-neighbor-radius.patch \
+        && apt-get purge -y git patch
 
 # Server entry — copied as a renamed standalone script (plan §17.A:
 # app.py runs both `python -m ...compress_server` and `python compress_server.py`).
@@ -96,7 +83,12 @@ COPY src/adaptive_token_compressor/model_servers/compress_server/app.py /app/com
 # HuggingFace model cache (mounted as a named volume in compose). Lives under
 # the non-root user's home so the mounted volume is writable without root.
 ENV HF_HOME=/home/user/.cache/huggingface
-RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME} /app
+RUN useradd -m -u 1000 user \
+        && mkdir -p ${HF_HOME} \
+        && chown -R user:user ${HF_HOME} \
+        && chmod 0755 /app \
+        && chmod 0644 /app/compress_server.py \
+        && find / -xdev -type f \( -perm -4000 -o -perm -2000 \) -exec chmod a-s {} +
 USER user
 
 ENV COMPRESS_SERVER_PORT=8001

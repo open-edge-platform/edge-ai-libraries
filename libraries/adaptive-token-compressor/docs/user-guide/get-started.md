@@ -47,6 +47,18 @@ Both services must be deployed before using the compression features.
 
 ## Installation
 
+The library lives in the larger `edge-ai-libraries` monorepo. To fetch only
+this library, use sparse checkout:
+
+```bash
+git clone --branch main --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries
+git sparse-checkout set libraries/adaptive-token-compressor
+cd libraries/adaptive-token-compressor
+```
+
+Then install it from this directory:
+
 ```bash
 pip install .
 ```
@@ -211,8 +223,8 @@ and the request payload `mode` field are kept for compatibility and accept
 | `COMPRESS_SERVER_DEVICE_INDEX` | `0` | Index within the device class. PyTorch `xpu:<index>`; OpenVINO `GPU.<index>` (generic `GPU` fallback for index `0`). Ignored for `cpu` |
 | `COMPRESS_SERVER_MODE` | `llmlingua2` | Compression mode: `llmlingua2` only |
 | `COMPRESS_SERVER_MODEL_NAME_ID` | empty | Optional fixed model id. Empty -> `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank` |
-| `COMPRESS_SERVER_PORT` | `8001` | Host port mapping for `compress-server-pytorch` service |
-| `COMPRESS_SERVER_OV_PORT` | `8002` | Host port mapping for `compress-server-ov` service |
+| `COMPRESS_SERVER_OV_PORT` | `8001` | Host port mapping for `compress-server-ov` service |
+| `COMPRESS_SERVER_PORT` | `8002` | Host port mapping for `compress-server-pytorch` service |
 | `COMPRESS_SERVER_HOST` | `localhost` | Bind address for the container service |
 
 ### HarnessCompressor Configuration
@@ -299,7 +311,7 @@ compressor = ToolCompressor(
 from adaptive_token_compressor.tool import ToolCompressor
 
 compressor = ToolCompressor(
-    predictor_url="http://localhost:8001/v1/rerank",
+    predictor_url="http://localhost:8000/v1/rerank",
     predictor_model="Qwen/Qwen3-Reranker-0.6B",
     predictor_backend="reranker",
     top_k=10,                          # 20 for ~30 tools
@@ -355,7 +367,6 @@ general type or URL validator.
 
 > [!CAUTION]
 > **Experimental:** Configuration options and defaults may change in future releases.
-
 
 | Parameter | Type | Default | Description |
 | ----------- | ------ | --------- | ------------- |

@@ -324,6 +324,21 @@ def test_exhausted_model_output_is_a_logged_upstream_error_not_task_validation(c
     assert model.instances[0].closed
 
 
+def test_multiline_error_is_logged_on_one_line(cfg, monkeypatch, caplog):
+    detail = "Unable to read document\r\nMissing metadata"
+
+    def reject(*args, **kwargs):
+        raise ValueError(detail)
+
+    monkeypatch.setattr(service, "materialize_task", reject)
+    with TestClient(service.create_app(cfg, api_key="")) as client:
+        response = client.post("/v1/tasks", json=_task())
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == detail
+    assert r"sample-task rejected: Unable to read document\r\nMissing metadata" in caplog.text
+
+
 @pytest.mark.parametrize("path", ["../outside.txt", "/etc/passwd", "a/../../escape", "a\\b", "a//b", ".private"])
 def test_file_paths_cannot_escape_the_shared_upload_root(cfg, model, path):
     with TestClient(service.create_app(cfg, api_key="")) as client:

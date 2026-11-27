@@ -130,7 +130,9 @@ own images, the output layout, and assessing encoder performance with
 :::{toctree}
 :hidden:
 
-quickstart
-configuration
+./quickstart.md
+./configuration.md
+./api-reference.md
+Release Notes <./release-notes.md>
 :::
 hide_directive-->

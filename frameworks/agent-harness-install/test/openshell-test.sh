@@ -715,6 +715,11 @@ run_case 'Docker build context includes model configuration helper' bash -c '
   grep -Fxq "COPY openshell/model-config.mjs /opt/harness/model-config.mjs" "$1/openshell/Dockerfile"
   grep -Fq "deepagents-code) install_dcode" "$1/openshell/Dockerfile"
 ' _ "$SCRIPT_DIR"
+run_case 'Docker build context ships the sandbox telemetry helper and the OpenClaw exporter plugin' bash -c '
+  grep -Fxq "!openshell/observability-config.mjs" "$1/.dockerignore"
+  grep -Fxq "COPY openshell/observability-config.mjs /opt/harness/observability-config.mjs" "$1/openshell/Dockerfile"
+  grep -Fq "diagnostics-otel@" "$1/openshell/Dockerfile"
+' _ "$SCRIPT_DIR"
 run_case 'Dcode provider policy allows its pinned Python and avoids nested interpreter' bash -c '
   grep -Fq "/home/node/.local/share/uv/python/cpython-*/bin/python*" "$1/scripts/lib/openshell.sh"
   grep -Fq "HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1" "$1/scripts/lib/openshell.sh"

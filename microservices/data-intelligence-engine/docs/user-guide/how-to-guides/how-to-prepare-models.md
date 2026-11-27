@@ -397,7 +397,7 @@ PY
       [ "$mode" = video ] && sample=/tmp/sample.mp4
       python /engine/scripts/export_qwen3_vl_reranker_ov.py \
         --source /hf/Qwen3-VL-Reranker-2B --output /ov/.qwen3-vl-reranker-fp16 \
-        --mode "$mode" ${sample:+--sample "$sample"}
+        --mode "$mode" ${sample:+--sample "$sample"} --visual-size 320
     done
   '
 ```

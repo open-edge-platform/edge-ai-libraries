@@ -77,21 +77,20 @@ livenessProbe:
   periodSeconds: 20
   failureThreshold: 3
 
+# Readiness and startup probes check /v2/models/<name>/ready for every configured
+# model (set in the template); only the timing fields below are configurable.
 readinessProbe:
-  httpGet:
-    path: /v2/health/ready
-    port: ovms-port
   initialDelaySeconds: 5
   periodSeconds: 10
+  timeoutSeconds: 20
   failureThreshold: 6
 
-# Wait for startup till max ~ 50Mins
+# Wait up to ~17 min (2m + 30 x 30s) for all models to load/compile.
 startupProbe:
-  tcpSocket:
-    port: ovms-port
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  failureThreshold: 300
+  initialDelaySeconds: 120
+  periodSeconds: 30
+  timeoutSeconds: 20
+  failureThreshold: 30
 
 # Node affinity to schedule pods on specific nodes only
 nodeAffinity: {}

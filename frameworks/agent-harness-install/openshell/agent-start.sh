@@ -98,6 +98,15 @@ JS
     fi
     node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
       openclaw "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT"
+    # The image installs the diagnostics-otel plugin under the build-time home, which differs from HOME here.
+    if [[ -d /home/node/.openclaw/npm && ! -e "$HOME/.openclaw/npm" ]]; then
+      ln -s /home/node/.openclaw/npm "$HOME/.openclaw/npm"
+    fi
+    # Applies telemetry settings staged by './install.sh observability' before the gateway reads its config.
+    observability_script="${HARNESS_OBSERVABILITY_SCRIPT:-/opt/harness/observability-config.mjs}"
+    if [[ -f "$observability_script" ]]; then
+      node "$observability_script" openclaw-apply || echo "Warning: could not apply staged telemetry settings; OpenClaw starts without them." >&2
+    fi
     # The installer's first sandbox exec can hold OpenClaw's state lifecycle lock while the
     # gateway starts. Retry briefly on that race, then replace this shell with the final attempt.
     for _ in 1 2 3 4 5 6 7 8; do

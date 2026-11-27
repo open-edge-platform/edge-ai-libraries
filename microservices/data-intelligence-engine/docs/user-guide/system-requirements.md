@@ -18,9 +18,9 @@ is supported.
 - Optional Intel GPU supported by OpenVINO, with host GPU drivers installed and
   permission to access `/dev/dri`. Use `--cpu` with the quick-start script for
   CPU-only deployment; a host without `/dev/dri` falls back to CPU.
-- System RAM sized for the selected models, database services and ingestion
-  workload. Intel integrated GPUs share system RAM, and loading multiple models
-  increases memory requirements.
+- System RAM: **32 GB minimum**, **64 GB recommended** for the default models,
+  database services and ingestion workload. Intel integrated GPUs share system
+  RAM, and loading multiple models increases memory requirements.
 - About **50 GB of free disk space** for the container image, all default models
   and their downloaded originals. Allow additional space for uploaded content
   and database indexes; preparing fewer models with `--models` reduces storage needs.

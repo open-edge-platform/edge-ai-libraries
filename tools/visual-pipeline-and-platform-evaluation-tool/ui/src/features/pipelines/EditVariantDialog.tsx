@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router";
@@ -27,6 +30,7 @@ import { type NewVariantFormData, newVariantSchema } from "./pipelineSchemas";
 import { useEffect } from "react";
 
 type EditVariantDialogProps = {
+  cpuPinning?: number[];
   mode: "create" | "edit";
   pipelineId: string;
   variantId: string;
@@ -40,6 +44,7 @@ type EditVariantDialogProps = {
 };
 
 export const EditVariantDialog = ({
+  cpuPinning = [],
   mode,
   pipelineId,
   variantId,
@@ -95,6 +100,7 @@ export const EditVariantDialog = ({
         onSuccess?.();
       } else {
         const pipelineGraph = {
+          cpu_pinning: cpuPinning,
           nodes: currentNodes.map((node) => ({
             id: node.id,
             type: node.type ?? "",

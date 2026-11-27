@@ -185,7 +185,7 @@ harness, and shows their state:
 | `show` | None | A CLI summary of what was collected, and the Jaeger UI address when Jaeger is the backend (Jaeger is the full trace view) |
 
 - The Inference Router telemetry backend switches to a JSONL file
-  (`telemetry.jsonl` in the router workspace), restarts the router, and
+  (`ir_metrics.jsonl` in the router workspace), restarts the router, and
   `show` reads `/v1/metrics`. `disable` reverts to the in-memory backend.
   The restart interrupts any request in flight, so run these between agent
   sessions, not during one.
@@ -202,22 +202,18 @@ harness, and shows their state:
   earlier installer version lacks that group: re-run `./install.sh` once to
   recreate it before enabling. The choice is saved only after the file is
   ready, so a failed `enable` leaves the previous setting in place.
-- `harness` (Hermes, host runtime): installs and enables the `hermes-otel`
-  plugin and writes `$HERMES_HOME/hermes_otel.yaml`. For a fresh setup, the
+- `harness` (the installed agent: Hermes or OpenClaw; host
+  runtime): turns on the agent's own OpenTelemetry exporter, see
+  [Harness agents](#harness-agents). For a fresh setup, the
   backend defaults to `sqlite`, which keeps records in the local store only;
   `jaeger` exports OTLP traces to a Jaeger
   all-in-one container managed by the installer (loopback only), or to your
   own Jaeger at `--endpoint` when given. `--content` controls
-  prompt/response capture and defaults to `off`. Then run `hermes gateway
-  restart` and start a new session: a Hermes process that was already running
-  (the gateway, or the plugin host it relaunches) picks up the plugin's Python
-  dependencies only after a restart, and until then every turn logs
-  `[hermes-otel] OpenTelemetry packages not available` and records nothing.
-  `observability show` reports that condition from Hermes's error log.
-  `disable` disables the plugin, removes the managed
-  config and any managed Jaeger. If the plugin cannot be disabled (Hermes
-  missing from `PATH`, or `hermes plugins disable` fails), `disable` fails and
-  changes nothing, so the state never claims collection is off while it is on.
+  prompt/response capture and defaults to `off`. `disable` turns the exporter
+  off and removes the managed config and any managed Jaeger. If the exporter
+  cannot be turned off (the agent CLI missing from `PATH`, or its command
+  fails), `disable` fails and changes nothing, so the state never claims
+  collection is off while it is on.
 - The managed Jaeger container carries the label
   `io.agent-harness-install.managed-by=metrics-jaeger`. A container with the
   same name but without that label is never reused or removed (`enable` and
@@ -237,11 +233,62 @@ harness, and shows their state:
   keeps the saved backend; a saved endpoint is reused only for the backend it
   was saved with.
 
+### Harness agents
+
+`observability` follows the agent selected with `--harness` (or the one last
+installed). Each agent keeps its own exporter; the installer only configures it.
+
+| Agent | Exporter | What `enable` changes | Local store (`--backend sqlite`) |
+|---|---|---|---|
+| Hermes | `hermes-otel` plugin | Installs and enables the plugin, writes `$HERMES_HOME/hermes_otel.yaml` | `$HERMES_HOME/hermes_otel_live.db`, written by the plugin |
+| OpenClaw | `@openclaw/diagnostics-otel` plugin | Installs (or re-enables) the plugin at the installed OpenClaw's version and merges `diagnostics` into the OpenClaw config | `$OPENCLAW_STATE_DIR/openclaw_otel_live.db` (default `~/.openclaw`), written by the OTLP receiver |
+
+- **Hermes:** run `hermes gateway restart` and start a new session. A Hermes
+  process that was already running (the gateway, or the plugin host it
+  relaunches) picks up the plugin's Python dependencies only after a restart,
+  and until then every turn logs
+  `[hermes-otel] OpenTelemetry packages not available` and records nothing.
+  `observability show` reports that condition from Hermes's error log.
+- **OpenClaw:** only the running Gateway exports spans (`openclaw agent --local`
+  does not). `enable` and `disable` change the OpenClaw config and plugins,
+  which OpenClaw refuses while the Gateway is running, so stop the Gateway
+  first (`openclaw gateway stop`) and start it again afterwards. An existing
+  `diagnostics.otel` exporter that is enabled and that this installer did not
+  configure is not overwritten; a disabled one has its settings replaced. `disable` sets `diagnostics.otel.enabled` to `false` and disables
+  the plugin; the plugin stays installed. It only does so for an exporter this
+  installer enabled, and `./uninstall.sh` turns that exporter off too.
+- **One exporter at a time:** the installer records which agent owns the
+  exporter. `enable` for another agent is refused until `disable`, and `show`
+  and `disable` act on the recorded agent whichever one is selected.
+- **`--backend sqlite` for OpenClaw (and Hermes in OpenShell):** the agents export
+  OTLP, so the installer starts a small loopback-only receiver
+  (`scripts/lib/metrics-otlp-receiver.py`, Python 3.8+, standard library only)
+  on `127.0.0.1:4319` (`HARNESS_OTLP_RECEIVER_PORT`) that writes the same
+  `events` table Hermes uses; `show` and `--clean` work alike. `disable` and
+  switching to `jaeger` stop it. It does not survive a reboot: run
+  `observability enable` again. Only the spans that matter are stored (OpenClaw
+  run, model, tool and usage spans). Jaeger receives everything the agent
+  exports.
+- **`--content`:** `preview` (a short excerpt) exists for Hermes and for
+  `--backend sqlite` with OpenClaw. With `--backend jaeger` OpenClaw accepts
+  only `off` or `full`, since its exporter has no preview mode.
+  For Hermes, `off` also turns off the plugin's `capture_tool_command`,
+  `capture_tool_target` and `capture_error_message`, so tool command lines,
+  paths and error text are not recorded either; the receiver drops the same
+  attributes. A `hermes-otel` plugin that predates those settings cannot honour
+  `off` on its own, so `enable` refuses it (host runtime, or OpenShell with a
+  collector other than the local receiver): update the plugin, or pin a newer
+  one with `HARNESS_HERMES_OTEL_REF`.
+- The receiver's store directory is private to your user (mode 700 for
+  directories the installer owns) and the store file is mode 600; symlinks and
+  files owned by another user are refused.
+- OpenClaw spans carry no session id, so `show` reports `sessions: 0` for them.
+
 ### Cleaning collected data and keeping Jaeger
 
 `disable` keeps what was collected unless you ask otherwise:
 
-| Command | Router `telemetry.jsonl` | Hermes local store (`hermes_otel_live.db`) | Managed Jaeger and its traces |
+| Command | Router `ir_metrics.jsonl` | Harness local store (for example `hermes_otel_live.db`) | Managed Jaeger and its traces |
 |---|---|---|---|
 | `observability disable` | Kept | Kept | Removed |
 | `observability disable --clean` | Emptied | Emptied | Removed |
@@ -251,10 +298,11 @@ harness, and shows their state:
   `--keep-jaeger` applies to the harness. A later `observability disable`
   (or uninstall) removes the kept container; a later
   `observability enable` that does not use Jaeger leaves it running.
-- The Hermes store is emptied in place, not deleted, so a running Hermes
+- The harness store is emptied in place, not deleted, so a running Hermes
   gateway keeps working. A Hermes session that is still running keeps adding
-  records until it is restarted. The plugin keeps at most 4000 rows per kind
-  and, by default, drops rows older than 7 days by itself.
+  records until it is restarted. The Hermes plugin keeps at most 4000 rows per
+  kind and, by default, drops rows older than 7 days by itself; the receiver
+  keeps at most `HARNESS_OTLP_RECEIVER_MAX_ROWS` (default 200000) rows.
 - If a clean cannot run (no `python3`, a locked store, or a symlinked file),
   the command says so and does not report the data as cleaned. When another
   process (a running Hermes) keeps the store open, the deleted rows may stay in
@@ -272,33 +320,68 @@ harness, and shows their state:
 - **Router:** whether file collection is on, the events file, and live totals
   from `/v1/metrics` (requests, tokens, latency), followed by a per
   provider/model breakdown.
-- **Harness:** the plugin and config state, then a summary of the local store
+- **Harness:** the agent's exporter and config state (and the receiver, for
+  OpenClaw), then a summary of the local store
   (record counts by kind, sessions, error spans, time window, and the busiest
   spans with count, average and maximum duration). The store is opened
-  read-only. This needs `python3`; without it the summary is skipped.
+  read-only. This needs `python3`; without it the summary is skipped. With
+  `--backend jaeger` the store is not written, so the summary is replaced by a
+  note that spans go to the endpoint.
 - **Jaeger:** `show` prints the UI address (`http://127.0.0.1:16686` for the
   managed container). Use it for the full trace view, which the CLI summary
   does not replace.
 
-Limitations: harness telemetry is not available in OpenShell sandboxes (the
-sandbox has no network egress beyond the router), and only Hermes is
-supported. After an OpenShell install, pass `--runtime openshell` to
-`observability` (otherwise the runtime defaults to `host`). Router telemetry
+Harness telemetry also works inside an OpenShell sandbox for OpenClaw and Hermes:
+pass `--runtime openshell` (and `--harness <agent>`)
+to `observability`; otherwise the runtime defaults to `host`. The sandbox's
+default policy does not allow egress to a collector or to package registries, so
+the exporter is built into the sandbox image and
+`enable` adds one policy rule that lets the agent reach only the host collector
+(the receiver for `sqlite`, the managed Jaeger for `jaeger`) through
+`host.openshell.internal`; `disable` removes it. The collected data stays on the
+host. Enabling or disabling OpenClaw restarts its sandbox so the gateway reloads
+its settings. For Hermes the
+`hermes-otel` plugin is installed and enabled in the image (enabling downloads
+Python dependencies, which the default policy does not allow) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
+rewrites that file inside the sandbox and stops the Hermes gateway process there,
+which the next turn starts again with the new settings. With `--backend sqlite`
+the host receiver stores Hermes's spans in
+`openshell-telemetry/hermes_otel_live.db` (the plugin's own local store inside
+the sandbox is not read). With `--backend jaeger --endpoint <url>` the sandbox
+exports to your own collector instead of the managed Jaeger: `enable` allows
+sandbox egress to exactly that host and port (port 80/443 by scheme when the URL
+has none), and only for `POST` to the exporter's traces path, from the agent's
+own executables (Node for OpenClaw, Python for Hermes); `GET`, `HEAD` and
+`OPTIONS` are denied, and `disable` removes the rule. A collector other than
+`host.openshell.internal` must use `https://`, since plain http would leave this
+machine unencrypted. The collector must be reachable from the
+sandbox by hostname or IPv4 address; loopback and IPv6 literals are refused (use
+`host.openshell.internal` for a collector on the same machine, or omit
+`--endpoint` for the managed Jaeger). A sandbox created before this support
+must be removed and installed again to gain the exporter or to accept an
+external `--endpoint`. Router telemetry
 works in both
-runtimes. The Router's `telemetry.jsonl` is append-only while the Router runs;
+runtimes. The Router's `ir_metrics.jsonl` is append-only while the Router runs;
 the installer rotates it once it exceeds `HARNESS_IR_TELEMETRY_MAX_BYTES` (see
 [Router telemetry file](#router-telemetry-file)).
 Overrides:
 `HARNESS_HERMES_OTEL_PLUGIN`, `HARNESS_HERMES_OTEL_REF`,
+`HARNESS_OPENCLAW_OTEL_PLUGIN` (an npm spec, default
+`@openclaw/diagnostics-otel@<installed OpenClaw version>`),
+`HARNESS_OTLP_RECEIVER_PORT`, `HARNESS_OTLP_RECEIVER_MAX_ROWS`,
 `HARNESS_IR_TELEMETRY_MAX_BYTES`, `HARNESS_IR_TELEMETRY_FILE_MODE`,
 `HARNESS_JAEGER_IMAGE`, `HARNESS_JAEGER_CONTAINER`,
 `HARNESS_JAEGER_UI_PORT`, `HARNESS_JAEGER_OTLP_PORT`.
 
-By default the plugin is installed from Hermes's reviewed plugin catalog
-(`hermes plugins install hermes_otel`), which checks out the commit pinned
-there and applies Hermes's removal kill-list. To pin another commit, set
-`HARNESS_HERMES_OTEL_REF` to a full 40-character SHA; it is passed as `--ref`
-and applies to a fresh plugin install only (an installed plugin is left as is).
+By default the plugin is installed from Hermes's plugin catalog
+(`hermes plugins install hermes_otel`) at v1.33.3
+(`ead500947cffdfc8307ec55fb150d9fbc720e781`), the first release that supports
+`capture_tool_command` and so honours `--content off`. To pin another commit,
+set `HARNESS_HERMES_OTEL_REF` to a full 40-character SHA; set it empty to
+install the commit pinned in the catalog instead. It is passed as `--ref` and
+applies to a fresh plugin install only (an installed plugin is left as is). The
+default applies to the catalog plugin only; with another
+`HARNESS_HERMES_OTEL_PLUGIN` source no ref is passed unless you set one.
 
 ### Harness backends
 
@@ -309,7 +392,7 @@ can start and manage that Jaeger for you.
 
 | `--backend` | Where the data goes | `--endpoint` |
 |---|---|---|
-| `sqlite` (default) | The plugin's local store, `$HERMES_HOME/hermes_otel_live.db` (default `~/.hermes`). Nothing leaves the machine. | Not allowed |
+| `sqlite` (default) | The agent's local store (see [Harness agents](#harness-agents); for Hermes `$HERMES_HOME/hermes_otel_live.db`, default `~/.hermes`). Nothing leaves the machine. | Not allowed |
 | `jaeger` | Without `--endpoint`: a managed `jaegertracing/all-in-one` container (`agent-harness-install-jaeger`), published on `127.0.0.1` only (UI `16686`, OTLP `4318`). With `--endpoint`: your own Jaeger's OTLP/HTTP traces URL (for example `http://host:4318/v1/traces`), which the installer does not manage. | Optional |
 
 - The `--endpoint` URL must be plain `http(s)://host[:port][/path]` (host: a
@@ -319,6 +402,8 @@ can start and manage that Jaeger for you.
   expects that Jaeger's query API on port `16686` of the same host for its own
   dashboard and skill; `observability show` does not read it. Any OTLP/HTTP
   receiver accepts the traces, but only a Jaeger gives the plugin a read path.
+  OpenClaw appends `/v1/traces` itself, so the
+  installer passes them the base URL of the endpoint.
 - The managed Jaeger container is removed by `observability disable`, by
   switching to `sqlite` or to an external `--endpoint`, and by uninstall.
 - `--content` is independent of `--backend`: with `preview` or `full`,
@@ -334,7 +419,7 @@ the machine: the Router appends to a local file and does not export telemetry.
 
 | | `memory` (default) | `file` (after `observability enable`) |
 |---|---|---|
-| Storage | Router process memory | `telemetry.jsonl`, bind-mounted from the container's `/app/telemetry.jsonl` to `~/.agent-harness-install/inference-router/workspace/telemetry.jsonl` |
+| Storage | Router process memory | `ir_metrics.jsonl`, bind-mounted from the container's `/app/ir_metrics.jsonl` to `~/.agent-harness-install/inference-router/workspace/ir_metrics.jsonl` |
 | `GET /v1/metrics` | Reads the in-process counters | Re-reads and re-parses the whole file |
 | Router restart | Counters reset to zero | History is kept; a restart never truncates the file |
 
@@ -352,7 +437,7 @@ What clears the file:
 - Rotation: when the installer next prepares the file (an install, or
   `observability enable`) and it is larger than
   `HARNESS_IR_TELEMETRY_MAX_BYTES` (default 20 MiB; `0` turns rotation off),
-  it is moved to `telemetry.jsonl.1` (mode 600) and a fresh file is started.
+  it is moved to `ir_metrics.jsonl.1` (mode 600) and a fresh file is started.
   Only one previous generation is kept, and `/v1/metrics` counts only the new
   file. `observability show` warns when the file is over the limit, and
   `--clean` removes the rotated file too.

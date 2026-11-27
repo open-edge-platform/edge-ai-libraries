@@ -6,7 +6,6 @@ declare module "js-cookie";
 declare module "qs";
 declare module "vite-plugin-vue-setup-extend-plus";
 declare module "vue3-markdown-it";
-declare module "event-source-polyfill";
 declare module "@kangc/v-md-editor/lib/preview";
 declare module "prismjs";
 
@@ -17,7 +16,6 @@ declare module "*.jpg";
 declare module "*.less";
 declare module "*.ts";
 declare module "*.js";
-declare module "lodash";
 
 // Declaration vue file
 declare module "*.vue" {

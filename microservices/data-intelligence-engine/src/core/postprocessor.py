@@ -6,7 +6,7 @@ import threading
 from typing import Dict, List, Optional, Tuple
 
 import config
-from core.embedding import require_openvino_model, resolve_model_path
+from core.embedding import check_request_model_path, require_openvino_model, resolve_model_path
 from inference.meta import InferenceMeta
 from llama_index.core.schema import NodeWithScore, QueryBundle
 
@@ -31,6 +31,30 @@ def reranker_class(backend: Optional[str], model_id: Optional[str]):
 def is_media_reranker(model_id: Optional[str]) -> bool:
     """Whether this model reranks media, not just text."""
     return reranker_class(None, model_id).SUPPORT_MULTIMODAL is True
+
+
+def _endpoint(api_base: Optional[str]) -> str:
+    """Compare rerank endpoints the way `_RemoteReranker` builds its URL."""
+    url = (api_base or "").rstrip("/")
+    return url[: -len("/rerank")] if url.endswith("/rerank") else url
+
+
+def check_reranker_selection(selected) -> None:
+    """Reject request reranker fields that could load or contact what operators did not configure."""
+    try:
+        backend = config.normalize_model_backend(selected.backend) if selected.backend else None
+    except ValueError:
+        backend = None  # an unknown backend fails in build_reranker before anything loads
+    # Media reranking always runs locally, so a model is checked unless the request is remote.
+    if backend != config.REMOTE_OPENAI_COMPATIBLE:
+        check_request_model_path(selected.model_id)
+    if selected.api_base and (backend or config.RERANK_BACKEND) == config.REMOTE_OPENAI_COMPATIBLE:
+        allowed = {_endpoint(url) for url in [config.RERANK_API_BASE, *config.RERANK_ALLOWED_API_BASES] if url}
+        if _endpoint(selected.api_base) not in allowed:
+            raise ValueError(
+                "reranker_model.api_base must be ENGINE_RERANK_API_BASE or listed in "
+                "ENGINE_RERANK_ALLOWED_API_BASES"
+            )
 
 
 def postprocess_nodes(
@@ -77,7 +101,14 @@ class _RemoteReranker(InferenceMeta):
         if not documents:
             return []
         url = self.api_base if self.api_base.endswith("/rerank") else f"{self.api_base}/rerank"
-        headers = {"Authorization": f"Bearer {config.RERANK_API_KEY}"} if config.RERANK_API_KEY else {}
+        # The server key belongs to ENGINE_RERANK_API_BASE; the further allowed
+        # endpoints a request may name never receive it.
+        extra = {_endpoint(url) for url in config.RERANK_ALLOWED_API_BASES} - {_endpoint(config.RERANK_API_BASE)}
+        headers = (
+            {"Authorization": f"Bearer {config.RERANK_API_KEY}"}
+            if config.RERANK_API_KEY and _endpoint(self.api_base) not in extra
+            else {}
+        )
         response = httpx.post(
             url,
             json={"model": self.model_id, "query": query, "documents": documents,

@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import os
+import tempfile
 import unittest
 from datetime import datetime, timezone
 from typing import Optional
@@ -15,6 +20,17 @@ from internal_types import (
     InternalPipelineValidation,
     InternalVariant,
 )
+
+
+_real_mkstemp = tempfile.mkstemp
+_created_archives: list[str] = []
+
+
+def _recording_mkstemp(*args, **kwargs):
+    """mkstemp that records the paths it creates, to check they get removed."""
+    fd, path = _real_mkstemp(*args, **kwargs)
+    _created_archives.append(path)
+    return fd, path
 
 
 # Helper to generate test timestamp as datetime
@@ -646,6 +662,28 @@ class TestPipelinesAPI(unittest.TestCase):
         mock_pipeline_manager_cls.return_value.update_variant.assert_called_once()
 
     @patch("api.routes.pipelines.PipelineManager")
+    def test_graph_update_preserves_or_explicitly_clears_cpu_pinning(self, manager):
+        variant = self._create_internal_variant(variant_id="variant-123")
+        variant.pipeline_graph.cpu_pinning = [12, 13]
+        manager.return_value.get_variant_by_ids.return_value = variant
+        manager.return_value.update_variant.return_value = variant
+        for field in ("pipeline_graph", "pipeline_graph_simple"):
+            for pinning, expected in ((None, [12, 13]), ([], []), ([14], [14])):
+                with self.subTest(field=field, pinning=pinning):
+                    graph = _create_test_graph().to_dict()
+                    if pinning is not None:
+                        graph["cpu_pinning"] = pinning
+                    response = self.client.patch(
+                        "/pipelines/pipeline-abc123/variants/variant-123",
+                        json={field: graph},
+                    )
+                    self.assertEqual(response.status_code, 200)
+                    submitted = manager.return_value.update_variant.call_args.kwargs[
+                        field
+                    ]
+                    self.assertEqual(submitted.cpu_pinning, expected)
+
+    @patch("api.routes.pipelines.PipelineManager")
     def test_update_variant_read_only_rejected(self, mock_pipeline_manager_cls):
         """Test that updating a read-only variant is rejected."""
         mock_pipeline_manager_cls.return_value.update_variant.side_effect = ValueError(
@@ -938,6 +976,55 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(variant["name"], "CPU")
         self.assertIn("pipeline_graph", variant)
         self.assertIn("pipeline_graph_simple", variant)
+        self.assertFalse(variant["media_only"])
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_get_pipeline_by_id_marks_media_only_variant(
+        self, mock_pipeline_manager_cls
+    ):
+        timestamp = _get_test_timestamp()
+        nodes = [
+            {"id": "0", "type": "filesrc", "data": {"location": "/tmp/a.mp4"}},
+            {"id": "1", "type": "decodebin3", "data": {}},
+            {"id": "2", "type": "gvafpscounter", "data": {}},
+            {"id": "3", "type": "fakesink", "data": {}},
+        ]
+        edges = [
+            {"id": "0", "source": "0", "target": "1"},
+            {"id": "1", "source": "1", "target": "2"},
+            {"id": "2", "source": "2", "target": "3"},
+        ]
+        media_graph = Graph.from_dict({"nodes": nodes, "edges": edges})
+        inference_graph = Graph.from_dict(
+            {
+                "nodes": nodes + [{"id": "4", "type": "gvadetect", "data": {}}],
+                "edges": edges,
+            }
+        )
+        variants = [
+            InternalVariant(
+                id=variant_id,
+                name=variant_id,
+                read_only=False,
+                pipeline_graph=graph,
+                pipeline_graph_simple=graph,
+                created_at=timestamp,
+                modified_at=timestamp,
+            )
+            for variant_id, graph in (
+                ("media", media_graph),
+                ("inference", inference_graph),
+            )
+        ]
+        mock_pipeline_manager_cls.return_value.get_pipeline_by_id.return_value = (
+            self._create_internal_pipeline(variants=variants)
+        )
+
+        response = self.client.get("/pipelines/pipeline-abc123")
+
+        self.assertEqual(response.status_code, 200)
+        media_only = {v["id"]: v["media_only"] for v in response.json()["variants"]}
+        self.assertEqual(media_only, {"media": True, "inference": False})
 
     # ------------------------------------------------------------------
     # Convert graph endpoints tests
@@ -1222,6 +1309,122 @@ class TestPipelineThumbnailRedaction(unittest.TestCase):
 
         # Thumbnail should be None for user-created pipelines
         self.assertIsNone(pipeline_dict["thumbnail"])
+
+
+class TestExportVariantAsAppAPI(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        app = FastAPI()
+        app.include_router(pipelines_router, prefix="/pipelines")
+        cls.client = TestClient(app)
+
+    def _mock_export_manager(self, mock_pipeline_manager_cls) -> None:
+        timestamp = _get_test_timestamp()
+        variant = InternalVariant(
+            id="cpu",
+            name="CPU",
+            read_only=True,
+            pipeline_graph=_create_test_graph(),
+            pipeline_graph_simple=_create_test_graph(),
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        mock_manager = MagicMock()
+        mock_manager.get_pipeline_by_id.return_value = InternalPipeline(
+            id="defect-detection",
+            name="Defect Detection",
+            description="Pallet defect detection",
+            source=InternalPipelineSource.PREDEFINED,
+            type=InternalPipelineType.VISION,
+            tags=[],
+            variants=[variant],
+            thumbnail=None,
+            created_at=timestamp,
+            modified_at=timestamp,
+        )
+        mock_manager.get_variant_by_ids.return_value = variant
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+    @patch("api.routes.pipelines.tempfile.mkstemp", side_effect=_recording_mkstemp)
+    @patch("api.routes.pipelines.write_app_archive")
+    @patch("api.routes.pipelines.build_app_pipelines")
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_export_app_returns_zip_and_removes_temp_file(
+        self, mock_pipeline_manager_cls, mock_build, mock_write, mock_mkstemp
+    ):
+        self._mock_export_manager(mock_pipeline_manager_cls)
+        mock_write.side_effect = lambda dest, source, app: dest.write(b"PK-zip")
+
+        response = self.client.post(
+            "/pipelines/defect-detection/variants/cpu/export-app"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "application/zip")
+        self.assertIn(
+            'filename="defect-detection-cpu-app.zip"',
+            response.headers["content-disposition"],
+        )
+        self.assertEqual(response.content, b"PK-zip")
+        source = mock_write.call_args.args[1]
+        self.assertEqual(
+            (source.pipeline_id, source.variant_name), ("defect-detection", "CPU")
+        )
+        mock_mkstemp.assert_called_once()
+        self.assertFalse(os.path.exists(_created_archives[-1]))
+
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_export_app_variant_not_found(self, mock_pipeline_manager_cls):
+        mock_manager = MagicMock()
+        mock_manager.get_variant_by_ids.side_effect = ValueError(
+            "Variant 'gpu' not found in pipeline 'defect-detection'."
+        )
+        mock_pipeline_manager_cls.return_value = mock_manager
+
+        response = self.client.post(
+            "/pipelines/defect-detection/variants/gpu/export-app"
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["message"])
+
+    @patch("api.routes.pipelines.tempfile.mkstemp", side_effect=_recording_mkstemp)
+    @patch("api.routes.pipelines.write_app_archive")
+    @patch("api.routes.pipelines.build_app_pipelines")
+    @patch("api.routes.pipelines.PipelineManager")
+    def test_export_app_errors(
+        self, mock_pipeline_manager_cls, mock_build, mock_write, mock_mkstemp
+    ):
+        self._mock_export_manager(mock_pipeline_manager_cls)
+        cases = {
+            "unsupported variant": (
+                mock_build,
+                ValueError("Export as app currently supports Pallet Defect Detection"),
+                400,
+            ),
+            "missing file": (
+                mock_write,
+                ValueError("File /videos/a.avi is missing."),
+                400,
+            ),
+            "unexpected": (mock_write, OSError("disk full"), 500),
+        }
+        for label, (mock, error, status) in cases.items():
+            with self.subTest(label):
+                mock_build.side_effect = None
+                mock_write.side_effect = None
+                _created_archives.clear()
+                mock.side_effect = error
+
+                response = self.client.post(
+                    "/pipelines/defect-detection/variants/cpu/export-app"
+                )
+
+                self.assertEqual(response.status_code, status)
+                self.assertIn(str(error), response.json()["message"])
+                for path in _created_archives:
+                    self.assertFalse(os.path.exists(path))
+                self.assertEqual(len(_created_archives), int(mock is mock_write))
 
 
 if __name__ == "__main__":

@@ -39,11 +39,11 @@ counts must not be added to the outer count as independent top-level results.
 
 | Scope | Command | Current cases |
 |---|---|---|
-| Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 27; see [runtime behavior coverage](README.md#installer-runtime-regression) |
+| Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 38; see [runtime behavior coverage](README.md#installer-runtime-regression) |
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 43 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 63 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -219,9 +219,9 @@ are fixture-driven, not live OVMS or GPU tests.
 | `backend_response network` | Backend-network mismatch | Reject incompatible IR/OVMS networking. |
 | `backend_response unready` | Model not ready | Reject an unready managed model. |
 | `router_proxy` | Proxy bypass lists | Preserve both bypass lists and add the managed backend hostname. |
-| `cached_snapshot` | Cached snapshot registration | Register Qwen idempotently and write the managed IR route. |
-| `snapshot_download cpu` | CPU graph-generation path | Invoke native OVMS graph generation before registration. |
-| `snapshot_download gpu` | GPU graph-generation path | Invoke the GPU graph-generation path before registration. |
+| `cached_snapshot` | Cached snapshot registration | Repair missing tokenizer EOS while preserving existing stop IDs and unrelated configuration; remain idempotent and write the managed IR route. |
+| `snapshot_download cpu` | CPU graph-generation path | Invoke native OVMS graph generation and repair tokenizer EOS before registration. |
+| `snapshot_download gpu` | GPU graph-generation path | Invoke the GPU graph-generation path and repair tokenizer EOS before registration. |
 | `snapshot_download failure` | Graph generation fails | Retain downloaded weights and report failure. |
 | `snapshot_download no-graph` | Success without graph output | Reject incomplete graph generation despite a successful command exit. |
 | `cli_install` | Full installation CLI | Provision inference before the sandbox and reuse it on rerun. |
@@ -282,9 +282,9 @@ real sandbox operations.
 ## Telemetry (`observability`)
 
 Source and execution: [metrics-test.sh](metrics-test.sh), `bash test/metrics-test.sh`.
-Docker and the Hermes CLI are replaced by shell functions and every case uses a
+Docker and the Hermes and OpenClaw CLIs are replaced by shell functions or stub executables and every case uses a
 temporary HOME, so nothing touches the host. These cases do not prove that a
-real Router container can write its telemetry file, that the Hermes plugin
+real Router container can write its telemetry file, that an agent
 exports spans, or that Jaeger displays them; those need a live deployment.
 
 [metrics-cli-test.sh](metrics-cli-test.sh) (`bash test/metrics-cli-test.sh`, 9
@@ -308,6 +308,12 @@ codes and resulting state, not real containers.
 | `harness_managed_jaeger` | Managed Jaeger | Start, reuse and remove the loopback-only container when no `--endpoint` is given. |
 | `harness_refuses_foreign_config` | Unmanaged `hermes_otel.yaml` | Refuse to overwrite a file this installer did not write. |
 | `jaeger_port_mismatch_is_rejected` | Existing Jaeger with other ports | Fail instead of reusing a container that is not published on exactly the two configured loopback ports (wildcard, IPv6-any, wrong or extra ports). |
+| `openclaw_enable_disable` | OpenClaw lifecycle (stub CLI) | Install the plugin once, merge the `diagnostics` config pointing at the receiver with content capture on, start the receiver; disable turns the exporter and plugin off and stops the receiver; a later enable re-enables the installed plugin without a second install. |
+| `openclaw_jaeger_and_foreign_exporter` | OpenClaw with Jaeger and a foreign exporter | Point the exporter at the Jaeger OTLP base URL and stop the receiver; refuse to overwrite a `diagnostics.otel` exporter this installer did not set up; reject `--content preview` with Jaeger. |
+| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the OpenClaw spans it needs, honour the content modes, answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, and answer 400 for a negative `Content-Length` or an oversized chunk. |
+| `openclaw_disable_needs_installer_ownership` | OpenClaw disable without a recorded enable | Leave the user's own exporter and plugin alone. |
+| `only_one_harness_exporter_is_recorded` | Two agents, one exporter | Refuse to enable another agent while one owns the exporter; `show` and `disable` follow the recorded owner. |
+| `openclaw_failed_enable_can_be_disabled` | OpenClaw enable that fails midway | Record the enable first so `disable` turns the exporter off and stops the receiver. |
 | `foreign_jaeger_is_never_reused_or_removed` | Jaeger ownership | Refuse to reuse, and leave in place on removal, a same-named container without the installer's label. |
 | `docker_query_failure_is_not_absence` | Docker query failure | Fail instead of treating a failed container query as an absent container. |
 | `rejected_endpoint_is_not_echoed` | Endpoint errors | Never print the rejected endpoint, which may carry credentials. |
@@ -318,7 +324,7 @@ codes and resulting state, not real containers.
 | `all_target_rolls_the_router_back_when_the_harness_fails` | Combined-target failure handling | Validate harness options before the Router changes, and revert a Router change made by the command when the harness fails. |
 | `all_target_disable_reaches_the_router_after_a_harness_failure` | Combined-target disable | Still disable the Router when the harness cannot be disabled, and exit non-zero with the harness left enabled for a retry. |
 | `plugin_source_is_validated` | Plugin reference | Accept a catalog name or `owner/repo[/plugin]`; reject anything else. |
-| `plugin_ref_pins_the_install` | Exact-commit pin | Accept only a full lowercase 40-character SHA and pass it to the plugin install as `--ref`. |
+| `plugin_ref_pins_the_install` | Exact-commit pin | Accept only a full lowercase 40-character SHA and pass it to the plugin install as `--ref`; an empty ref installs the catalog's own pin. |
 | `router_file_is_not_world_writable` | Telemetry file mode | Use group-writable 664 (666 only when requested), refuse 664 when the primary group is root, and reject other modes. |
 | `router_enable_rejects_a_container_without_the_group` | Router created by an older installer | Fail before changing state when the container lacks the group needed to write the file. |
 | `all_target_fails_before_touching_the_harness` | Combined-target ordering | Check the Router first so a failure leaves the harness unchanged. |
@@ -330,6 +336,7 @@ codes and resulting state, not real containers.
 | `unsupported_harness_is_reported` | Non-Hermes agent or OpenShell | Skip the harness with a reason while still applying the Router. |
 | `dispatch` | Deployment locking | Skip the lock for `show`; take it for `enable` and `disable`, in any runtime. |
 | `show_surfaces_a_failed_plugin_load` | Plugin dependency import failure | Warn, with the `hermes gateway restart` remedy, when Hermes's error log shows the plugin's last load failed and no later load succeeded; stay quiet otherwise or while disabled. |
+| `show_does_not_summarise_a_stale_store_under_jaeger` | Local store under the Jaeger backend | Summarise the store under sqlite; under Jaeger say spans go to the endpoint and skip the store's counts, which would be left over from an earlier backend. |
 | `enable_keeps_saved_harness_settings` | Re-running `enable` | Keep saved backend, endpoint and content unless named again. |
 | `foreign_config_fails_before_side_effects` | Foreign config ordering | Fail before starting Jaeger or touching the plugin. |
 | `managed_config_removal_is_marker_gated` | Config removal | Remove only a file that carries the installer's marker. |

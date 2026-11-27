@@ -149,6 +149,28 @@ def parse_cpulist(text: str) -> set[int]:
     return cpus
 
 
+def normalize_cpu_ids(cpus: object, field_name: str) -> list[int]:
+    """
+    Validate logical CPU ids and return them de-duplicated and sorted.
+
+    Args:
+        cpus (object): Value to validate. Booleans, strings and floats are
+            rejected instead of being coerced to ints.
+        field_name (str): Name used in the error message.
+
+    Returns:
+        list[int]: Sorted, unique, non-negative logical CPU ids.
+
+    Raises:
+        ValueError: If cpus is not a list of non-negative ints.
+    """
+    if not isinstance(cpus, list) or any(
+        type(cpu) is not int or cpu < 0 for cpu in cpus
+    ):
+        raise ValueError(f"{field_name} must be a list of non-negative CPU ids.")
+    return sorted(set(cpus))
+
+
 def format_cpulist(cpus: Iterable[int]) -> str:
     """
     Format logical CPU ids as a compact kernel cpulist string.
