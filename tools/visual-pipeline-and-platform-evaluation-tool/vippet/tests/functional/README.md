@@ -24,6 +24,16 @@ least one predefined pipeline) to be installed.
 Full tests require **all** models defined under `vippet/models/*.yaml`
 (one YAML file per model) to be installed.
 
+### Input videos
+
+ViPPET downloads its sample videos on demand (UI **Videos** page), so a fresh ViPPET may
+have none. Tests that run a pipeline skip each pipeline variant whose input video is
+missing, with the reason: download the sample video on the **Videos** page, upload a
+video that is not a sample, or select an input video in the pipeline's Input node. The
+functional tests never download videos themselves. The performance CLI can download
+them, see `--download-missing-videos` in
+[the performance suite README](../performance/README.md#downloading-missing-videos).
+
 ## Test behavior
 
 ### Device-based pipeline variants

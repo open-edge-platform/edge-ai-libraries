@@ -55,8 +55,11 @@ InstallMode = Literal["ask", "yes", "no"]
 MODEL_INSTALL_MODES: tuple[InstallMode, ...] = get_args(InstallMode)
 
 # Settings that a result artefact records but never replays: a replayed run
-# must not install models just because the recorded run was allowed to.
-NOT_REPLAYED_KEYS: frozenset[str] = frozenset({"benchmark.models.install"})
+# must not install models or download videos just because the recorded run
+# was allowed to.
+NOT_REPLAYED_KEYS: frozenset[str] = frozenset(
+    {"benchmark.models.install", "benchmark.videos.download"}
+)
 
 SOURCE_DEFAULT = "default"
 SOURCE_YAML = "yaml"
@@ -427,6 +430,30 @@ SPECS: tuple[SettingSpec, ...] = (
         "Longest wait for all model installs together, in whole seconds; "
         "models still installing then count as failed.",
         env="PERF_MODEL_INSTALL_TIMEOUT",
+        minimum=1,
+        metavar="SECONDS",
+    ),
+    SettingSpec(
+        "benchmark.videos.download",
+        "--download-missing-videos",
+        "choice",
+        "ask",
+        "Before the benchmark, download the sample input videos the selected "
+        "runs need: 'ask' prompts when stdin is a terminal (otherwise behaves "
+        "like 'no'), 'yes' downloads without asking, 'no' never downloads. "
+        "Only the CLI downloads; a direct pytest run never does.",
+        env="PERF_DOWNLOAD_MISSING_VIDEOS",
+        choices=MODEL_INSTALL_MODES,
+    ),
+    SettingSpec(
+        "benchmark.videos.download_timeout_seconds",
+        "--video-download-timeout",
+        "int",
+        1800,
+        "Longest wait for all video downloads and their HEVC conversions "
+        "together, in whole seconds; videos still downloading then count as "
+        "failed.",
+        env="PERF_VIDEO_DOWNLOAD_TIMEOUT",
         minimum=1,
         metavar="SECONDS",
     ),

@@ -7,9 +7,10 @@ Used by the CLI (``python -m perf_helpers.cli``) before it starts pytest:
 
 1. :func:`build_plan` picks the models that are not installed and are used
    by a pipeline in the benchmark matrix.
-2. :func:`offer_and_install` prints the plan, asks (``ask``) or not
-   (``yes``), and runs :class:`ModelInstaller`, which starts the downloads
-   through ``POST /models/download`` and waits for their jobs.
+2. The CLI prints the plan (:func:`present_plan`), asks (``ask``) or not
+   (``yes``) through :func:`agree_to_install`, and runs
+   :class:`ModelInstaller`, which starts the downloads through
+   ``POST /models/download`` and waits for their jobs.
 3. The per-model outcome is handed to the pytest subprocess as JSON in
    :data:`ENV_MODEL_INSTALL` (see :func:`encode_outcomes` /
    :func:`decode_outcomes`). pytest turns runs whose model failed to install
@@ -21,32 +22,37 @@ is untrusted (it could carry terminal escape sequences).
 
 All HTTP goes through an injected ``httpx.Client``, and time, sleep, input
 and output are injectable, so this module is unit-testable without a stack.
+The parts shared with :mod:`perf_helpers.video_download` live in
+:mod:`perf_helpers.asset_download`.
 """
 
 import json
 import re
-import time
-import unicodedata
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, ClassVar
 
 import httpx
 
+from . import asset_download
+from .asset_download import (
+    AssetProblem,
+    AssetWaiter,
+    WaitState,
+    clean_link,
+    clean_text,
+    decode_outcome_env,
+    format_duration,
+    response_message,
+)
 from .matrix import Matrix, format_table
 from .settings import InstallMode
 
 # Set by the CLI for its pytest subprocess: JSON list of model outcomes.
 ENV_MODEL_INSTALL: str = "PERF_MODEL_INSTALL_OUTCOME"
-_MAX_OUTCOME_CHARS = 256 * 1024
-_MAX_OUTCOME_MODELS = 1000
+_OUTCOME_KEYS = ("name", "display_name", "outcome", "reason")
 
-# pytest marker that turns a run into an ERROR (set at collection, raised by
-# an autouse fixture during setup).
-MODEL_INSTALL_ERROR_MARK: str = "perf_model_install_error"
-
-SUMMARY_INTERVAL_SECONDS: float = 60.0
 
 _INSTALLED = "installed"
 _INSTALLING = "installing"
@@ -67,10 +73,6 @@ NOTHING_TO_INSTALL: str = (
 )
 
 
-class ModelInstallError(ValueError):
-    """Raised when the outcome handed over by the CLI is not valid."""
-
-
 class Outcome(StrEnum):
     INSTALLED = "installed"
     FAILED = "failed"
@@ -81,68 +83,6 @@ class Outcome(StrEnum):
 
 # Runs needing a model with one of these outcomes are reported as ERROR.
 ERROR_OUTCOMES: frozenset[Outcome] = frozenset({Outcome.FAILED, Outcome.TIMED_OUT})
-
-
-# --------------------------------------------------------------------------- #
-# Untrusted text
-# --------------------------------------------------------------------------- #
-
-_ESCAPE_SEQUENCE_RE = re.compile(
-    r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI, e.g. colours and cursor movement
-    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?"  # OSC, e.g. window title, hyperlinks
-    r"|\x1b[@-_]"  # other two-character escapes
-)
-
-
-def clean_text(value: Any, max_length: int = 300) -> str:
-    """Return *value* as one line of printable text.
-
-    Args:
-        value: Untrusted value, usually text from the server; ``None`` gives
-            an empty string.
-        max_length: Longest result; longer text is cut and ends in ``...``.
-
-    Returns:
-        The text without terminal escape sequences and control/format
-        characters, with whitespace folded to single spaces.
-    """
-    if value is None:
-        return ""
-    text = _ESCAPE_SEQUENCE_RE.sub("", str(value))
-    chars = []
-    for char in text:
-        if char in "\t\n\r":
-            chars.append(" ")
-        elif not unicodedata.category(char).startswith("C"):
-            chars.append(char)
-    text = " ".join("".join(chars).split())
-    if len(text) > max_length:
-        text = text[: max_length - 3] + "..."
-    return text
-
-
-def _clean_link(value: Any) -> str:
-    link = clean_text(value, max_length=500)
-    return link if link.startswith(("https://", "http://")) else ""
-
-
-def format_duration(seconds: float) -> str:
-    """Format *seconds* compactly, e.g. ``5s``, ``1m05s`` or ``1h02m05s``.
-
-    Args:
-        seconds: Duration; fractions are dropped and negatives count as 0.
-
-    Returns:
-        The formatted duration.
-    """
-    seconds = max(0, int(seconds))
-    if seconds < 60:
-        return f"{seconds}s"
-    minutes, seconds = divmod(seconds, 60)
-    if minutes < 60:
-        return f"{minutes}m{seconds:02d}s"
-    hours, minutes = divmod(minutes, 60)
-    return f"{hours}h{minutes:02d}m{seconds:02d}s"
 
 
 # --------------------------------------------------------------------------- #
@@ -237,7 +177,7 @@ def build_plan(models: Iterable[Mapping[str, Any]], matrix: Matrix) -> InstallPl
                 display_name=clean_text(model.get("display_name")) or clean_text(name),
                 source=clean_text(model.get("source"), max_length=40),
                 gated=_gated_value(model.get("gated")),
-                link=_clean_link(model.get("link")),
+                link=clean_link(model.get("link")),
                 pipelines=pipelines,
                 runs=sum(runs_per_pipeline[p] for p in pipelines),
                 already_installing=status == _INSTALLING,
@@ -326,27 +266,6 @@ def prompt_text(plan: InstallPlan) -> str:
     return f"Wait for {waiting} model(s) that are already installing? [y/N] "
 
 
-InstallAction = Literal["prompt", "install", "skip"]
-
-
-def install_action(mode: InstallMode, stdin_is_tty: bool) -> InstallAction:
-    """Decide what a benchmark run does with the models it is missing.
-
-    Args:
-        mode: The ``benchmark.models.install`` setting.
-        stdin_is_tty: Whether stdin is a terminal the user can answer from.
-
-    Returns:
-        ``prompt`` (``ask`` on a terminal), ``install`` (``yes``) or ``skip``
-        (``no``, or ``ask`` without a terminal, which must never block).
-    """
-    if mode == "yes":
-        return "install"
-    if mode == "ask" and stdin_is_tty:
-        return "prompt"
-    return "skip"
-
-
 def describe_mode_effect(mode: InstallMode, stdin_is_tty: bool) -> str:
     """Describe what a benchmark run would do with the plan (for ``--dry-run``).
 
@@ -357,26 +276,12 @@ def describe_mode_effect(mode: InstallMode, stdin_is_tty: bool) -> str:
     Returns:
         One sentence naming the setting and its effect on this terminal.
     """
-    action = install_action(mode, stdin_is_tty)
-    if action == "install":
-        return (
-            "With --install-missing-models=yes a run installs these models "
-            "without asking."
-        )
-    if action == "prompt":
-        return (
-            "With --install-missing-models=ask (default) a run asks before "
-            "installing these models."
-        )
-    if mode == "no":
-        return (
-            "With --install-missing-models=no a run does not install them; "
-            "the runs that need them are skipped."
-        )
-    return (
-        "With --install-missing-models=ask (default) a run does not install "
-        "them here, because stdin is not a terminal; pass "
-        "--install-missing-models=yes to install them without asking."
+    return asset_download.describe_mode_effect(
+        mode,
+        stdin_is_tty,
+        flag="--install-missing-models",
+        verb="install",
+        noun="models",
     )
 
 
@@ -441,56 +346,30 @@ def decode_outcomes(raw: str | None) -> list[ModelOutcome] | None:
         The outcomes, or ``None`` when the value is unset or empty.
 
     Raises:
-        ModelInstallError: The value is not a valid outcome list.
+        OutcomeEnvError: The value is not a valid outcome list.
     """
-    if not raw:
-        return None
-    problem = ModelInstallError(
-        f"env {ENV_MODEL_INSTALL} is not a valid model install outcome. To fix: "
-        "unset it; perf_helpers.cli sets it for its own pytest run."
+    items = decode_outcome_env(
+        raw,
+        env_name=ENV_MODEL_INSTALL,
+        keys=_OUTCOME_KEYS,
+        outcomes={o.value for o in Outcome},
     )
-    if len(raw) > _MAX_OUTCOME_CHARS:
-        raise problem
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise problem from exc
-    if not isinstance(data, list) or len(data) > _MAX_OUTCOME_MODELS:
-        raise problem
-    outcomes: list[ModelOutcome] = []
-    valid = {o.value for o in Outcome}
-    for item in data:
-        if not (
-            isinstance(item, dict)
-            and set(item) == {"name", "display_name", "outcome", "reason"}
-            and all(isinstance(v, str) for v in item.values())
-            and item["outcome"] in valid
-            and item["name"]
-        ):
-            raise problem
-        outcomes.append(
-            ModelOutcome(
-                name=clean_text(item["name"]),
-                display_name=clean_text(item["display_name"]),
-                outcome=Outcome(item["outcome"]),
-                reason=clean_text(item["reason"], max_length=500),
-            )
+    if items is None:
+        return None
+    return [
+        ModelOutcome(
+            name=clean_text(item["name"]),
+            display_name=clean_text(item["display_name"]),
+            outcome=Outcome(item["outcome"]),
+            reason=clean_text(item["reason"], max_length=500),
         )
-    return outcomes
-
-
-@dataclass(frozen=True)
-class InstallProblem:
-    """What happens to a run because of a model install outcome."""
-
-    kind: Literal["error", "skip"]
-    """``error``: report the run as ERROR; ``skip``: skip it."""
-    reason: str
+        for item in items
+    ]
 
 
 def install_problem(
     missing_display_names: Iterable[str], outcomes: Iterable[ModelOutcome]
-) -> InstallProblem | None:
+) -> AssetProblem | None:
     """Decide what happens to a run whose models are missing.
 
     Missing names come raw from ``GET /models``; the outcome names were
@@ -511,7 +390,7 @@ def install_problem(
     relevant = [by_display[name] for name in cleaned if name in by_display]
     failed = [o for o in relevant if o.outcome in ERROR_OUTCOMES]
     if failed:
-        return InstallProblem(
+        return AssetProblem(
             "error",
             "; ".join(
                 f"model {o.display_name!r} failed to install: {o.reason}"
@@ -521,7 +400,7 @@ def install_problem(
     interrupted = [o for o in relevant if o.outcome == Outcome.INTERRUPTED]
     if interrupted:
         names = ", ".join(repr(o.display_name) for o in interrupted)
-        return InstallProblem(
+        return AssetProblem(
             "skip",
             f"model(s) {names} were still installing when waiting was "
             "interrupted (Ctrl-C); the download continues on the server. "
@@ -606,18 +485,6 @@ def fetch_models(
     return [m for m in payload if isinstance(m, dict)]
 
 
-def _response_message(response: httpx.Response) -> str:
-    try:
-        body = response.json()
-    except ValueError:
-        return clean_text(response.text) or "no message"
-    if isinstance(body, dict):
-        for key in ("message", "detail"):
-            if body.get(key):
-                return clean_text(body[key])
-    return clean_text(body) or "no message"
-
-
 @dataclass
 class _Job:
     model: PlannedModel
@@ -627,10 +494,9 @@ class _Job:
 
 
 @dataclass
-class _InstallState:
+class _InstallState(WaitState):
     """Progress of one :meth:`ModelInstaller.install` call."""
 
-    start: float
     jobs: dict[str, _Job] = field(default_factory=dict)
     """Models still being waited for, by model name."""
     outcomes: dict[str, ModelOutcome] = field(default_factory=dict)
@@ -648,7 +514,7 @@ class _InstallState:
 
 
 @dataclass
-class ModelInstaller:
+class ModelInstaller(AssetWaiter):
     """Start the downloads of a plan and wait for them.
 
     ``install`` never raises for server or network problems: they become
@@ -656,34 +522,7 @@ class ModelInstaller:
     result then get the outcome ``interrupted``.
     """
 
-    client: httpx.Client
-    base_url: str
-    poll_interval: float
-    timeout_seconds: float
-    request_timeout: float
-    report: Callable[[str], None] = print
-    monotonic: Callable[[], float] = time.monotonic
-    sleep: Callable[[float], None] = time.sleep
-    summary_interval: float = SUMMARY_INTERVAL_SECONDS
-
-    @property
-    def _api(self) -> str:
-        return self.base_url.rstrip("/")
-
-    def _elapsed(self, state: _InstallState) -> str:
-        return format_duration(self.monotonic() - state.start)
-
-    def _remaining(self, state: _InstallState) -> float:
-        return state.start + self.timeout_seconds - self.monotonic()
-
-    def _request_timeout(self, state: _InstallState) -> float:
-        """HTTP timeout of one request, capped by the remaining install budget.
-
-        The download request runs first, with the whole budget; every later
-        request is only sent while budget is left. The floor only keeps httpx
-        from getting a zero or negative timeout.
-        """
-        return max(0.001, min(self.request_timeout, self._remaining(state)))
+    log_prefix: ClassVar[str] = _LOG_PREFIX
 
     def _time_out(
         self, state: _InstallState, jobs: Iterable[_Job], reason: str
@@ -691,9 +530,6 @@ class ModelInstaller:
         for job in list(jobs):
             state.resolve(job.model, Outcome.TIMED_OUT, reason)
             self._say(f"{job.model.display_name}: TIMED OUT: {reason}")
-
-    def _say(self, text: str) -> None:
-        self.report(f"{_LOG_PREFIX} {text}")
 
     def install(self, plan: InstallPlan) -> list[ModelOutcome]:
         """Install the models of *plan* and wait until each has an outcome.
@@ -760,7 +596,7 @@ class ModelInstaller:
         if not isinstance(items, dict):
             reason = (
                 f"ViPPET rejected the download request (HTTP "
-                f"{response.status_code}): {_response_message(response)}"
+                f"{response.status_code}): {response_message(response)}"
             )
             for model in to_download:
                 self._fail(state, model, reason)
@@ -896,30 +732,24 @@ class ModelInstaller:
         }
 
     def _wait(self, state: _InstallState) -> None:
-        if not state.jobs:
-            return
-        last_summary = self.monotonic()
-        while state.jobs:
+        def poll() -> None:
             for job in list(state.jobs.values()):
                 if self._remaining(state) <= 0:
                     break
                 self._poll(state, job)
-            if not state.jobs:
-                return
-            remaining = self._remaining(state)
-            if remaining <= 0:
-                self._time_out(
-                    state,
-                    state.jobs.values(),
-                    f"still installing after {format_duration(self.timeout_seconds)} "
-                    "(--model-install-timeout); the download continues on the server",
-                )
-                return
-            now = self.monotonic()
-            if now - last_summary >= self.summary_interval:
-                last_summary = now
-                self._say(self._summary(state))
-            self.sleep(min(self.poll_interval, remaining))
+
+        self._wait_until_done(
+            state,
+            pending=lambda: bool(state.jobs),
+            poll=poll,
+            time_out=lambda: self._time_out(
+                state,
+                state.jobs.values(),
+                f"still installing after {format_duration(self.timeout_seconds)} "
+                "(--model-install-timeout); the download continues on the server",
+            ),
+            summary=lambda: self._summary(state),
+        )
 
     def _summary(self, state: _InstallState) -> str:
         installed = state.count(Outcome.INSTALLED)
@@ -1003,58 +833,36 @@ class ModelInstaller:
 # --------------------------------------------------------------------------- #
 
 
-def confirm(text: str, input_fn: Callable[[str], str] = input) -> bool:
-    """Ask a yes/no question.
-
-    Args:
-        text: The question.
-        input_fn: Reads the answer.
-
-    Returns:
-        ``True`` for y/yes (any case); anything else, and EOF, means no.
-    """
-    try:
-        answer = input_fn(text)
-    except EOFError:
-        return False
-    return answer.strip().lower() in {"y", "yes"}
+def present_plan(plan: InstallPlan, report: Callable[[str], None] = print) -> None:
+    """Print the plan under the section header, or one line when it is empty."""
+    asset_download.present_plan(
+        format_plan(plan) if plan.models else None,
+        header=SECTION_HEADER,
+        nothing_missing=NOTHING_TO_INSTALL,
+        report=report,
+    )
 
 
-def offer_and_install(
+def agree_to_install(
     plan: InstallPlan,
     *,
     ask: bool,
-    install: Callable[[InstallPlan], list[ModelOutcome]],
     input_fn: Callable[[str], str] = input,
     report: Callable[[str], None] = print,
-) -> list[ModelOutcome]:
-    """Print the plan, ask if needed, install, and return the outcomes.
-
-    Args:
-        plan: The install plan.
-        ask: Prompt before installing; otherwise install without asking.
-        install: Installs the plan (usually :meth:`ModelInstaller.install`).
-        input_fn: Reads the answer to the prompt.
-        report: Prints one line of output.
+) -> bool:
+    """Ask whether to install a non-empty *plan* (or say it installs unasked).
 
     Returns:
-        One outcome per planned model; empty when nothing is missing (one
-        line is printed then, with no section header).
+        ``True`` to install; ``False`` when the user declined.
     """
-    if not plan.models:
-        report(NOTHING_TO_INSTALL)
-        return []
-    report(SECTION_HEADER)
-    report(format_plan(plan))
-    if ask:
-        if not confirm(prompt_text(plan), input_fn):
-            report(
-                "Not installing. The runs that need these models are skipped. "
-                f"{INSTALL_HINT}."
-            )
-            return declined(plan)
-    else:
-        report("Installing without asking (--install-missing-models=yes).")
-    outcomes = install(plan)
-    report(format_outcomes(outcomes))
-    return outcomes
+    return asset_download.agree(
+        ask=ask,
+        question=prompt_text(plan),
+        unasked="Installing without asking (--install-missing-models=yes).",
+        declined=(
+            "Not installing. The runs that need these models are skipped. "
+            f"{INSTALL_HINT}."
+        ),
+        input_fn=input_fn,
+        report=report,
+    )

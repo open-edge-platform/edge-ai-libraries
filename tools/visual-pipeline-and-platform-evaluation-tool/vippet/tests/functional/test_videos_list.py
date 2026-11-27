@@ -6,7 +6,11 @@ from typing import Any
 import pytest
 import requests
 
-from helpers.api_helpers import fetch_videos
+from helpers.api_helpers import (
+    DEFAULT_RECORDING_STATES,
+    fetch_default_video_recordings,
+    fetch_videos,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,7 @@ REQUIRED_VIDEO_KEYS: set[str] = {
 def test_videos_endpoint_returns_valid_structure(http_client: requests.Session) -> None:
     videos = fetch_videos(http_client)
 
-    assert videos, "Videos endpoint returned an empty list"
+    # Sample videos are downloaded on demand, so a fresh ViPPET may list none.
     for raw in videos:
         assert isinstance(raw, dict), "Each video entry must be an object"
         assert REQUIRED_VIDEO_KEYS.issubset(raw.keys()), (
@@ -34,16 +38,33 @@ def test_videos_endpoint_returns_valid_structure(http_client: requests.Session) 
 
 
 @pytest.mark.smoke
-def test_all_default_recordings_are_available(
+def test_default_recordings_match_manifest(
     http_client: requests.Session,
     default_recordings_config: list[dict[str, Any]],
 ) -> None:
-    """All recordings listed in default_recordings.yaml must be returned by the API."""
-    videos = fetch_videos(http_client)
-    available_filenames = {video["filename"] for video in videos}
+    """``GET /videos/default-recordings`` offers exactly the manifest videos.
 
-    for recording in default_recordings_config:
-        expected_filename = recording["filename"]
-        assert expected_filename in available_filenames, (
-            f"Default recording '{expected_filename}' is not present in the API response"
+    Sample videos are downloaded on demand, so they need not be in
+    ``GET /videos``; the sample list must name each manifest video once,
+    with a valid download status and a source.
+    """
+    recordings = fetch_default_video_recordings(http_client)
+    assert recordings is not None, "GET /videos/default-recordings returned 404"
+
+    listed = [r.get("filename") for r in recordings]
+    expected = [r["filename"] for r in default_recordings_config]
+    assert sorted(listed, key=str) == sorted(expected), (
+        "GET /videos/default-recordings does not list exactly the videos of "
+        f"default_recordings.yaml: missing {sorted(set(expected) - set(listed))}, "
+        f"unexpected {sorted(set(listed) - set(expected), key=str)}"
+    )
+    for recording in recordings:
+        name = recording["filename"]
+        assert recording.get("status") in DEFAULT_RECORDING_STATES, (
+            f"Default recording '{name}' has an unknown status "
+            f"{recording.get('status')!r}"
+        )
+        source = recording.get("source")
+        assert isinstance(source, str) and source, (
+            f"Default recording '{name}' has no source"
         )

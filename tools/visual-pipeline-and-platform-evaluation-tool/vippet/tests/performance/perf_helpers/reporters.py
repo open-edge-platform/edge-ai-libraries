@@ -338,25 +338,33 @@ def _validate_result(data: Any, path: Path) -> None:
         _check_config(data["config"], prefix)
 
     if data.get("model_install") is not None:
-        _check_model_install(data["model_install"], prefix)
+        _check_outcomes(
+            data["model_install"], "model_install", _MODEL_INSTALL_KEYS, prefix
+        )
+    if data.get("video_download") is not None:
+        _check_outcomes(
+            data["video_download"], "video_download", _VIDEO_DOWNLOAD_KEYS, prefix
+        )
 
 
 _MODEL_INSTALL_KEYS = ("name", "display_name", "outcome", "reason")
+_VIDEO_DOWNLOAD_KEYS = ("filename", "outcome", "reason", "conversion_status")
 
 
-def _check_model_install(entries: Any, prefix: str) -> None:
-    """The optional ``model_install`` block: ``null`` or a list of outcomes."""
+def _check_outcomes(
+    entries: Any, block: str, keys: tuple[str, ...], prefix: str
+) -> None:
+    """An optional outcome block (``model_install``, ``video_download``):
+    ``null`` or a list of objects with string *keys*."""
     if not (
         isinstance(entries, list)
         and all(
-            isinstance(e, dict)
-            and all(isinstance(e.get(k), str) for k in _MODEL_INSTALL_KEYS)
+            isinstance(e, dict) and all(isinstance(e.get(k), str) for k in keys)
             for e in entries
         )
     ):
         raise ReportInputError(
-            f"{prefix}model_install must be a list of objects with string "
-            f"{', '.join(_MODEL_INSTALL_KEYS)}"
+            f"{prefix}{block} must be a list of objects with string {', '.join(keys)}"
         )
 
 
@@ -923,6 +931,42 @@ _MODEL_INSTALL_NAV = (
 )
 
 
+def _build_video_download_section(runs: list[dict[str, Any]]) -> str:
+    """Videos the CLI tried to download before each run; empty if none did."""
+    multi_run = len(runs) > 1
+    runs = [run for run in runs if run.get("video_download")]
+    if not runs:
+        return ""
+    headers = (("Run",) if multi_run else ()) + (
+        "Video",
+        "Outcome",
+        "HEVC conversion",
+        "Reason",
+    )
+    rows = [
+        ((run["benchmark_id"],) if multi_run else ())
+        + (
+            e["filename"],
+            e["outcome"],
+            e["conversion_status"] or "—",
+            e["reason"] or "—",
+        )
+        for run in runs
+        for e in run["video_download"]
+    ]
+    return f"""
+    <div class="section cfg" id="video-download">
+      <div class="section-header"><h2>Video download</h2></div>
+      {_html_table(headers, rows)}
+    </div>"""
+
+
+_VIDEO_DOWNLOAD_NAV = (
+    '<div class="sidebar-section" style="margin-top:12px">Videos</div>'
+    '<a href="#video-download">Video download</a>'
+)
+
+
 def _status_badge(status: str) -> str:
     if status == "success":
         return '<span class="badge pass">Pass</span>'
@@ -1167,6 +1211,7 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
         else ""
     )
     model_install_section = _build_model_install_section(runs)
+    video_download_section = _build_video_download_section(runs)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1270,6 +1315,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
     <div class="sidebar-section" style="margin-top:12px">Pipelines</div>
     {"".join(f'<a href="#{_slugify(p)}">{_esc(p)}</a>' for p in pipelines)}
     {_MODEL_INSTALL_NAV if model_install_section else ""}
+    {_VIDEO_DOWNLOAD_NAV if video_download_section else ""}
     {_CONFIG_NAV if any("config" in run for run in runs) else ""}
   </nav>
   <main class="main">
@@ -1290,6 +1336,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
     </div>
     {"".join(pipeline_sections_html)}
     {model_install_section}
+    {video_download_section}
     {_build_config_section(runs)}
   </main>
 </div>

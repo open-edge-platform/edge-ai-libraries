@@ -350,5 +350,68 @@ class TestModelInstallAndErrors(unittest.TestCase):
                     load_result(path)
 
 
+class TestVideoDownloadSection(unittest.TestCase):
+    def _result(self, **extra: Any) -> dict[str, Any]:
+        result = copy.deepcopy(_BASE_RESULT)
+        result.update(extra)
+        return result
+
+    def test_section_is_escaped(self) -> None:
+        html = generate_html_report(
+            [
+                self._result(
+                    video_download=[
+                        {
+                            "filename": "<b>cars</b>.mp4",
+                            "outcome": "failed",
+                            "reason": "<script>alert(1)</script>",
+                            "conversion_status": "",
+                        },
+                        {
+                            "filename": "people.mp4",
+                            "outcome": "downloaded",
+                            "reason": "",
+                            "conversion_status": "failed",
+                        },
+                    ]
+                )
+            ]
+        )
+        self.assertIn('id="video-download"', html)
+        self.assertIn('href="#video-download"', html)
+        self.assertIn("HEVC conversion", html)
+        self.assertIn("&lt;b&gt;cars&lt;/b&gt;.mp4", html)
+        self.assertNotIn("<script>alert(1)</script>", html)
+
+    def test_no_section_without_download_outcome(self) -> None:
+        for value in (None, []):
+            with self.subTest(value=value):
+                html = generate_html_report([self._result(video_download=value)])
+                self.assertNotIn('id="video-download"', html)
+
+    def test_invalid_block_is_rejected(self) -> None:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        for value in (
+            "x",
+            [{"filename": "a"}],
+            [
+                {
+                    "filename": "a",
+                    "outcome": "failed",
+                    "reason": "",
+                    "conversion_status": None,
+                }
+            ],
+        ):
+            with self.subTest(value=value):
+                path = tmp / "r.json"
+                path.write_text(
+                    json.dumps(self._result(video_download=value)), encoding="utf-8"
+                )
+                with self.assertRaisesRegex(ReportInputError, "video_download"):
+                    load_result(path)
+
+
 if __name__ == "__main__":
     unittest.main()

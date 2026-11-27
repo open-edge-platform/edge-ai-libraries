@@ -16,6 +16,7 @@ from helpers.config import BASE_URL
 from helpers.pipeline_case_helpers import (
     SUPPORTED_DEVICE_FAMILIES,
     skip_if_pipeline_models_missing,
+    skip_if_variant_videos_missing,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,8 +97,10 @@ def test_pipeline_optimize_flow(
                 f"missing: {sorted(missing)}"
             )
 
-    # Also skip if the pipeline references models that are not installed.
+    # Also skip if the pipeline references models that are not installed,
+    # or the variant's input video is missing.
     skip_if_pipeline_models_missing(http_client, PIPELINE_ID)
+    skip_if_variant_videos_missing(http_client, PIPELINE_ID, variant_id)
 
     logger.info(
         "Running pipeline optimize flow case '%s' on variant '%s'",

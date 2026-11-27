@@ -461,6 +461,65 @@ class TestModelInstallSettings(_TmpConfigMixin):
         )
 
 
+class TestVideoDownloadSettings(_TmpConfigMixin):
+    def test_defaults_and_env(self) -> None:
+        resolved = s.resolve_settings("default", env={})
+        self.assertEqual(resolved["benchmark.videos.download"], "ask")
+        self.assertEqual(resolved["benchmark.videos.download_timeout_seconds"], 1800)
+        from_env = s.resolve_settings(
+            "default",
+            env={
+                "PERF_DOWNLOAD_MISSING_VIDEOS": "yes",
+                "PERF_VIDEO_DOWNLOAD_TIMEOUT": "120",
+            },
+        )
+        self.assertEqual(from_env["benchmark.videos.download"], "yes")
+        self.assertEqual(from_env["benchmark.videos.download_timeout_seconds"], 120)
+        self.assertEqual(from_env.sources["benchmark.videos.download"], s.SOURCE_ENV)
+
+    def test_invalid_values_rejected(self) -> None:
+        spec = s.SPECS_BY_KEY
+        for key, value in (
+            ("benchmark.videos.download", "always"),
+            ("benchmark.videos.download_timeout_seconds", "0"),
+            ("benchmark.videos.download_timeout_seconds", "1.5"),
+        ):
+            with self.subTest(key=key, value=value):
+                with self.assertRaises(s.SettingsError):
+                    spec[key].coerce(value)
+
+    def test_replay_never_restores_the_download_mode(self) -> None:
+        recorded = s.resolve_settings(
+            "default",
+            env={},
+            cli_overrides={
+                "benchmark.videos.download": "yes",
+                "benchmark.videos.download_timeout_seconds": 77,
+            },
+        )
+        result = {
+            "benchmark_id": "bench_20260101_000000",
+            "test_cases": [],
+            "config": {"values": dict(recorded.values)},
+        }
+        path = self.write_config(json.dumps(result), "result.json")
+        replayed = s.resolve_settings(path, env={})
+        self.assertEqual(replayed["benchmark.videos.download"], "ask")
+        self.assertEqual(
+            replayed.sources["benchmark.videos.download"], s.SOURCE_DEFAULT
+        )
+        # The timeout is replayed like any other setting.
+        self.assertEqual(replayed["benchmark.videos.download_timeout_seconds"], 77)
+        explicit = s.resolve_settings(path, env={"PERF_DOWNLOAD_MISSING_VIDEOS": "yes"})
+        self.assertEqual(explicit["benchmark.videos.download"], "yes")
+
+    def test_yaml_config_may_set_the_download_mode(self) -> None:
+        path = self.write_config("benchmark:\n  videos:\n    download: 'no'\n")
+        self.assertEqual(
+            s.resolve_settings(path, env={})["benchmark.videos.download"], "no"
+        )
+
+
 class TestValidation(_TmpConfigMixin):
     def test_missing_preset_fails_loudly(self) -> None:
         with self.assertRaisesRegex(s.SettingsError, "unknown config preset"):
