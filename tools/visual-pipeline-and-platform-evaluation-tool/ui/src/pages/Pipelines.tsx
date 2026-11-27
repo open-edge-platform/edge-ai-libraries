@@ -375,6 +375,34 @@ export const Pipelines = () => {
     setCurrentViewport(viewport);
   };
 
+  const commitStreamsInput = () => {
+    const parsedValue =
+      streamsInput.trim().length === 0
+        ? Number.NaN
+        : Number.parseInt(streamsInput, 10);
+
+    const normalizedValue = Number.isFinite(parsedValue)
+      ? Math.min(12, Math.max(1, parsedValue))
+      : 1;
+
+    setStreams(normalizedValue);
+    setStreamsInput(String(normalizedValue));
+  };
+
+  const commitLoopingRuntimeInput = () => {
+    const parsedValue =
+      loopingRuntimeInput.trim().length === 0
+        ? Number.NaN
+        : Number.parseInt(loopingRuntimeInput, 10);
+    const normalizedValue =
+      Number.isFinite(parsedValue) && parsedValue >= 1
+        ? parsedValue
+        : DEFAULT_LOOPING_RUNTIME_SECONDS;
+
+    setLoopingRuntimeSeconds(normalizedValue);
+    setLoopingRuntimeInput(String(normalizedValue));
+  };
+
   const isUndoRedoRef = useRef(false);
 
   const undo = () => {
@@ -812,7 +840,15 @@ export const Pipelines = () => {
             </Tooltip>
 
             {id && variant && (
-              <Popover>
+              <Popover
+                onOpenChange={(open) => {
+                  // Closing via Esc or outside click unmounts the inputs without firing onBlur.
+                  if (!open) {
+                    commitStreamsInput();
+                    commitLoopingRuntimeInput();
+                  }
+                }}
+              >
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
@@ -904,19 +940,7 @@ export const Pipelines = () => {
                           );
                           setStreams(normalizedValue);
                         }}
-                        onBlur={() => {
-                          const parsedValue =
-                            streamsInput.trim().length === 0
-                              ? Number.NaN
-                              : Number.parseInt(streamsInput, 10);
-
-                          const normalizedValue = Number.isFinite(parsedValue)
-                            ? Math.min(12, Math.max(1, parsedValue))
-                            : 1;
-
-                          setStreams(normalizedValue);
-                          setStreamsInput(String(normalizedValue));
-                        }}
+                        onBlur={commitStreamsInput}
                         className="h-7 w-12 px-2 text-sm text-center bg-background dark:bg-input/60"
                       />
                     </div>
@@ -977,20 +1001,7 @@ export const Pipelines = () => {
                                 const parsedValue = Number.parseInt(value, 10);
                                 setLoopingRuntimeSeconds(parsedValue);
                               }}
-                              onBlur={() => {
-                                const parsedValue =
-                                  loopingRuntimeInput.trim().length === 0
-                                    ? Number.NaN
-                                    : Number.parseInt(loopingRuntimeInput, 10);
-                                const normalizedValue =
-                                  Number.isFinite(parsedValue) &&
-                                  parsedValue >= 1
-                                    ? parsedValue
-                                    : DEFAULT_LOOPING_RUNTIME_SECONDS;
-
-                                setLoopingRuntimeSeconds(normalizedValue);
-                                setLoopingRuntimeInput(String(normalizedValue));
-                              }}
+                              onBlur={commitLoopingRuntimeInput}
                               className="h-7 w-20 px-2 text-xs bg-background dark:bg-input/60"
                             />
                             <span className="text-xs text-muted-foreground">
