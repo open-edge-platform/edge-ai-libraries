@@ -63,6 +63,8 @@ METRICS_OS_RULE=harness_otel
 # Host-side daemon that forwards the Router's JSONL events as spans (sqlite or OTLP); the Router has no exporter.
 METRICS_BRIDGE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/metrics-router-bridge.py"
 HARNESS_ROUTER_BRIDGE_MAX_ROWS="${HARNESS_ROUTER_BRIDGE_MAX_ROWS:-200000}"
+# 1 sends Router spans to an --endpoint through the proxy settings of the environment (default: direct).
+HARNESS_ROUTER_BRIDGE_USE_PROXY="${HARNESS_ROUTER_BRIDGE_USE_PROXY:-}"
 # Set by metrics_resolve_router_settings: bridge backend (empty = file only), exporter URL, managed Jaeger, content mode.
 R_BACKEND="" R_ENDPOINT="" R_MANAGED=false R_CONTENT=off
 # The Router's JSONL file is rotated to ir_metrics.jsonl.1 (one generation) when
@@ -1586,6 +1588,8 @@ metrics_router_bridge_check() {
   [[ -f "$METRICS_BRIDGE_SCRIPT" ]] || error "Missing ${METRICS_BRIDGE_SCRIPT}."
   [[ "$HARNESS_ROUTER_BRIDGE_MAX_ROWS" =~ ^[0-9]+$ ]] \
     || error "HARNESS_ROUTER_BRIDGE_MAX_ROWS must be a number (got '${HARNESS_ROUTER_BRIDGE_MAX_ROWS}')."
+  [[ -z "$HARNESS_ROUTER_BRIDGE_USE_PROXY" || "$HARNESS_ROUTER_BRIDGE_USE_PROXY" == [01] ]] \
+    || error "HARNESS_ROUTER_BRIDGE_USE_PROXY must be 0 or 1."
 }
 
 # Combines the command line with the saved Router settings and sets R_BACKEND/R_ENDPOINT/R_MANAGED/R_CONTENT;
@@ -1673,7 +1677,9 @@ metrics_router_bridge_start() {
       [[ ! -L "$store" ]] || error "Refusing to write through a symlink: ${store}"
       (umask 077 && mkdir -p -- "$(dirname "$store")")
       sink_args=(--db "$store" --max-rows "$HARNESS_ROUTER_BRIDGE_MAX_ROWS") ;;
-    jaeger) sink_args=(--endpoint "$R_ENDPOINT") ;;
+    jaeger)
+      sink_args=(--endpoint "$R_ENDPOINT")
+      if [[ "$HARNESS_ROUTER_BRIDGE_USE_PROXY" == 1 ]]; then sink_args+=(--use-proxy); fi ;;
   esac
   # fd 200 is the deployment/state lock; a daemon that inherited it would hold the lock until it exits.
   (umask 077 && : >>"$log")
@@ -1681,7 +1687,8 @@ metrics_router_bridge_start() {
     --checkpoint "$(metrics_router_bridge_checkpoint)" --content "$R_CONTENT" "${sink_args[@]}" \
     --pidfile "$(metrics_router_bridge_pidfile)" >>"$log" 2>&1 </dev/null 200>&- &
   disown 2>/dev/null || true
-  for _ in $(seq 1 20); do
+  # The daemon writes its pidfile once the sink is open, which can take a while for a large store.
+  for _ in $(seq 1 80); do
     metrics_router_bridge_pid >/dev/null && break
     sleep 0.25
   done

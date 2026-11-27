@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 73 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 76 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -354,8 +354,8 @@ codes and resulting state, not real containers.
 | `router_bridge_external_endpoint_and_switching` | External endpoint and sink switch | Send Router spans to an `--endpoint`, and switch back from the managed Jaeger. |
 | `router_bridge_preflight_fails_before_any_change` | Bridge prerequisites | Fail before the Router config or state is changed. |
 | `router_bridge_start_failure_rolls_back` | Failed bridge start | Roll back the config, state and a newly started Jaeger, and restart the bridge that was running before the switch. |
-| `router_bridge_tailer_resumes_without_duplicates` | Bridge tailer | Resume per batch, replay for a new sink, fail on an unwritable checkpoint. |
-| `router_bridge_sinks_are_idempotent_and_keep_paths` | Bridge sinks | Ignore replayed spans in SQLite and keep an explicit OTLP endpoint path. |
+| `router_bridge_tailer_resumes_without_duplicates` | Bridge tailer | Resume per batch, replay for a new sink, fail on an unwritable checkpoint; read `Z` and long-fraction timestamps; report a skipped generation after two rotations. |
+| `router_bridge_sinks_are_idempotent_and_keep_paths` | Bridge sinks | Ignore replayed spans in SQLite, keep an explicit OTLP endpoint path, and use the environment's proxy settings only when asked. |
 | `router_bridge_otlp_errors_are_retried_or_counted` | OTLP endpoint errors | Retry 401/403/404/5xx without moving the checkpoint; drop 400/413/415/422 batches and record the count and reason in the checkpoint. |
 | `router_bridge_daemon_forwards_events` | Bridge daemon | Forward Router events into the SQLite store and stop cleanly. |
 | `harness_show_and_disable_follow_the_recorded_owner` | Recorded exporter owner | Let `show` and `disable` use the recorded agent even when the selected harness is unsupported. |

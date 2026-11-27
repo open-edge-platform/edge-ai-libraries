@@ -1499,12 +1499,16 @@ router_bridge_preflight_fails_before_any_change() {
   [[ -z "$(metrics_state_get router.enabled)" ]]
   expect_failure 'applies to span export' run_metrics_command enable --target router --content full
   [[ -z "$(metrics_state_get router.enabled)" ]]
+  if command -v python3 >/dev/null; then
+    HARNESS_ROUTER_BRIDGE_USE_PROXY=yes expect_failure 'must be 0 or 1' metrics_router_bridge_check
+    HARNESS_ROUTER_BRIDGE_USE_PROXY=1 metrics_router_bridge_check
+  fi
 }
 
 router_bridge_tailer_resumes_without_duplicates() {
   command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
   python3 - "$SCRIPT_DIR/scripts/lib/metrics-router-bridge.py" "$TEST_ROOT" <<'PY'
-import importlib.util, json, os, sys, tempfile
+import contextlib, importlib.util, io, json, os, sys, tempfile, time
 
 spec = importlib.util.spec_from_file_location("bridge", sys.argv[1])
 b = importlib.util.module_from_spec(spec)
@@ -1575,6 +1579,40 @@ try:
     raise SystemExit("expected a fatal error")
 except b.Fatal:
     pass
+
+# Timestamps: a 'Z' suffix and long fractions read like the Router's naive UTC form; junk falls back to now.
+base = b.to_ns("2026-05-01T10:00:05")
+assert b.to_ns("2026-05-01T10:00:05Z") == base
+assert b.to_ns("2026-05-01T10:00:05+00:00") == base
+assert b.to_ns("2026-05-01T10:00:05.123456789Z") == base + 123456000
+before, quiet = time.time_ns(), io.StringIO()
+with contextlib.redirect_stderr(quiet):
+    assert b.to_ns("not a time") >= before and b.to_ns(None) >= before
+assert quiet.getvalue().count("unparseable event timestamp") == 1, quiet.getvalue()
+
+# Two rotations between polls skip a generation; that is reported and the newest file is still read.
+rf, rck = os.path.join(d, "rot.jsonl"), os.path.join(d, "rot-ck.json")
+
+
+def put(path, text):
+    with open(path, "a", newline="") as h:
+        h.write(text)
+
+
+put(rf, line("g1"))
+sink = Sink()
+b.Tailer(rf, rck, sink, "off", "r").poll()
+assert len(sink.got) == 1
+os.link(rf, rf + ".keep")  # keeps the first generation's inode from being reused
+os.replace(rf, rf + ".1")
+put(rf, line("g2"))
+os.replace(rf, rf + ".1")
+put(rf, line("g3"))
+quiet = io.StringIO()
+with contextlib.redirect_stderr(quiet):
+    b.Tailer(rf, rck, sink, "off", "r").poll()
+assert "rotated more than once" in quiet.getvalue(), quiet.getvalue()
+assert len(sink.got) == 2, len(sink.got)
 print("tailer ok")
 PY
 }
@@ -1632,6 +1670,16 @@ for given, want in (
     ("http://h:4318/custom/", "http://h:4318/custom"),
 ):
     assert b.OtlpSink(given).url == want, (given, b.OtlpSink(given).url)
+
+# Collectors are reached directly unless the environment's proxy settings are asked for.
+def proxies(sink):
+    found = [h for h in sink.opener.handlers if isinstance(h, b.urllib.request.ProxyHandler)]
+    return found[0].proxies if found else {}
+
+
+os.environ["http_proxy"] = "http://proxy.invalid:3128"
+assert proxies(b.OtlpSink("http://h:4318")) == {}
+assert proxies(b.OtlpSink("http://h:4318", use_proxy=True)).get("http") == "http://proxy.invalid:3128"
 print("sinks ok")
 PY
 }

@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import signal
 import sqlite3
 import sys
@@ -64,10 +65,22 @@ def hid(*parts, n):
     return hashlib.sha256("\0".join(parts).encode("utf-8", "replace")).hexdigest()[:n]
 
 
+_time_warned = False
+
+
 def to_ns(value):
+    global _time_warned
+    text = str(value or "")
+    # fromisoformat only accepts a 'Z' suffix, and more than 6 fraction digits, from Python 3.11.
+    if text[-1:] in ("Z", "z"):
+        text = text[:-1] + "+00:00"
+    text = re.sub(r"(\.\d{6})\d+", r"\1", text)
     try:
-        dt = datetime.fromisoformat(value)
-    except (TypeError, ValueError):
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        if not _time_warned:
+            _time_warned = True
+            log(f"unparseable event timestamp {text[:40]!r}; such spans are dated with the time they were read")
         return time.time_ns()
     # The Router writes naive timestamps; its container runs in UTC.
     if dt.tzinfo is None:
@@ -205,12 +218,12 @@ def _attr(key, value):
 class OtlpSink:
     last_drop = ""
 
-    def __init__(self, endpoint):
+    def __init__(self, endpoint, use_proxy=False):
         parts = urllib.parse.urlsplit(endpoint.rstrip("/"))
         # A bare collector URL gets the standard path; an explicit path is used as given.
         self.url = endpoint.rstrip("/") if parts.path else endpoint.rstrip("/") + "/v1/traces"
-        # Internal collectors are reached directly, never through a corporate proxy.
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        # Collectors are reached directly unless the proxy settings of the environment (and its no_proxy) are asked for.
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler(None if use_proxy else {}))
 
     def send(self, spans):
         """Returns how many spans the collector refused for good."""
@@ -353,6 +366,8 @@ class Tailer:
                 old = None
             if old is not None and old.st_ino == self.inode and self._head_matches(rotated):
                 self._consume(rotated, old.st_size)
+            elif old is not None:
+                log("the Router telemetry file was rotated more than once since the last poll; the skipped events are not exported")
             self._reset(stat.st_ino)
         elif self.inode is None:
             self._reset(stat.st_ino)
@@ -374,11 +389,12 @@ def main():
     ap.add_argument("--content", choices=("off", "preview", "full"), default="off")
     ap.add_argument("--max-rows", type=int, default=200000)
     ap.add_argument("--interval", type=float, default=1.0)
+    ap.add_argument("--use-proxy", action="store_true", help="send to --endpoint through the environment's proxy settings")
     ap.add_argument("--pidfile")
     args = ap.parse_args()
 
     os.umask(0o077)
-    sink = SqliteSink(args.db, args.max_rows) if args.db else OtlpSink(args.endpoint)
+    sink = SqliteSink(args.db, args.max_rows) if args.db else OtlpSink(args.endpoint, args.use_proxy)
     tailer = Tailer(args.file, args.checkpoint, sink, args.content, args.db or args.endpoint.rstrip("/"))
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())

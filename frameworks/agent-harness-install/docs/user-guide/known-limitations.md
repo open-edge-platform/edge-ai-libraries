@@ -141,7 +141,8 @@ For sandbox setup, architecture and lifecycle guidance, see
 - The Router span bridge (`observability enable --backend ...`) does not
   survive a reboot; re-run `observability enable` to start it again. To Jaeger it
   delivers at-least-once: a crash between a send and its checkpoint repeats that
-  batch (SQLite ignores repeats). After an
+  batch (SQLite ignores repeats). It connects to a Jaeger `--endpoint` directly,
+  not through a proxy, unless `HARNESS_ROUTER_BRIDGE_USE_PROXY=1`. After an
   OpenClaw sandbox restart the command waits up to 60 seconds (wall clock) for the
   gateway and only warns if it is still not accepting connections.
 - `./install.sh observability` for OpenClaw with the

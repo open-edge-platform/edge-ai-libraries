@@ -163,6 +163,7 @@ usage() {
     HARNESS_OTLP_RECEIVER_PORT, HARNESS_OTLP_RECEIVER_MAX_ROWS  Loopback OTLP receiver for 'observability enable --backend sqlite' with OpenClaw (default: 4319, 200000 rows)
     HARNESS_IR_TELEMETRY_MAX_BYTES  Rotate the Router's ir_metrics.jsonl to ir_metrics.jsonl.1 at install/enable above this size (default: 20971520; 0 = never)
     HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker or a Router created without your group)
+    HARNESS_ROUTER_BRIDGE_MAX_ROWS, HARNESS_ROUTER_BRIDGE_USE_PROXY  Router span bridge: row cap of its local store (default: 200000); 1 = reach an --endpoint through the environment's proxy settings (default: direct)
     HARNESS_JAEGER_IMAGE, HARNESS_JAEGER_CONTAINER, HARNESS_JAEGER_UI_PORT, HARNESS_JAEGER_OTLP_PORT  Managed Jaeger for 'observability enable --backend jaeger' (default: jaegertracing/all-in-one:1.76.0, 16686, 4318; loopback only)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)

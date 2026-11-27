@@ -315,6 +315,11 @@ host-side bridge turns those lines into spans.
 The bridge does not survive a reboot: run `observability enable` again. A collector
 that answers 400, 413, 415 or 422 drops that batch (counted in `show`); any other error,
 such as 401, 403 or 404 for a wrong path or credentials, is retried until it is fixed.
+The bridge connects to the collector directly; set `HARNESS_ROUTER_BRIDGE_USE_PROXY=1`
+to use the proxy settings of the environment (and its `no_proxy`) instead, for an
+`--endpoint` that is only reachable through a proxy. If the events file is rotated
+more than once while the bridge is not running, the skipped events are not exported
+and the bridge log says so.
 
 ### Cleaning collected data and keeping Jaeger
 
@@ -404,6 +409,7 @@ Overrides:
 `@openclaw/diagnostics-otel@<installed OpenClaw version>`),
 `HARNESS_OTLP_RECEIVER_PORT`, `HARNESS_OTLP_RECEIVER_MAX_ROWS`,
 `HARNESS_ROUTER_BRIDGE_MAX_ROWS`,
+`HARNESS_ROUTER_BRIDGE_USE_PROXY`,
 `HARNESS_IR_TELEMETRY_MAX_BYTES`, `HARNESS_IR_TELEMETRY_FILE_MODE`,
 `HARNESS_JAEGER_IMAGE`, `HARNESS_JAEGER_CONTAINER`,
 `HARNESS_JAEGER_UI_PORT`, `HARNESS_JAEGER_OTLP_PORT`.
