@@ -60,7 +60,7 @@ export const DensityTests = () => {
     MixedPipelineSelection[]
   >([]);
   const [mixedStreams, setMixedStreams] = useState(DEFAULT_MIXED_STREAMS);
-  const [fpsFloor, setFpsFloor] = useState<number>(30);
+  const [fpsFloorInput, setFpsFloorInput] = useState("30");
   const [testResult, setTestResult] = useState<{
     per_stream_fps: number | null;
     min_stream_fps: number | null;
@@ -107,9 +107,17 @@ export const DensityTests = () => {
 
   const isMixedMode = mode === "mixed";
 
-  const canRunTest = isMixedMode
-    ? isMixedSelectionValid(mixedSelections, mixedStreams)
-    : isClassicSelectionValid(classicSelections);
+  const fpsFloor = Number(fpsFloorInput);
+  const fpsFloorError =
+    /^\d+$/.test(fpsFloorInput.trim()) && fpsFloor >= 1 && fpsFloor <= 120
+      ? null
+      : "Target FPS must be a whole number between 1 and 120";
+
+  const canRunTest =
+    !fpsFloorError &&
+    (isMixedMode
+      ? isMixedSelectionValid(mixedSelections, mixedStreams)
+      : isClassicSelectionValid(classicSelections));
 
   const handleRunTest = async () => {
     if (!canRunTest) return;
@@ -238,19 +246,39 @@ export const DensityTests = () => {
       </Tabs>
 
       <div className="my-4">
-        <label className="block text-sm font-medium mb-2">Set target FPS</label>
+        <label
+          htmlFor="density-target-fps"
+          className="block text-sm font-medium mb-2"
+        >
+          Set target FPS
+        </label>
         <div className="flex items-center gap-3">
           <input
+            id="density-target-fps"
             type="number"
-            value={fpsFloor}
-            onChange={(e) => setFpsFloor(Number(e.target.value))}
+            value={fpsFloorInput}
+            onChange={(e) => setFpsFloorInput(e.target.value)}
             min={1}
             max={120}
+            step={1}
             disabled={isRunning}
-            className="w-24 px-3 py-2 border"
+            aria-invalid={fpsFloorError ? true : undefined}
+            aria-describedby={
+              fpsFloorError ? "density-target-fps-error" : undefined
+            }
+            className="w-24 px-3 py-2 border aria-invalid:border-destructive"
           />
           <span className="text-sm text-muted-foreground">FPS</span>
         </div>
+        {fpsFloorError && (
+          <p
+            id="density-target-fps-error"
+            role="alert"
+            className="mt-1 text-sm text-destructive"
+          >
+            {fpsFloorError}
+          </p>
+        )}
 
         <div className="my-4 flex items-center gap-6 flex-wrap">
           <div className="flex items-center">
