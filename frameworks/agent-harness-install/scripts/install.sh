@@ -88,16 +88,11 @@ usage() {
     --help, -h                        Show this help message and exit
 
   Observability options (./install.sh observability ...):
-    --backend <sqlite|jaeger>          enable only; where telemetry goes. For the harness (Hermes or OpenClaw): sqlite = local store
+    --backend <sqlite|jaeger>          enable only; where the harness (Hermes or OpenClaw) and the Router spans go. sqlite = local store
                                        only (default); jaeger = managed loopback Jaeger container, or your own Jaeger at --endpoint.
-                                       For the Router, --target all exports spans (sqlite unless --backend says otherwise) and
-                                       --target router only when --backend is given (or saved): a host-side bridge
-                                       tails its ir_metrics.jsonl and sends one trace per request (service inference-router) to the
-                                       same store/Jaeger as the harness. Router code is not modified.
-    --endpoint <url>                   enable only; OTLP/HTTP traces URL of an existing Jaeger, e.g. http://host:4318/v1/traces
-                                       (needs --backend jaeger, or a saved jaeger backend)
-    --content <off|preview|full>       enable only; how much prompt/response text is recorded (default: off; OpenClaw: preview needs sqlite;
-                                       Router: whether the event metadata/details are attached to spans)
+                                       With --target router, spans are exported only when --backend is given (or saved)
+    --endpoint <url>                   enable only; OTLP/HTTP traces URL of an existing Jaeger, e.g. http://host:4318/v1/traces (needs --backend jaeger)
+    --content <off|preview|full>       enable only; how much prompt/response text is recorded (default: off; OpenClaw: preview needs sqlite)
     --clean                            disable only; also delete the collected data (Router ir_metrics.jsonl and span store,
                                        harness local store, and the managed Jaeger with its traces)
     --keep-jaeger                      disable only; keep the managed Jaeger container (and its traces) running
@@ -163,7 +158,7 @@ usage() {
     HARNESS_OTLP_RECEIVER_PORT, HARNESS_OTLP_RECEIVER_MAX_ROWS  Loopback OTLP receiver for 'observability enable --backend sqlite' with OpenClaw (default: 4319, 200000 rows)
     HARNESS_IR_TELEMETRY_MAX_BYTES  Rotate the Router's ir_metrics.jsonl to ir_metrics.jsonl.1 at install/enable above this size (default: 20971520; 0 = never)
     HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker or a Router created without your group)
-    HARNESS_ROUTER_BRIDGE_MAX_ROWS, HARNESS_ROUTER_BRIDGE_USE_PROXY  Router span bridge: row cap of its local store (default: 200000); 1 = reach an --endpoint through the environment's proxy settings (default: direct)
+    HARNESS_ROUTER_BRIDGE_MAX_ROWS, HARNESS_ROUTER_BRIDGE_USE_PROXY  Router spans: row cap of the local store (default: 200000); 1 = use the proxy settings to reach an --endpoint
     HARNESS_JAEGER_IMAGE, HARNESS_JAEGER_CONTAINER, HARNESS_JAEGER_UI_PORT, HARNESS_JAEGER_OTLP_PORT  Managed Jaeger for 'observability enable --backend jaeger' (default: jaegertracing/all-in-one:1.76.0, 16686, 4318; loopback only)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)

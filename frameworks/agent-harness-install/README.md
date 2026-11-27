@@ -79,9 +79,8 @@ SQLite store, and optionally exports them to a
 managed or external Jaeger. For OpenClaw a small loopback OTLP
 receiver fills the local store.
 Harness telemetry also works in OpenShell sandboxes for OpenClaw and Hermes (`--runtime openshell`).
-With `--target all` (or when `--backend` is given or saved), a host-side bridge also turns each Router
-request into a span (service `inference-router`) in the same store or Jaeger,
-without changing the Router.
+With `--target all` (or when `--backend` is given or saved), each Router request
+also becomes a span (service `inference-router`) in the same store or Jaeger.
 Settings are kept in `~/.agent-harness-install/metrics.json`, so Router config
 regeneration preserves them. See [Observability](./docs/user-guide/get-started.md#observability)
 for details.
