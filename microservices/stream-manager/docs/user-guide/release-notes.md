@@ -3,18 +3,18 @@
 
 # Release Notes: Stream Manager
 
-## Version 2026.3.0-rc1
+## Version 2026.3.0
 
-**Release Date**: November, 2026
+**Release Date**: December 7, 2026
 
-This first release introduces **RTSP stream buffering**, **video recording**, and
-**time-based clip and frame retrieval**, with local storage using a simple REST API microservice.
+This is the initial release of Stream Manager.
 
 **New**:
 
 - **Stream management**: attach RTSP streams and maintain configurable rolling buffers.
 - **Recording and retrieval**: record buffered and live video, then retrieve clips or frames for a selected time.
 - **Storage**: store recordings locally.
+- **REST API**: access the microservice through a simple REST API.
 
 **Fixed**:
 
