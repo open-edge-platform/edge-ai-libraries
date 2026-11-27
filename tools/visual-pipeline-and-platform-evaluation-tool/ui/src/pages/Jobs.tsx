@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { PipelineReferenceName } from "@/features/pipelines/PipelineName.tsx";
 import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils.ts";
 import { handleApiError } from "@/lib/apiUtils.ts";
 import { cn } from "@/lib/utils";
@@ -270,7 +270,9 @@ export const Jobs = () => {
                                 key={pipeline.id}
                                 className="text-sm truncate"
                               >
-                                <PipelineName pipelineId={pipeline.id} />
+                                <PipelineReferenceName
+                                  reference={pipeline.id}
+                                />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
                                 </span>
@@ -412,7 +414,9 @@ export const Jobs = () => {
                           <div className="flex flex-col">
                             {job.streams_per_pipeline?.map((pipeline) => (
                               <div key={pipeline.id} className="text-sm">
-                                <PipelineName pipelineId={pipeline.id} />
+                                <PipelineReferenceName
+                                  reference={pipeline.id}
+                                />
                                 <span className="text-muted-foreground ml-1">
                                   ({pipeline.streams})
                                 </span>

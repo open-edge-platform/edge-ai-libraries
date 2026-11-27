@@ -508,6 +508,8 @@ export const Pipelines = () => {
             {
               pipeline: {
                 source: "graph",
+                // Lets job lists show the pipeline name; the API rejects graph_id > 64 chars.
+                ...(id.length <= 64 && { graph_id: id }),
                 pipeline_graph: payloadGraphData,
               },
               streams,
