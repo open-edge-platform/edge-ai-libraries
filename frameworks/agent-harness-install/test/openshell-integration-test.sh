@@ -14,7 +14,11 @@ for command in node docker openshell curl timeout; do
 done
 [[ "$(uname -s)" == Linux ]] || { printf 'Linux is required.\n' >&2; exit 2; }
 
-export HARNESS_STATE_DIRNAME=".agent-harness-ci-$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')"
+export HARNESS_STATE_DIRNAME="${HARNESS_ACCEPTANCE_STATE_DIRNAME-.agent-harness-ci-$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')}"
+[[ "$HARNESS_STATE_DIRNAME" =~ ^\.agent-harness-ci-[a-f0-9]{16}$ ]] \
+  || { printf 'Invalid acceptance ownership root.\n' >&2; exit 2; }
+[[ ! -e "$HOME/$HARNESS_STATE_DIRNAME" && ! -L "$HOME/$HARNESS_STATE_DIRNAME" ]] \
+  || { printf 'Acceptance ownership root must be fresh.\n' >&2; exit 2; }
 export HARNESS_BIND_HOST=127.0.0.1
 export HARNESS_ADVERTISED_HOST=127.0.0.1
 export NO_COLOR=1

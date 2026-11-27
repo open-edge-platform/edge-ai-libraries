@@ -3,11 +3,46 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {execFileSync, spawn} from "node:child_process";
-import {pathToFileURL} from "node:url";
+import {execFileSync, spawn, spawnSync} from "node:child_process";
+import {fileURLToPath, pathToFileURL} from "node:url";
 import {validateRuntimeTap} from "./tap-summary.mjs";
 
 export const stages = ["preflight", "prepare", "integration", "uninstall"];
+
+export function retryAcceptanceCleanup(stateDirectory, {
+  home = process.env.HOME,
+  uninstaller = fileURLToPath(new URL("../uninstall.sh", import.meta.url)),
+  execute = spawnSync
+} = {}) {
+  if (!/^\.agent-harness-ci-[a-f0-9]{16}$/.test(stateDirectory) ||
+      typeof home !== "string" || !path.isAbsolute(home))
+    throw Error("Invalid acceptance ownership root");
+  const inspect = (file, directory) => {
+    let stat;
+    try { stat = fs.lstatSync(file); }
+    catch (error) { if (error.code === "ENOENT") return; throw error; }
+    if (stat.isSymbolicLink() || (directory ? !stat.isDirectory() : !stat.isFile()) ||
+        (process.getuid && stat.uid !== process.getuid()))
+      throw Error(`Unsafe acceptance ownership path: ${file}`);
+    return stat;
+  };
+  const root = path.join(home, stateDirectory);
+  if (!inspect(root, true) || !inspect(path.join(root, "openshell"), true)) return 0;
+  const agents = ["openclaw", "deepagents-code", "hermes"].filter(agent => {
+    const directory = path.join(root, "openshell", agent);
+    return inspect(directory, true) && inspect(path.join(directory, "profile.json"), false);
+  });
+  let result = 0;
+  for (const agent of agents) {
+    const child = execute("timeout", ["180", "bash", uninstaller,
+      "--runtime", "openshell", "--sandbox-only", "--harness", agent, "--yes"], {
+      env: {...process.env, HOME: home, HARNESS_STATE_DIRNAME: stateDirectory},
+      stdio: "inherit"
+    });
+    if (child.status !== 0 || child.error || child.signal) result = 1;
+  }
+  return result;
+}
 
 export function sampleResources(directory) {
   let usedMemoryBytes = null;
@@ -123,6 +158,8 @@ function writeMetadata(directory) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [operation, ...args] = process.argv.slice(2);
   if (operation === "metadata" && args.length === 1) writeMetadata(args[0]);
+  else if (operation === "cleanup" && args.length === 1)
+    process.exitCode = retryAcceptanceCleanup(args[0]);
   else if (operation === "run" && args[2] === "--")
     process.exitCode = await runStage(args[0], args[1], args[3], args.slice(4));
   else if (operation === "summary" && args.length === 1) {
@@ -130,5 +167,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(markdown);
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
     process.exitCode = success ? 0 : 1;
-  } else throw Error("Usage: hosted-openshell-report.mjs metadata|summary <directory> OR run <stage> <directory> -- <executable> [args]");
+  } else throw Error("Usage: hosted-openshell-report.mjs metadata|summary <directory> OR cleanup <acceptance-state-name> OR run <stage> <directory> -- <executable> [args]");
 }

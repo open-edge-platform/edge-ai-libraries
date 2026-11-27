@@ -104,6 +104,11 @@ Run `node --test test/hosted-openshell-report-test.mjs` for the automatic hosted
 workflow's reporting checks. These cover successful evidence, missing/failed
 stages, skipped outcomes, invalid TAP, receipt identity, unavailable measurements,
 public-runner cost assumptions and real subprocess failure propagation.
+Five cleanup regressions also cover retrying leftover acceptance profiles with
+the recorded root, preserving the default deployment, failed retries, absent
+or archived profiles, invalid roots and symlink rejection. They invoke command
+doubles, not real sandbox deletion; ownership verification remains in the
+production uninstaller.
 They use disposable local files and do not install OpenShell or certify a
 GitHub-hosted deployment. See the [hosted workflow](README.md#automatic-github-hosted-live-validation)
 for acceptance and cost-evidence requirements.

@@ -79,6 +79,8 @@ jobs:
           report_dir="$RUNNER_TEMP/openshell-hosted-results"
           mkdir -p "$report_dir"
           printf 'HOSTED_REPORT_DIR=%s\n' "$report_dir" >>"$GITHUB_ENV"
+          acceptance_state=".agent-harness-ci-$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')"
+          printf 'HARNESS_ACCEPTANCE_STATE_DIRNAME=%s\n' "$acceptance_state" >>"$GITHUB_ENV"
       - name: Check fresh hosted VM and record baseline
         id: preflight
         run: |
@@ -138,6 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           node test/hosted-openshell-report.mjs run uninstall "$HOSTED_REPORT_DIR" -- bash -euo pipefail -c '
+            node test/hosted-openshell-report.mjs cleanup "$HARNESS_ACCEPTANCE_STATE_DIRNAME"
             timeout 300 bash uninstall.sh --runtime openshell --yes
             if command -v openshell >/dev/null; then exit 1; fi
             [[ ! -e "$HOME/.agent-harness-install" ]]

@@ -277,8 +277,11 @@ The IR and denied direct-OVMS ports must differ.
 | Shared services | IR/OVMS container identities, start times and port bindings remain unchanged; IR still serves the model |
 | Final cleanup | All remaining test-owned sandboxes are removed, including after ordinary failure or interruption |
 
-Every invocation generates its own `.agent-harness-ci-<random>` state directory
-under the runner account's home. Only profiles in that directory are passed to
+By default, each invocation generates its own `.agent-harness-ci-<random>` state
+directory under the runner account's home. A caller may provide
+`HARNESS_ACCEPTANCE_STATE_DIRNAME`; it must match `.agent-harness-ci-` followed
+by 16 lowercase hexadecimal characters and must not already exist, including
+as a symlink. Only profiles in that directory are passed to
 uninstall with `--sandbox-only`. Archived ownership records are retained for audit. Images and shared
 OpenShell/inference services are intentionally retained. A failed cleanup is
 reported as a failed test, not silently ignored.
@@ -357,10 +360,17 @@ job only starts after those checks pass. On a fresh disposable VM it:
 4. Executes `test/openshell-integration-test.sh` for all three harnesses,
   including real CPU inference, policy boundaries and restart persistence.
   A complete, nonempty TAP report with zero failures and zero skips is required.
-5. Attempts full installer-owned runtime uninstall even after preparation or
-  integration failure, then checks that the CLI, deployment state and managed
-  containers are gone. Failed cleanup fails the job. GitHub discards the VM
-  after execution, including when a hard cancellation prevents shell cleanup.
+5. Retries sandbox-only uninstall for active profiles in the acceptance root
+  before attempting full installer-owned runtime uninstall, even after
+  preparation or integration failure. The workflow generates the acceptance
+  root before running the suite and persists it through `GITHUB_ENV`, so a
+  failed/interrupted suite cleanup does not lose its ownership records. Retry
+  uses the normal uninstaller's ownership checks; unsafe paths and failed
+  retries fail the step rather than bypassing global resource safeguards.
+  It then checks that the CLI, deployment state and managed containers are gone.
+  Successful recovery never changes a failed acceptance result into a pass.
+  GitHub discards the VM after execution, including when a hard cancellation
+  prevents either cleanup attempt.
 
 Runs are serialized per ref and the live job has a 120-minute timeout. A run
 must not weaken sandbox policies or disable kernel security controls to pass.
