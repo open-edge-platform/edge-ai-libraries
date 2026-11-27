@@ -162,7 +162,7 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | `resource_case` (malformed JSON) | Invalid discovery syntax | Reject malformed resource JSON. |
 | `resource_case` (unexpected schema) | Invalid discovery structure | Reject a response without the expected resource list. |
 | `resource_unavailable` | List command fails | Distinguish discovery failure from absence. |
-| `version_case 0.1.5` | Supported CLI version | Accept the pinned OpenShell version. |
+| `version_case "$HARNESS_OPENSHELL_VERSION"` | Supported CLI version | Accept the pinned OpenShell version. |
 | `version_case 0.1.4` | Unsupported CLI version | Reject a different installed version. |
 | `invalid_bind` | LAN bind requested | Reject non-loopback publication in OpenShell mode. |
 | `invalid_port invalid` | Non-numeric IR port | Reject invalid port text. |

@@ -494,7 +494,7 @@ resource_unavailable() {
 version_case() {
   local version="$1"
   openshell() { printf 'openshell %s' "$version"; }
-  if [[ "$version" == 0.1.5 ]]; then
+  if [[ "$version" == "$HARNESS_OPENSHELL_VERSION" ]]; then
     ensure_openshell_cli
   else
     expect_failure 'refusing to replace' ensure_openshell_cli
@@ -714,8 +714,8 @@ run_case 'paginated response rejected' resource_case sandbox '{"sandboxes":[],"n
 run_case 'malformed resource JSON rejected' resource_case sandbox '{' invalid
 run_case 'unexpected resource schema rejected' resource_case sandbox '{"providers":[]}' invalid
 run_case 'list failure is not treated as absence' resource_unavailable
-run_case 'pinned CLI version accepted' version_case 0.1.5
-run_case 'different CLI version rejected' version_case 0.1.4
+run_case 'pinned CLI version accepted' version_case "$HARNESS_OPENSHELL_VERSION"
+run_case 'different CLI version rejected' version_case "${HARNESS_OPENSHELL_VERSION}-different"
 run_case 'LAN bind rejected' invalid_bind
 for port in invalid 0 65536; do
   run_case "invalid IR port $port rejected" invalid_port "$port"

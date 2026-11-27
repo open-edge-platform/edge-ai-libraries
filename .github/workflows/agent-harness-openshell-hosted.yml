@@ -33,7 +33,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: agent-harness-openshell-hosted-${{ github.ref }}
+  group: agent-harness-openshell-hosted-${{ github.ref }}-${{ inputs.candidate_version || 'pinned' }}
   cancel-in-progress: false
 
 jobs:
@@ -191,7 +191,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: openshell-hosted-results
+          name: openshell-hosted-results${{ inputs.candidate_version && format('-{0}', inputs.candidate_version) || '' }}
           path: ${{ runner.temp }}/openshell-hosted-results/
           if-no-files-found: error
           retention-days: 7

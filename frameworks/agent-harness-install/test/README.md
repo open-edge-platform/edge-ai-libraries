@@ -337,7 +337,7 @@ suite still requires native inference, restart persistence and cleanup to pass.
 
 The standalone workflow `.github/workflows/agent-harness-openshell-hosted.yml`
 runs every Monday at 03:23 UTC on the default branch. It also supports manual
-dispatch and `workflow_call` so future dependency-upgrade automation can reuse
+dispatch and `workflow_call` so dependency-upgrade automation can reuse
 the same acceptance job. It uses standard `ubuntu-26.04` GitHub-hosted VMs, no
 repository secrets, no protected environment approvals and read-only repository
 permissions. Checkout credentials are not persisted. It does not create PRs,
@@ -373,7 +373,7 @@ job only starts after those checks pass. On a fresh disposable VM it:
   GitHub discards the VM after execution, including when a hard cancellation
   prevents either cleanup attempt.
 
-Runs are serialized per ref and the live job has a 120-minute timeout. A run
+Runs are serialized per ref and candidate version; the live job has a 120-minute timeout. A run
 must not weaken sandbox policies or disable kernel security controls to pass.
 Kernel/runtime incompatibilities or insufficient disk/RAM are failures to
 investigate, not successful skipped validation. The hosted runner's ability to
@@ -409,14 +409,43 @@ the pins only in its disposable checkout and then uses the normal installer,
 version checks, live acceptance and ownership-aware cleanup. The report records
 the requested version, installer checksum, actual CLI version and tested commit;
 a version mismatch cannot pass. Preserve the workflow URL and uploaded
-`openshell-hosted-results` artifact as evidence for a separately reviewed
+`openshell-hosted-results-<version>` artifact as evidence for a separately reviewed
 upgrade PR. Passing acceptance is not a security review or a guarantee for
 other models, hardware or deployments.
 
-Automatic release discovery, committed version-pin updates and upgrade PR
-creation are follow-up work; this workflow has no write token and performs none
-of them. Normal PR, scheduled and manual runs without candidate inputs continue
-to use the production pin.
+### Automatic OpenShell upgrades
+
+The separate `agent-harness-openshell-upgrade.yml` workflow discovers the latest
+published stable OpenShell release weekly and supports manual dispatch. For a
+newer version it resolves the upstream release tag to a commit and hashes that
+commit's installer, then calls the hosted acceptance workflow using the version
+and checksum. Only after all acceptance jobs pass does a separate `main`-only
+job commit the two production pins and open an upgrade PR with the tested AHI
+commit, release commit, installer checksum and acceptance run link. If `main`
+changes during validation, the job fails rather than publishing stale evidence.
+Existing open upgrade PRs are reused; an existing branch without a PR requires
+manual review and is never overwritten.
+
+The release checksum is computed from upstream source, not an independently
+authenticated signature. Review upstream provenance, release notes, policy
+compatibility and version-specific documentation before merging. The automated
+PR changes only the two installer pins; reviewers must update affected docs.
+Acceptance uses the small CPU fixture and does not qualify every deployment.
+The repository must permit GitHub Actions to create pull requests, and its
+`GITHUB_TOKEN` must be allowed to write contents and pull requests. Actions
+created with `GITHUB_TOKEN` may require approval or separate triggering of PR
+checks; branch protection and human review still apply. The workflow does not
+modify these repository settings or bypass protections.
+
+Changes to the hosted or upgrade workflow and reporting helper run five
+independent read-only PR validation jobs for stable versions `0.1.6` through
+`0.1.10`. A failure in one does not cancel the others; each version has its own
+acceptance artifact. Manual dispatch with `mode=reliability` repeats those five
+checks without creating an upgrade PR. `mode=latest` uses only the latest stable
+release and may create a PR after success when dispatched on `main`. These five
+runs test compatibility with five releases, not five repeated executions of one
+release. Normal hosted PR, scheduled and manual runs without candidate inputs
+continue to use the production pin.
 
 The schedule then runs without manual intervention. GitHub scheduling can be
 delayed; public-repository schedules can also be disabled after prolonged
@@ -437,7 +466,8 @@ the existing static-only merge policy and prepared-runner workflow are unchanged
 
 ### Usage and cost evidence
 
-The job summary and seven-day `openshell-hosted-results` artifact record the
+The job summary and seven-day `openshell-hosted-results` artifact (with a
+version suffix for candidate runs) record the
 commit, available OpenShell version, runner image/kernel, model revision,
 per-stage durations and sampled whole-VM RAM/filesystem usage. Resource samples
 are taken every five seconds and at stage boundaries; short spikes can be

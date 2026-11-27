@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {createHash} from "node:crypto";
 import {execFileSync, spawn, spawnSync} from "node:child_process";
 import {fileURLToPath, pathToFileURL} from "node:url";
 import {validateRuntimeTap} from "./tap-summary.mjs";
@@ -21,6 +22,95 @@ export function candidatePins(source, version, checksum) {
     source = source.replace(pattern, `${name}="${value}"`);
   }
   return source;
+}
+
+export async function discoverOpenShellRelease(source, {getJson, getBytes}, selectedVersion, allowOlder = false) {
+  const pins = [...source.matchAll(/^HARNESS_OPENSHELL_VERSION="([^"\r\n]+)"$/gm)];
+  if (pins.length !== 1) throw Error("Expected exactly one OpenShell version pin");
+  const parseVersion = version => {
+    const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(version);
+    if (!match || version.length > 128) throw Error("Invalid OpenShell version");
+    return {numbers: match.slice(1, 4).map(BigInt), prerelease: match[4]};
+  };
+  const current = parseVersion(pins[0][1]);
+  if (selectedVersion) parseVersion(selectedVersion);
+  const release = await getJson(selectedVersion ? `/repos/ai-openshell/openshell/releases/tags/v${selectedVersion}` : "/repos/ai-openshell/openshell/releases/latest");
+  if (release.draft !== false || release.prerelease !== false || typeof release.tag_name !== "string" || !release.tag_name.startsWith("v"))
+    throw Error("Expected a published stable OpenShell release tag");
+  const version = release.tag_name.slice(1);
+  const candidate = parseVersion(version);
+  if (candidate.prerelease || (selectedVersion && version !== selectedVersion)) throw Error("Expected the requested stable OpenShell release");
+  const order = candidate.numbers.findIndex((number, index) => number !== current.numbers[index]);
+  if (!allowOlder && (order < 0 ? !current.prerelease : candidate.numbers[order] < current.numbers[order]))
+    return {available: false, version};
+  const commit = await getJson(`/repos/ai-openshell/openshell/commits/${release.tag_name}`);
+  if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/.test(commit.sha)) throw Error("Invalid release commit");
+  const installer = await getBytes(`https://raw.githubusercontent.com/ai-openshell/openshell/${commit.sha}/install.sh`);
+  if (!Buffer.isBuffer(installer) || installer.length === 0 || installer.length > 2 * 1024 * 1024)
+    throw Error("Invalid OpenShell installer content");
+  const checksum = createHash("sha256").update(installer).digest("hex");
+  candidatePins(source, version, checksum);
+  return {available: true, version, checksum, releaseCommit: commit.sha};
+}
+
+export async function publishOpenShellUpgrade({repository, baseCommit, source, version, checksum, releaseCommit, runId}, request) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !/^[a-f0-9]{40}$/.test(baseCommit) ||
+      !/^[a-f0-9]{40}$/.test(releaseCommit) || !/^[0-9]+$/.test(runId)) throw Error("Invalid upgrade metadata");
+  const updated = candidatePins(source, version, checksum);
+  const [owner] = repository.split("/");
+  const repo = `/repos/${repository}`;
+  const branch = `automation/openshell-${version}`;
+  const query = new URLSearchParams({state: "open", head: `${owner}:${branch}`, base: "main"});
+  const existing = await request("GET", `${repo}/pulls?${query}`);
+  if (!Array.isArray(existing)) throw Error("Invalid pull request response");
+  if (existing.length) return {existing: true, url: existing[0].html_url};
+  const base = await request("GET", `${repo}/git/ref/heads/main`);
+  if (base?.object?.sha !== baseCommit) throw Error("Main changed after acceptance; rerun validation");
+  if (await request("GET", `${repo}/git/ref/heads/${branch}`, undefined, true))
+    throw Error("Upgrade branch already exists without an open PR; manual review required");
+  await request("POST", `${repo}/git/refs`, {ref: `refs/heads/${branch}`, sha: baseCommit});
+  const file = "frameworks/agent-harness-install/scripts/lib/openshell.sh";
+  const bytes = Buffer.from(source);
+  const blob = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+  await request("PUT", `${repo}/contents/${file}`, {
+    message: `chore(agent-harness): upgrade OpenShell to ${version}`,
+    content: Buffer.from(updated).toString("base64"), sha: blob, branch
+  });
+  const current = await request("GET", `${repo}/git/ref/heads/main`);
+  if (current?.object?.sha !== baseCommit) throw Error("Main changed after acceptance; review the generated branch and rerun validation");
+  const body = [
+    `Updates the OpenShell version and installer SHA-256 to ${version}.`, "",
+    `- Validated AHI commit: ${baseCommit}`,
+    `- OpenShell release commit: ${releaseCommit}`,
+    `- Installer SHA-256: ${checksum}`,
+    `- Passing live acceptance and artifacts: https://github.com/${repository}/actions/runs/${runId}`, "",
+    "The installer checksum is derived from the upstream release commit, not independently authenticated.",
+    "Review upstream provenance, release notes, compatibility and version-specific documentation before merging.",
+    "GitHub Actions PR checks and repository review requirements still apply."
+  ].join("\n");
+  const pr = await request("POST", `${repo}/pulls`, {title: `chore(agent-harness): upgrade OpenShell to ${version}`, head: branch, base: "main", body});
+  if (!pr?.html_url) throw Error("Pull request creation did not return a URL");
+  return {existing: false, url: pr.html_url};
+}
+
+async function githubRequest(method, resource, body, allowMissing = false) {
+  const response = await fetch(`https://api.github.com${resource}`, {
+    method,
+    headers: {"Accept": "application/vnd.github+json", "Authorization": `Bearer ${process.env.GH_TOKEN}`, "User-Agent": "agent-harness-openshell-upgrade", "X-GitHub-Api-Version": "2022-11-28"},
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(30000)
+  });
+  if (allowMissing && response.status === 404) return null;
+  if (!response.ok) throw Error(`GitHub API ${method} ${resource.split("?")[0]} failed: ${response.status}`);
+  return response.json();
+}
+
+async function installerBytes(url) {
+  const response = await fetch(url, {signal: AbortSignal.timeout(30000)});
+  if (!response.ok) throw Error(`OpenShell installer download failed: ${response.status}`);
+  const length = Number(response.headers.get("content-length"));
+  if (length > 2 * 1024 * 1024) throw Error("OpenShell installer is too large");
+  return Buffer.from(await response.arrayBuffer());
 }
 
 export function retryAcceptanceCleanup(stateDirectory, {
@@ -180,6 +270,28 @@ function writeMetadata(directory) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [operation, ...args] = process.argv.slice(2);
   if (operation === "metadata" && args.length === 1) writeMetadata(args[0]);
+  else if (operation === "discover" && args.length === 1) {
+    const source = fs.readFileSync(args[0], "utf8");
+    const clients = {
+      getJson: resource => githubRequest("GET", resource), getBytes: installerBytes
+    };
+    const reliability = process.env.DISCOVERY_MODE === "reliability";
+    const releases = reliability ? await Promise.all(["0.1.6", "0.1.7", "0.1.8", "0.1.9", "0.1.10"].map(version =>
+      discoverOpenShellRelease(source, clients, version, true))) : [await discoverOpenShellRelease(source, clients)];
+    const candidates = releases.filter(release => release.available);
+    const outputs = {available: candidates.length > 0, matrix: JSON.stringify({include: candidates})};
+    if (!reliability && candidates.length) Object.assign(outputs, candidates[0]);
+    for (const [name, value] of Object.entries(outputs)) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
+    console.log(candidates.length ? `Candidate OpenShell releases: ${candidates.map(release => release.version).join(", ")}` : "No newer stable OpenShell release");
+  } else if (operation === "open-pr" && args.length === 1) {
+    const result = await publishOpenShellUpgrade({
+      repository: process.env.GITHUB_REPOSITORY, baseCommit: process.env.GITHUB_SHA,
+      source: fs.readFileSync(args[0], "utf8"), version: process.env.CANDIDATE_VERSION,
+      checksum: process.env.CANDIDATE_CHECKSUM, releaseCommit: process.env.CANDIDATE_RELEASE_COMMIT,
+      runId: process.env.GITHUB_RUN_ID
+    }, githubRequest);
+    console.log(`${result.existing ? "Existing" : "Created"} upgrade PR: ${result.url}`);
+  }
   else if (operation === "candidate" && args.length === 3)
     fs.writeFileSync(args[2], candidatePins(fs.readFileSync(args[2], "utf8"), args[0], args[1]));
   else if (operation === "cleanup" && args.length === 1)

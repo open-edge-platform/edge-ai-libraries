@@ -7,7 +7,91 @@ import path from "node:path";
 import test from "node:test";
 import {spawnSync} from "node:child_process";
 import {fileURLToPath} from "node:url";
-import {buildSummary, candidatePins, retryAcceptanceCleanup, runStage, stages} from "./hosted-openshell-report.mjs";
+import {buildSummary, candidatePins, discoverOpenShellRelease, publishOpenShellUpgrade, retryAcceptanceCleanup, runStage, stages} from "./hosted-openshell-report.mjs";
+
+test("release discovery selects a newer stable version and hashes its immutable installer", async () => {
+  const source = 'HARNESS_OPENSHELL_VERSION="0.1.5"\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\n';
+  const calls = [];
+  const result = await discoverOpenShellRelease(source, {
+    getJson: async url => {
+      calls.push(url);
+      return url.endsWith("/latest") ? {tag_name: "v0.1.10", draft: false, prerelease: false} : {sha: "a".repeat(40)};
+    },
+    getBytes: async url => { calls.push(url); return Buffer.from("installer"); }
+  });
+  assert.equal(result.available, true);
+  assert.equal(result.version, "0.1.10");
+  assert.equal(result.releaseCommit, "a".repeat(40));
+  assert.match(result.checksum, /^[a-f0-9]{64}$/);
+  assert.match(calls[2], new RegExp(`${"a".repeat(40)}/install\\.sh$`));
+});
+
+test("release discovery skips current and older versions and rejects unsafe releases", async () => {
+  const source = 'HARNESS_OPENSHELL_VERSION="0.1.5"\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\n';
+  const run = release => discoverOpenShellRelease(source, {
+    getJson: async () => release,
+    getBytes: async () => assert.fail("Installer must not be fetched")
+  });
+  for (const tag_name of ["v0.1.5", "v0.1.4"]) assert.equal((await run({tag_name, draft: false, prerelease: false})).available, false);
+  for (const release of [
+    {tag_name: "v0.2.0-rc.1", draft: false, prerelease: false},
+    {tag_name: "v0.2.0", draft: false, prerelease: true},
+    {tag_name: "v0.2.0\nINJECTED=1", draft: false, prerelease: false}
+  ]) await assert.rejects(run(release));
+});
+
+test("selected reliability candidates are validated even when older than the current pin", async () => {
+  const source = 'HARNESS_OPENSHELL_VERSION="0.1.10"\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\n';
+  const clients = {
+    getJson: async url => url.includes("/releases/") ? {tag_name: "v0.1.6", draft: false, prerelease: false} : {sha: "a".repeat(40)},
+    getBytes: async () => Buffer.from("installer")
+  };
+  assert.equal((await discoverOpenShellRelease(source, clients, "0.1.6", true)).version, "0.1.6");
+  await assert.rejects(discoverOpenShellRelease(source, clients, "0.1.7", true), /requested stable/);
+});
+
+function upgradeFixture() {
+  return {repository: "example/repo", baseCommit: "a".repeat(40), releaseCommit: "b".repeat(40),
+    source: 'HARNESS_OPENSHELL_VERSION="0.1.5"\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\n',
+    version: "0.1.10", checksum: "c".repeat(64), runId: "123"};
+}
+
+test("upgrade publisher creates a pin commit and PR with acceptance evidence", async () => {
+  const input = upgradeFixture();
+  const calls = [];
+  const result = await publishOpenShellUpgrade(input, async (method, resource, body) => {
+    calls.push({method, resource, body});
+    if (resource.includes("/pulls?")) return [];
+    if (resource.endsWith("/git/ref/heads/main")) return {object: {sha: input.baseCommit}};
+    if (resource.includes("/git/ref/heads/automation/")) return null;
+    if (resource.endsWith("/pulls")) return {html_url: "https://github.com/example/repo/pull/1"};
+    return {};
+  });
+  assert.equal(result.existing, false);
+  const commit = calls.find(call => call.method === "PUT");
+  assert.equal(Buffer.from(commit.body.content, "base64").toString(), candidatePins(input.source, input.version, input.checksum));
+  const pr = calls.find(call => call.method === "POST" && call.resource.endsWith("/pulls"));
+  assert.match(pr.body.body, /actions\/runs\/123/);
+  assert.match(pr.body.body, /not independently authenticated/);
+  assert.equal(pr.body.head, "automation/openshell-0.1.10");
+});
+
+test("upgrade publisher does not overwrite existing PRs or stale branches", async () => {
+  const input = upgradeFixture();
+  let calls = 0;
+  const existing = await publishOpenShellUpgrade(input, async () => { calls++; return [{html_url: "https://example.test/pr"}]; });
+  assert.equal(existing.existing, true);
+  assert.equal(calls, 1);
+  await assert.rejects(publishOpenShellUpgrade(input, async (method, resource) => {
+    if (resource.includes("/pulls?")) return [];
+    return {object: {sha: "d".repeat(40)}};
+  }), /Main changed/);
+  await assert.rejects(publishOpenShellUpgrade(input, async (method, resource) => {
+    if (resource.includes("/pulls?")) return [];
+    if (resource.endsWith("/main")) return {object: {sha: input.baseCommit}};
+    return {object: {sha: input.baseCommit}};
+  }), /branch already exists/);
+});
 
 test("candidate pins replace only the exact version and checksum assignments", () => {
   const source = 'HARNESS_OPENSHELL_VERSION="0.1.5"\r\nHARNESS_OPENSHELL_INSTALL_SHA256="old"\r\nother=value\r\n';
