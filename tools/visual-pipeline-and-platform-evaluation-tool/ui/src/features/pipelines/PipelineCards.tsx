@@ -162,7 +162,11 @@ export const PipelineCards = ({
                       setOpenDropdownId(open ? pipeline.id : null)
                     }
                   >
-                    <DropdownMenuTrigger className="shrink-0 size-8 hover:bg-accent dark:hover:bg-accent/50 rounded flex items-center justify-center">
+                    <DropdownMenuTrigger
+                      aria-label={`Actions for ${pipeline.name}`}
+                      title="Pipeline actions"
+                      className="shrink-0 size-8 hover:bg-accent dark:hover:bg-accent/50 rounded flex items-center justify-center"
+                    >
                       <EllipsisVertical className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">

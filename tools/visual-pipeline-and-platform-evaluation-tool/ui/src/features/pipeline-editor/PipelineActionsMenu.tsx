@@ -461,7 +461,7 @@ export const PipelineActionsMenu = ({
       />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" aria-label="Pipeline actions">
             <MoreVertical className="w-5 h-5" />
           </Button>
         </DropdownMenuTrigger>
