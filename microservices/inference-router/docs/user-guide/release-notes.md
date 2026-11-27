@@ -2,7 +2,7 @@
 
 ## Version 2026.3.0
 
-**Release Date:** TBD
+**Release Date:** December 7, 2026
 
 **New**:
 
@@ -22,8 +22,8 @@
     `prompt_result` and `reconcile`. `GET /v1/strategies/{name}` lists the
     available models and versions in `classifier_options`.
   - If a classifier version cannot be loaded, the rule falls back to the
-    packaged default, or to `-1` (no classifier guidance); requests keep
-    being served.
+    packaged default, or to `-1` (no classifier guidance); requests continue
+    to be served.
   - See [Model-Based Routing](./routing.md#model-based-routing).
 
 - Soft Prompts:
@@ -57,9 +57,9 @@
   - See [Provider Probes](./probe.md) and
     [Performance-Based Routing](./routing.md#performance-based-routing).
 
-**Changed**:
+**Improved**:
 
-- `IntelligentRule` is replaced by `ModelBasedRule`. Update any custom
+- `ModelBasedRule` replaces `IntelligentRule`. Update any custom
   `strategy.yaml` that references the old rule type.
 
 ## Version 2026.2.0
