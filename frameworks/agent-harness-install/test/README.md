@@ -169,8 +169,8 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 ```
 
 The command above retains the all-in-one local behavior. In CI, named steps
-run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (76 direct
-cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (60
+run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (77 direct
+cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (63
 unit cases plus 9 CLI entry-point cases in a separate step), and model
 defaults (7 executed offline cases; two explicit Hermes image-required skips). A separate
 TAP-reporting regression step validates the reporting helper itself.
