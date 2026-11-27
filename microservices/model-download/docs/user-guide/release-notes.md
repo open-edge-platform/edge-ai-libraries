@@ -5,26 +5,24 @@
 
 ## Version 2026.3.0
 
-**Release Date:** TBD
+**Release Date:** December 7, 2026
 
-This release adds the Model Download MCP server and Geti 3.0 support, optimizes Ollama image packaging, and delivers security and documentation improvements.
+This release adds the Model Download Model Context Protocol (MCP) server and Geti™ 3.0 support, optimizes Ollama image packaging, and delivers security and documentation improvements.
 
 **New**:
 
-- **Model Download MCP Server**: enables agents to download and convert models, manage jobs, and discover plugins and hub models through the Model Context Protocol (MCP).
+- **Model Download MCP Server**: enables agents to download and convert models, manage jobs, and discover plugins and hub models through MCP.
 - **ModelScope Plugin**: downloads ModelScope snapshots, including FunASR models.
 
 **Improved**:
 
-- **Audio Analyzer Integration**: Audio Analyzer can use Model Download to provision shared Hugging Face and ModelScope model snapshots, with direct-download fallback when the service is unavailable.
-- **Geti 3.0 Support**: updates the Geti integration to use the Geti 3.0 Model API. Geti 2.0 is no longer supported.
+- **Audio Analyzer Integration**: enables Audio Analyzer to use Model Download to provision shared Hugging Face and ModelScope model snapshots, with direct-download fallback when the service is unavailable.
+- **Geti™ 3.0 Support**: updates the Geti™ integration to use the Geti™ 3.0 Model API. Geti™ 2.0 is no longer supported.
 - **Ollama Image**: packages only the Ollama binary, reducing image size and removing the need to download it at startup.
 
 **Fixed**:
 
-- **Security**: Updates dependencies to address vulnerabilities and strengthens filtering when extracting Geti archives.
-
----
+- **Security**: updates dependencies to address vulnerabilities and strengthens filtering when extracting Geti™ archives.
 
 ## Version 2026.2.0
 
