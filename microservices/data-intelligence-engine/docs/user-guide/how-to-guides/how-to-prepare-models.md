@@ -481,4 +481,4 @@ Each source records the model it uses in its `profile` when it is created; see i
 
   A missing or corrupt cache fails with a preparation error; the engine never fetches it.
 - **Video captions**: provided by an external video-summary service; set `ENGINE_VIDEO_SUMMARY_BASE_URL`. Without it, captioning is skipped and embedding is unaffected.
-- **OKF extraction**: uses an external LLM service; see the [OKF extractor](../../../tools/okf_extractor/README.md).
+- **OKF extraction**: uses an external LLM service; see the [OKF extractor](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/tools/okf_extractor/README.md).

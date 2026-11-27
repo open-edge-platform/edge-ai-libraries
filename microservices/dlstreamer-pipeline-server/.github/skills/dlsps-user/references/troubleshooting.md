@@ -26,8 +26,7 @@ The default `docker-compose.yml` already includes device rules for `/dev/dri` (G
 ### NPU Inference Not Working
 
 **Pre-requisites:** Intel NPU drivers must be installed on the host. Refer to
-[DL Streamer NPU driver docs](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/advanced_install/advanced_install_guide_prerequisites.md#optional-prerequisite-2---install-intel-npu-drivers).
-
+[DL Streamer NPU driver docs](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/advanced_install/advanced_install_guide_prerequisites.html#optional-prerequisite-2-install-intel-npu-drivers).
 
 ---
 
@@ -179,7 +178,7 @@ GST_DEBUG=3        # Detailed logging
 ## Common Port Reference
 
 | Service | Port |
-|---------|------|
+| ------- | ---- |
 | REST API | 8080 |
 | RTSP output | 8554 |
 | MQTT broker | 1883 |

@@ -155,8 +155,7 @@ Efficient data management and retrieval are crucial for AI performance
 and scalability. This group offers components for dataset curation,
 vector search, and document ingestion across multimodal data. 
 
-- [Vector Retriever (Milvus)](./microservices/visual-data-preparation-for-retrieval/milvus)
-  & [Visual Data Preparation (Milvus and Multimodal-dataprep)](./microservices/visual-data-preparation-for-retrieval/multimodal-dataprep)
+- [Visual Data Preparation (Multimodal-dataprep)](./microservices/visual-data-preparation-for-retrieval/multimodal-dataprep)
 
   High-performance vector similarity search and visual data indexing. 
 
