@@ -593,6 +593,18 @@ class TestSanitiseFilename(unittest.TestCase):
             "My Clip_01-a.mp4",
         )
 
+    def test_non_ascii_letters_pass_through(self):
+        self.assertEqual(videos_route._sanitise_filename("qaąę.mp4"), "qaąę.mp4")
+
+    def test_decomposed_unicode_is_normalised_to_nfc(self):
+        self.assertEqual(
+            videos_route._sanitise_filename("zaz\u0307o\u0301\u0142c\u0301.mp4"),
+            "za\u017c\u00f3\u0142\u0107.mp4",
+        )
+
+    def test_backslash_is_rejected(self):
+        self.assertIsNone(videos_route._sanitise_filename("..\\clip.mp4"))
+
 
 class TestProbeContainerAndCodec(unittest.TestCase):
     """Unit tests for _probe_container_and_codec()."""
@@ -700,6 +712,14 @@ class TestUploadVideoEndpoint(unittest.TestCase):
         body = response.json()
         self.assertEqual(body["error"], "missing_filename")
         self.assertIn("detail", body)
+
+    def test_unsupported_characters_reported_in_detail(self):
+        """A filename with unsafe characters names the problem, not a missing name."""
+        with patch("api.routes.videos.VideosManager") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            response = self._post("bad$name.mp4")
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("unsupported characters", response.json()["detail"])
 
     def test_unsupported_extension_rejected(self):
         """A disallowed extension is rejected with unsupported_extension."""

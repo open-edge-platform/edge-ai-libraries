@@ -1,8 +1,8 @@
 import logging
 import os
-import re
 import tempfile
 import threading
+import unicodedata
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -108,26 +108,28 @@ _EXTENSION_TO_CONTAINER: dict[str, str] = {
 # Helpers.
 # --------------------------------------------------------------------------- #
 
-# Conservative pattern for filenames we are willing to write to disk.
-# Allows letters, digits, dot, underscore, hyphen and space. Any other
-# character (including path separators) triggers rejection.
-_SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9 ._-]+$")
+# Conservative allow-list for filenames we are willing to write to disk:
+# Unicode letters and digits (e.g. "zażółć.mp4") plus space, dot, underscore
+# and hyphen. Any other character (including path separators) triggers
+# rejection.
+_SAFE_FILENAME_PUNCTUATION = frozenset(" ._-")
 
 
-def _sanitise_filename(raw: Optional[str]) -> Optional[str]:
+def _sanitise_filename(raw: str | None) -> str | None:
     """
     Return a safe basename or None when the input is missing or unsafe.
 
-    Strips any directory components, rejects empty / dot-only names and
-    anything containing characters outside the conservative allow-list.
-    This protects the shared folder from path-traversal attempts.
+    Strips any directory components, normalises to Unicode NFC, rejects
+    empty / dot-only names and anything containing characters outside the
+    conservative allow-list. This protects the shared folder from
+    path-traversal attempts.
     """
     if not raw:
         return None
-    basename = os.path.basename(raw).strip()
+    basename = unicodedata.normalize("NFC", os.path.basename(raw)).strip()
     if not basename or basename in (".", ".."):
         return None
-    if not _SAFE_FILENAME_RE.match(basename):
+    if not all(ch.isalnum() or ch in _SAFE_FILENAME_PUNCTUATION for ch in basename):
         return None
     return basename
 
@@ -715,9 +717,15 @@ async def upload_video(
     safe_filename = _sanitise_filename(raw_filename)
     if safe_filename is None:
         logger.warning("Upload rejected: missing or unsafe filename %r", raw_filename)
+        detail = (
+            f"Filename '{raw_filename}' contains unsupported characters. "
+            "Use letters, digits, spaces, '.', '_' or '-'."
+            if raw_filename and raw_filename.strip()
+            else "Upload is missing a valid filename."
+        )
         return _upload_error_response(
             schemas.VideoUploadErrorKind.MISSING_FILENAME,
-            "Upload is missing a valid filename.",
+            detail,
             found=raw_filename,
         )
 
