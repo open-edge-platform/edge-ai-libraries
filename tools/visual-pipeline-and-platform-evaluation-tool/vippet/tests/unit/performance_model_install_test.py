@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from tests.performance.perf_helpers import asset_download as ad
 from tests.performance.perf_helpers import model_install as mi
 from tests.performance.perf_helpers.matrix import MatrixFilters, build_matrix
 
@@ -327,67 +328,62 @@ class TestPrompt(unittest.TestCase):
             ("sure", False),
         ):
             with self.subTest(answer=answer):
-                self.assertIs(mi.confirm("?", lambda _: answer), expected)
+                self.assertIs(ad.confirm("?", lambda _: answer), expected)
 
     def test_eof_means_no(self) -> None:
         def eof(_: str) -> str:
             raise EOFError
 
-        self.assertFalse(mi.confirm("?", eof))
+        self.assertFalse(ad.confirm("?", eof))
 
     def _offer(self, plan: mi.InstallPlan, ask: bool, answer: str = "") -> Any:
+        """Present *plan* and ask, as the CLI does; return prompts and output."""
         prompts: list[str] = []
-        installs: list[mi.InstallPlan] = []
         lines: list[str] = []
 
         def input_fn(text: str) -> str:
             prompts.append(text)
             return answer
 
-        def install(p: mi.InstallPlan) -> list[mi.ModelOutcome]:
-            installs.append(p)
-            return [
-                mi.ModelOutcome(m.name, m.display_name, mi.Outcome.INSTALLED)
-                for m in p.models
-            ]
-
-        outcomes = mi.offer_and_install(
-            plan, ask=ask, install=install, input_fn=input_fn, report=lines.append
-        )
-        return outcomes, prompts, installs, "\n".join(lines)
+        mi.present_plan(plan, lines.append)
+        agreed = None
+        if plan.models:
+            agreed = mi.agree_to_install(
+                plan, ask=ask, input_fn=input_fn, report=lines.append
+            )
+        return agreed, prompts, "\n".join(lines)
 
     def test_empty_plan_never_prompts(self) -> None:
-        outcomes, prompts, installs, text = self._offer(mi.InstallPlan(), ask=True)
-        self.assertEqual((outcomes, prompts, installs), ([], [], []))
+        agreed, prompts, text = self._offer(mi.InstallPlan(), ask=True)
+        self.assertEqual((agreed, prompts), (None, []))
         self.assertEqual(
             text, "Model installation: every model the selected runs need is installed."
         )
 
     def test_non_empty_plan_starts_with_a_section_header(self) -> None:
-        _, _, _, text = self._offer(mi.InstallPlan((_planned("a"),)), ask=False)
+        _, _, text = self._offer(mi.InstallPlan((_planned("a"),)), ask=False)
         self.assertTrue(text.startswith("-" * 30 + " Model installation " + "-" * 30))
 
-    def test_declining_installs_nothing(self) -> None:
+    def test_declining(self) -> None:
         plan = mi.InstallPlan((_planned("a"),))
-        outcomes, prompts, installs, text = self._offer(plan, ask=True, answer="n")
+        agreed, prompts, text = self._offer(plan, ask=True, answer="n")
+        self.assertFalse(agreed)
         self.assertEqual(prompts, ["Install 1 model(s) now? [y/N] "])
-        self.assertEqual(installs, [])
-        self.assertEqual([o.outcome for o in outcomes], [mi.Outcome.DECLINED])
         self.assertIn("Not installing", text)
         self.assertIn("--install-missing-models=yes", text)
+        self.assertEqual([o.outcome for o in mi.declined(plan)], [mi.Outcome.DECLINED])
 
-    def test_accepting_installs(self) -> None:
+    def test_accepting(self) -> None:
         plan = mi.InstallPlan((_planned("a"),))
-        outcomes, _, installs, text = self._offer(plan, ask=True, answer="y")
-        self.assertEqual(installs, [plan])
-        self.assertEqual([o.outcome for o in outcomes], [mi.Outcome.INSTALLED])
-        self.assertIn("Model installation: 1 installed", text)
+        agreed, prompts, _ = self._offer(plan, ask=True, answer="y")
+        self.assertTrue(agreed)
+        self.assertEqual(len(prompts), 1)
 
     def test_yes_installs_without_prompt(self) -> None:
         plan = mi.InstallPlan((_planned("a"),))
-        _, prompts, installs, text = self._offer(plan, ask=False)
+        agreed, prompts, text = self._offer(plan, ask=False)
+        self.assertTrue(agreed)
         self.assertEqual(prompts, [])
-        self.assertEqual(installs, [plan])
         self.assertIn("Installing without asking", text)
 
 
@@ -764,7 +760,7 @@ class TestOutcomeHandOver(unittest.TestCase):
             "[" + " " * (300 * 1024) + "]",
         ):
             with self.subTest(raw=raw[:40]):
-                with self.assertRaisesRegex(mi.ModelInstallError, "To fix: unset it"):
+                with self.assertRaisesRegex(ad.OutcomeEnvError, "To fix: unset it"):
                     mi.decode_outcomes(raw)
 
     def test_decoded_text_is_cleaned_again(self) -> None:

@@ -4,7 +4,8 @@
 """Fetch the live ViPPET inventory and build the benchmark matrix.
 
 Only read-only ``GET`` endpoints are used (``/pipelines``, ``/devices``,
-``/models``), so this is safe to call from ``--dry-run``.
+``/models``, ``/videos``, ``/videos/default-recordings``), so this is safe
+to call from ``--dry-run``.
 
 Requires the functional-test ``helpers`` package on ``sys.path`` and
 ``VIPPET_BASE_URL`` set *before* first import, because
@@ -12,9 +13,11 @@ Requires the functional-test ``helpers`` package on ``sys.path`` and
 """
 
 import requests
-
 from helpers.api_helpers import fetch_devices, fetch_pipelines
-from helpers.pipeline_case_helpers import missing_models_per_pipeline
+from helpers.pipeline_case_helpers import (
+    missing_models_per_pipeline,
+    missing_videos_for_pipelines,
+)
 
 from .matrix import Matrix, MatrixFilters, build_matrix
 
@@ -26,4 +29,12 @@ def discover_matrix(filters: MatrixFilters) -> Matrix:
         pipelines = fetch_pipelines(session)
         devices = fetch_devices(session)
         missing = missing_models_per_pipeline(session)
-    return build_matrix(pipelines, devices, missing, filters)
+        videos = missing_videos_for_pipelines(session, pipelines)
+    return build_matrix(
+        pipelines,
+        devices,
+        missing,
+        filters,
+        missing_videos=videos.by_variant,
+        downloadable_videos=videos.downloadable,
+    )

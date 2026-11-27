@@ -12,6 +12,7 @@ from tests.performance.perf_helpers.matrix import (
     MatrixFilters,
     build_matrix,
     find_unknown_filter_ids,
+    format_matrix,
 )
 
 R = ExclusionReason
@@ -129,6 +130,51 @@ class TestBuildMatrix(unittest.TestCase):
         # Missing-model pipelines stay included; pytest wraps them with skip.
         self.assertIn("lpr", [c.pipeline_id for c in matrix.included])
         self.assertEqual(matrix.missing_models, {"lpr": ["A", "LPR Net"]})
+
+    def test_missing_videos_reported_per_included_variant(self) -> None:
+        matrix = build_matrix(
+            PIPELINES,
+            DEVICES,
+            {},
+            MatrixFilters(stream_counts=[1, 3]),
+            missing_videos={
+                ("object-detection", "od-cpu"): ["people.mp4"],
+                ("smart-parking", "sp-cpu"): [""],
+                # Excluded variant: not reported.
+                ("object-detection", "od-npu"): ["bears.mp4"],
+            },
+            downloadable_videos=["people.mp4", "bears.mp4"],
+        )
+        self.assertEqual(
+            matrix.missing_videos,
+            {
+                ("object-detection", "od-cpu"): ["people.mp4"],
+                ("smart-parking", "sp-cpu"): [""],
+            },
+        )
+        self.assertEqual(matrix.downloadable_videos, ["people.mp4"])
+        self.assertEqual(matrix.videos_missing_for(matrix.included[1]), [])
+
+        text = format_matrix(matrix)
+        self.assertIn("Matrix: 4 run(s)", text)
+        self.assertIn("Skipped at run time: missing_videos: 4 run(s)", text)
+        self.assertIn("missing input videos", text)
+        self.assertIn("people.mp4", text)
+        self.assertIn("(none selected)", text)
+        self.assertNotIn("bears.mp4", text)
+
+    def test_missing_videos_skip_even_without_model_skips(self) -> None:
+        matrix = build_matrix(
+            PIPELINES,
+            DEVICES,
+            {"lpr": ["M"]},
+            MatrixFilters(stream_counts=[1]),
+            missing_videos={("lpr", "lpr-cpu"): ["a.mp4"]},
+        )
+        text = format_matrix(matrix, skip_missing_models=False)
+        # lpr misses a video, so it does not run although models are not skipped.
+        self.assertIn("Matrix: 3 run(s)", text)
+        self.assertIn("missing_videos: 1 run(s)", text)
 
     def test_rows_cross_product(self) -> None:
         filters = MatrixFilters(pipelines=["smart-parking"], stream_counts=[1, 5])

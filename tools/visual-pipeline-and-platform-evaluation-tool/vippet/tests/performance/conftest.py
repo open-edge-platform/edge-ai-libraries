@@ -5,10 +5,12 @@
 
 Console output of a normal run, in order: ViPPET readiness -> discovered
 hardware -> benchmark matrix -> per-test status -> pytest summary ->
-model installation (outcome and install hint) -> benchmark artefacts.
+model installation and video download (outcome and hint) -> benchmark
+artefacts.
 
-pytest never prompts and never installs models: the CLI does that before it
-starts pytest and passes the outcome in ``PERF_MODEL_INSTALL_OUTCOME``.
+pytest never prompts, installs models or downloads videos: the CLI does that
+before it starts pytest and passes the outcomes in
+``PERF_MODEL_INSTALL_OUTCOME`` and ``PERF_VIDEO_DOWNLOAD_OUTCOME``.
 """
 
 import contextlib
@@ -25,13 +27,13 @@ from pathlib import Path
 from typing import Any
 
 from dataclasses import dataclass, field
+from perf_helpers import video_download
+from perf_helpers.asset_download import SETUP_ERROR_MARK, OutcomeEnvError
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.job_outcome import describe_missing_hw_samples
 from perf_helpers.model_install import (
     ENV_MODEL_INSTALL,
-    MODEL_INSTALL_ERROR_MARK,
     SKIP_REASON_HINT,
-    ModelInstallError,
     ModelOutcome,
     decode_outcomes,
     describe_skipped_for_missing_models,
@@ -78,13 +80,19 @@ except SettingsError as exc:
     print(f"error: invalid performance config: {exc}", file=sys.stderr)
     raise SystemExit(2) from None
 
-# Outcome of the CLI's model installation step; None for a direct pytest run
-# (or when the CLI skipped the step). Same exit as an invalid config.
+# Outcomes of the CLI's model installation and video download steps; None
+# for a direct pytest run (or when the CLI skipped the step). Same exit as
+# an invalid config.
 try:
     _MODEL_INSTALL: list[ModelOutcome] | None = decode_outcomes(
         os.environ.get(ENV_MODEL_INSTALL)
     )
-except ModelInstallError as exc:
+    _VIDEO_DOWNLOAD: list[video_download.VideoOutcome] | None = (
+        video_download.decode_outcomes(
+            os.environ.get(video_download.ENV_VIDEO_DOWNLOAD)
+        )
+    )
+except OutcomeEnvError as exc:
     print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(2) from None
 
@@ -97,7 +105,13 @@ os.environ["VIPPET_BASE_URL"] = BASE_URL
 os.environ["VIPPET_JOB_TIMEOUT_SECONDS"] = str(POLL_TIMEOUT)
 os.environ["VIPPET_JOB_POLL_INTERVAL"] = str(POLL_INTERVAL)
 
-from helpers.pipeline_case_helpers import PipelineCase, wrap_cases_for_pytest  # noqa: E402
+from helpers.pipeline_case_helpers import (  # noqa: E402
+    MissingVideos,
+    PipelineCase,
+    describe_missing_models,
+    describe_missing_videos,
+    wrap_cases_for_pytest,
+)
 from perf_helpers.discovery import discover_matrix  # noqa: E402
 from perf_helpers.matrix import (  # noqa: E402
     Matrix,
@@ -159,6 +173,9 @@ _FILTER_PROBLEM: tuple[str, bool] | None = None
 # reported as skipped. Used for the install hint in the terminal summary.
 _MISSING_MODEL_SKIP_PIPELINES: set[str] = set()
 _MISSING_MODEL_SKIPS: int = 0
+# The same for (pipeline id, variant id) cases skipped for missing videos.
+_MISSING_VIDEO_SKIP_CASES: set[tuple[str, str]] = set()
+_MISSING_VIDEO_SKIPS: int = 0
 
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
@@ -191,8 +208,8 @@ def pytest_configure(config: pytest.Config) -> None:
     global _RUN_ACTIVE, _RUN_DIR_WARNING
     config.addinivalue_line(
         "markers",
-        f"{MODEL_INSTALL_ERROR_MARK}(reason): the run's model failed to "
-        "install; reported as ERROR with the reason",
+        f"{SETUP_ERROR_MARK}(reason): a model or input video the run needs "
+        "failed to download; reported as ERROR with the reason",
     )
     if config.getoption("collectonly", False) or config.getoption("help", False):
         return
@@ -509,48 +526,85 @@ def _discover_case_params() -> _DiscoveredCases:
         missing,
         skip_missing_models=SKIP_MISSING_MODELS,
         install_hint=SKIP_REASON_HINT,
+        missing_videos=MissingVideos(
+            dict(matrix.missing_videos), frozenset(matrix.downloadable_videos)
+        ),
+        video_download_hint=video_download.SKIP_REASON_HINT,
     )
-    _apply_model_install_outcome(cases, params, missing)
+    _apply_download_outcomes(cases, params, missing, matrix)
     return _DiscoveredCases(params, ids, matrix.known_pipeline_ids, matrix=matrix)
 
 
-def _apply_model_install_outcome(
+def _apply_download_outcomes(
     cases: list[PipelineCase],
     params: list[PipelineCase | object],
     missing: dict[str, set[str]],
+    matrix: Matrix,
 ) -> None:
-    """Mark runs whose missing model failed to install (ERROR) or is still
-    installing after an interrupted wait (SKIPPED), in place.
+    """Mark runs by the CLI's model install and video download outcomes.
 
-    A failed install is an ERROR even with ``skip_missing_models: false``:
-    the install failure is the more useful explanation. Declined models (and
-    runs of a direct pytest run) keep the plain missing-models skip.
+    A run whose missing model or input video failed to download is an ERROR
+    (even with ``skip_missing_models: false``: the download failure is the
+    more useful explanation); one still downloading after an interrupted
+    wait is SKIPPED. Declined assets (and every asset in a direct pytest
+    run) keep the plain missing-asset skip from ``wrap_cases_for_pytest``.
+    Changes *params* in place.
     """
     for index, case in enumerate(cases):
+        errors: list[str] = []
+        skips: list[str] = []
+        plain: list[str] = []
+
         missing_names = missing.get(case.pipeline_id)
-        if not missing_names:
-            continue
-        problem = install_problem(missing_names, _MODEL_INSTALL or [])
-        if problem is None:
-            if SKIP_MISSING_MODELS:
-                _MISSING_MODEL_SKIP_PIPELINES.add(case.pipeline_id)
-            continue
-        if problem.kind == "error":
-            mark = getattr(pytest.mark, MODEL_INSTALL_ERROR_MARK)(reason=problem.reason)
-        elif SKIP_MISSING_MODELS:
-            mark = pytest.mark.skip(reason=problem.reason)
+        if missing_names:
+            problem = install_problem(missing_names, _MODEL_INSTALL or [])
+            if problem is None:
+                if SKIP_MISSING_MODELS:
+                    _MISSING_MODEL_SKIP_PIPELINES.add(case.pipeline_id)
+                    plain.append(
+                        describe_missing_models(
+                            case.pipeline_name, missing_names, SKIP_REASON_HINT
+                        )
+                    )
+            elif problem.kind == "error":
+                errors.append(problem.reason)
+            elif SKIP_MISSING_MODELS:
+                skips.append(problem.reason)
+
+        videos = matrix.missing_videos.get((case.pipeline_id, case.variant_id))
+        if videos:
+            problem = video_download.download_problem(videos, _VIDEO_DOWNLOAD or [])
+            if problem is None:
+                _MISSING_VIDEO_SKIP_CASES.add((case.pipeline_id, case.variant_id))
+                plain.append(
+                    describe_missing_videos(
+                        case.pipeline_name,
+                        videos,
+                        matrix.downloadable_videos,
+                        video_download.SKIP_REASON_HINT,
+                    )
+                )
+            elif problem.kind == "error":
+                errors.append(problem.reason)
+            else:
+                skips.append(problem.reason)
+
+        if errors:
+            mark = getattr(pytest.mark, SETUP_ERROR_MARK)(reason="; ".join(errors))
+        elif skips:
+            mark = pytest.mark.skip(reason=" ".join(skips + plain))
         else:
             continue
         params[index] = pytest.param(case, marks=mark)
 
 
 @pytest.fixture(autouse=True)
-def _error_if_model_install_failed(request: pytest.FixtureRequest) -> None:
-    """Turn a run whose model failed to install into an ERROR (setup failure)."""
-    marker = request.node.get_closest_marker(MODEL_INSTALL_ERROR_MARK)
+def _error_if_download_failed(request: pytest.FixtureRequest) -> None:
+    """Turn a run whose model or video failed to download into an ERROR."""
+    marker = request.node.get_closest_marker(SETUP_ERROR_MARK)
     if marker is not None:
         pytest.fail(
-            str(marker.kwargs.get("reason") or "a required model failed to install"),
+            str(marker.kwargs.get("reason") or "a required asset failed to download"),
             pytrace=False,
         )
 
@@ -671,17 +725,45 @@ def _write_model_install_summary(terminalreporter: Any) -> None:
         terminalreporter.write_line(line, **markup)
 
 
+def _write_video_download_summary(terminalreporter: Any) -> None:
+    """The CLI's video download outcome, and how to get missing videos."""
+    lines: list[tuple[str, dict[str, bool]]] = []
+    if _VIDEO_DOWNLOAD:
+        lines.extend(
+            (line, {})
+            for line in video_download.format_outcomes(_VIDEO_DOWNLOAD).splitlines()
+        )
+        failed_conversions = video_download.conversion_failure_line(_VIDEO_DOWNLOAD)
+        if failed_conversions:
+            lines.append((f"{failed_conversions}.", {"yellow": True}))
+    if _MISSING_VIDEO_SKIPS:
+        lines.append(
+            (
+                video_download.describe_skipped_for_missing_videos(
+                    _MISSING_VIDEO_SKIPS, _VIDEO_DOWNLOAD
+                ),
+                {"yellow": True},
+            )
+        )
+    if not lines:
+        return
+    terminalreporter.section("Video download", sep="-")
+    for line, markup in lines:
+        terminalreporter.write_line(line, **markup)
+
+
 def pytest_terminal_summary(
     terminalreporter: Any, exitstatus: int, config: pytest.Config
 ) -> None:
     """List this run's directory, reports, log and ``latest`` link.
 
     Also explains why no reports were written, and shows report/link errors.
-    The model installation outcome comes first.
+    The model installation and video download outcomes come first.
     """
     if not _RUN_ACTIVE or _DISCOVERED_CASES is None:
         return
     _write_model_install_summary(terminalreporter)
+    _write_video_download_summary(terminalreporter)
     rows: list[tuple[str, Path]] = []
     if _RUN_DIR.is_dir():
         rows.append(("Directory", _RUN_DIR))
@@ -790,11 +872,19 @@ def results_collector(
             },
             "hardware": hw_families,
             "system_info": system_info,
-            # None when no model installation was attempted by the CLI.
+            # None when the CLI did not run the install step; [] when
+            # nothing was missing.
             "model_install": (
                 None
                 if _MODEL_INSTALL is None
                 else [outcome.to_dict() for outcome in _MODEL_INSTALL]
+            ),
+            # None when the CLI did not run the download step; [] when
+            # nothing was missing.
+            "video_download": (
+                None
+                if _VIDEO_DOWNLOAD is None
+                else [outcome.to_dict() for outcome in _VIDEO_DOWNLOAD]
             ),
             "config": build_config_block(
                 SETTINGS,
@@ -839,10 +929,11 @@ _RESULTS_COLLECTOR_REF: list[list[dict[str, Any]]] = []
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:  # type: ignore[type-arg]
     """Capture skipped perf tests and setup errors into the results collector.
 
-    A setup error is e.g. a run whose model failed to install; it is recorded
-    with status ``error`` so the reports show it next to the other runs.
+    A setup error is e.g. a run whose model failed to install or whose input
+    video failed to download; it is recorded with status ``error`` so the
+    reports show it next to the other runs.
     """
-    global _MISSING_MODEL_SKIPS
+    global _MISSING_MODEL_SKIPS, _MISSING_VIDEO_SKIPS
     if call.when != "setup":
         return
     if call.excinfo is None:
@@ -874,6 +965,13 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo) -> None:
         and actual_case.pipeline_id in _MISSING_MODEL_SKIP_PIPELINES
     ):
         _MISSING_MODEL_SKIPS += 1
+    if (
+        is_skip
+        and actual_case is not None
+        and (actual_case.pipeline_id, actual_case.variant_id)
+        in _MISSING_VIDEO_SKIP_CASES
+    ):
+        _MISSING_VIDEO_SKIPS += 1
 
     entry = {
         "pipeline_name": actual_case.pipeline_name if actual_case else "unknown",

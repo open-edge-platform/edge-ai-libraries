@@ -17,25 +17,8 @@ import uuid
 import pytest
 import requests
 
+from helpers.api_helpers import DEFAULT_CONVERSION_STATES, DEFAULT_RECORDING_STATES
 from helpers.config import BASE_URL
-
-_DOWNLOAD_STATES = {
-    "available",
-    "queued",
-    "downloading",
-    "downloaded",
-    "failed",
-    "conflict",
-}
-_CONVERSION_STATES = {
-    "not_converted",
-    "queued",
-    "converting",
-    "converted",
-    "failed",
-    "conflict",
-    "unsupported",
-}
 
 
 def _fetch_default_recordings(session: requests.Session) -> list[dict]:
@@ -63,8 +46,8 @@ def test_default_recordings_listing_schema(http_client: requests.Session) -> Non
         assert item["hevc_filename"]
         assert item["hevc_filename"] != item["filename"]
         assert isinstance(item["source"], str)
-        assert item["status"] in _DOWNLOAD_STATES, item
-        assert item["conversion_status"] in _CONVERSION_STATES, item
+        assert item["status"] in DEFAULT_RECORDING_STATES, item
+        assert item["conversion_status"] in DEFAULT_CONVERSION_STATES, item
 
 
 @pytest.mark.smoke
