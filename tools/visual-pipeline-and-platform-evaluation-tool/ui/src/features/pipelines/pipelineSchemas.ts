@@ -4,7 +4,7 @@ export const pipelineMetadataSchema = z.object({
   name: z
     .string()
     .min(3, "Name must be at least 3 characters")
-    .max(20, "Name must be at most 20 characters"),
+    .max(64, "Name must be at most 64 characters"),
   description: z.string().min(1, "Description is required"),
   tags: z.array(z.string()).min(1, "At least one tag is required"),
 });
