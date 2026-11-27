@@ -45,10 +45,8 @@ RUN set -eux; \
 RUN rm -rf /tmp/neo
 WORKDIR /app
 
-# Pinned XPU torch (matches the adaptive-token-compressor[compress-server-pytorch-xpu]
-# extras). XPU support is native in stock PyTorch
 RUN pip install --no-cache-dir \
-        torch==2.10.0+xpu \
+        torch==2.13.0+xpu \
         --index-url https://download.pytorch.org/whl/xpu
 
 # Compress Server's own runtime deps (NOT adaptive-token-compressor).
@@ -63,7 +61,7 @@ RUN pip install --no-cache-dir \
 
 # Security: pin transitively-pulled packages flagged by trivy to fixed versions.
 RUN pip install --no-cache-dir \
-        setuptools==84.0.0 \
+        setuptools==84.2.1 \
         wheel==0.48.0 \
         jaraco.context==6.1.2 \
         msgpack==1.2.3 \
