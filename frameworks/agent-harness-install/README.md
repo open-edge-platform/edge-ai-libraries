@@ -85,7 +85,7 @@ for details.
 
 ## Documentation
 
-- [Agent Harness Installer, Explained Simply](./docs/user-guide/overview-for-everyone.md):
+- [Agent Harness Installer, Explained Simply](./docs/user-guide/overview.md):
   a plain-language overview of what AHI does and why it matters, for
   non-technical readers.
 - [Get Started](./docs/user-guide/get-started.md): install flow, usage and
@@ -152,3 +152,12 @@ Uninstall is a plain bash script.
 - `scripts/lib/gpu-intel.sh` only detects GPU/compute-runtime readiness; it
   assumes drivers are already provisioned (e.g., via Edge Pack:
   github.com/open-edge-platform/edge-pack) rather than installing them.
+
+## Intended Use
+
+Unless stated otherwise, software maintained under the Edge AI Libraries repository is intended
+for demonstration and reference purposes only.
+Certain features, such as authentication, TLS termination, and external access controls are
+assumed to be covered at the infrastructure level.
+For more information, refer to
+[Notes on Usage](https://docs.openedgeplatform.intel.com/dev/OEP-articles/notes-on-usage.html).

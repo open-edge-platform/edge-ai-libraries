@@ -51,7 +51,7 @@ The library lives in the larger `edge-ai-libraries` monorepo. To fetch only
 this library, use sparse checkout:
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --branch main --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries
 git sparse-checkout set libraries/adaptive-token-compressor
 cd libraries/adaptive-token-compressor
@@ -367,7 +367,6 @@ general type or URL validator.
 
 > [!CAUTION]
 > **Experimental:** Configuration options and defaults may change in future releases.
-
 
 | Parameter | Type | Default | Description |
 | ----------- | ------ | --------- | ------------- |

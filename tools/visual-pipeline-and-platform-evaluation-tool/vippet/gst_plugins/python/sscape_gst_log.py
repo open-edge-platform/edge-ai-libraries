@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 """
-Route SceneScape plugin log messages through the GStreamer debug system.
+Route Scenescape plugin log messages through the GStreamer debug system.
 
 Registers a `GstDebugCategory` per plugin so that verbosity is controlled by
 the standard `GST_DEBUG` env var alongside built-in categories, e.g.:

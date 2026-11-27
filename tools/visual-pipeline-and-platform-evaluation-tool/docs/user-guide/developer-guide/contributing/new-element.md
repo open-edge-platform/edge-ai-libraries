@@ -75,7 +75,7 @@ When introducing a new element (typically by writing a new pipeline that
 references it):
 
 - If the element is a meaningful, user-facing step (a new source family,
-  a new inference element following the `gva*` naming, a new SceneScape
+  a new inference element following the `gva*` naming, a new Scenescape
   element following the `sscape_*` naming, a new sink...) it
   will appear in the Simple view automatically thanks to the default
   patterns.
