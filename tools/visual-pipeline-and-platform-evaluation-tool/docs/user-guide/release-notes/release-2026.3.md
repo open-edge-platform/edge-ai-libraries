@@ -103,7 +103,9 @@ include charts. Performance reports can be generated as HTML from JSON results,
 with host platform and ViPPET version included in the system information. Test runs can
 also record their effective configuration for later replay.
 
-For details on performance tests and their metrics, see
+For details on running performance tests from the command line, see the
+[performance testing CLI guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet/tests/performance/README.md).
+For performance tests and their metrics in the application, see
 [Performance Testing](../user-guide/benchmarking/performance-testing.md) and
 [Benchmarking](../user-guide/benchmarking.md).
 
