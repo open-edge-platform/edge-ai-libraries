@@ -5,17 +5,28 @@ recent release is listed first; older entries are preserved for history.
 
 ## Version 2026.3.0
 
-**Release Date:** TBD
+**Release Date:** December 7, 2026
 
-**New:**
+**New**:
 
-- Optional FunASR Paraformer models, VAD, and punctuation models can be downloaded from ModelScope when the CJK dependencies are installed.
-- Model snapshots can be provisioned through a shared Model Download service using `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL`, with direct downloads available as a fallback.
+- Added a per-request automatic speech recognition (ASR) device choice (`CPU`, `GPU`, or `NPU`), with a separate model cache for each device.
+- Added an optional FunASR Paraformer ASR provider for Chinese and English, with ModelScope model downloads.
+- Added preview transcription on the realtime WebSocket, with an optional separate preview model pool.
+- Added an opt-in low-latency mode on the realtime WebSocket that reuses the final preview at commit (about 30% lower voice-to-voice latency).
+- Added model provisioning through the shared Model Download service, with direct download as a fallback.
+- Added a per-request flag to turn diarization off.
+- Added optional loudness normalization.
 
-**Improved:**
+**Improved**:
 
-- Startup reuses valid model snapshots and provisions missing or incomplete snapshots from the configured source.
-- Updated the Level Zero package to version 1.34.0.
+- Reduced ASR latency by about 50% on short audio chunks by cutting per-request overhead, such as `ffprobe` and `ffmpeg` calls.
+- Sped up responses by caching the OpenVINO™ device check.
+- Fixed Whisper timestamps on NPU.
+- Fixed FunASR startup on Python 3.12 and diarization startup with torchaudio 2.11 (speechbrain 1.1.2).
+- Moved to an Ubuntu-based Docker image and resolved image CVEs.
+- Updated OpenVINO™ and OpenVINO™ GenAI to 2026.3.1 and Level Zero to 1.34.0.
+- Updated image tags to the 2026.3.0-rc1 release.
+- Updated documentation, including benchmark results and skill files.
 
 ## Version 2026.2.0
 
