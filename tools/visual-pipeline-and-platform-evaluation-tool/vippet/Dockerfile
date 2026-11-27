@@ -109,6 +109,7 @@ COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/mana
 COPY --chown=dlstreamer:dlstreamer vippet/app_export/ /home/dlstreamer/vippet/app_export
 COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
 COPY --chown=dlstreamer:dlstreamer --from=aravis /out/aravis/ /home/dlstreamer/vippet/gst_plugins/aravis
+COPY third_party_programs.txt /opt/third_party_programs.txt
 
 # Build-time release identifiers. Injected via --build-arg (see compose.yml,
 # which sources VIPPET_VERSION from DOCKER_TAG and VIPPET_REVISION from the

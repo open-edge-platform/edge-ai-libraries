@@ -49,6 +49,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy custom Nginx configuration
 COPY ui/nginx.conf /etc/nginx/conf.d/default.conf
 
+COPY third_party_programs.txt /opt/third_party_programs.txt
+
 # Ensure nginx user owns the html directory
 RUN chown -R nginx:nginx /usr/share/nginx/html
 

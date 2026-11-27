@@ -51,6 +51,10 @@ COPY background.gif config.json imagetovideo.py composite_generator.py /usr/src/
 # Copy the images folder into the container
 COPY images/ /usr/src/app/images
 
+# The notice sits at the ViPPET root, outside this build context; compose.yml passes that
+# folder as the named context "vippet-root".
+COPY --from=vippet-root third_party_programs.txt /opt/third_party_programs.txt
+
 # Switch to a non-root user
 ARG UID=1000
 USER ${UID}
