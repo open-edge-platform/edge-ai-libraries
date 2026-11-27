@@ -36,7 +36,7 @@ export const sscapePostInferenceDataPublishConfig: NodeConfig = {
       type: "select",
       options: SSCAPE_METADATA_POLICIES,
       defaultValue: "detectionPolicy",
-      description: "Policy used to build the SceneScape metadata payload",
+      description: "Policy used to build the Scenescape metadata payload",
     },
     {
       key: "detection-labels",

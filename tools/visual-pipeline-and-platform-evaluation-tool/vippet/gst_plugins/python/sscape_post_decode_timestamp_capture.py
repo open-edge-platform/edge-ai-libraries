@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 """
-SceneScape custom GStreamer element that captures post-decode timestamps.
+Scenescape custom GStreamer element that captures post-decode timestamps.
 Designed to be used in a DLStreamer pipeline after a decoder element. It attaches post-decode timestamps and FPS metadata to each buffer, which can be consumed by downstream elements or applications.
 """
 
@@ -37,7 +37,7 @@ NTP_CAPS_STRING = "timestamp/x-ntp"
 # (or any level) toggles this plugin's verbosity like any built-in category.
 _GST_LOG = GstCategoryLogger(
   "sscape_ts_capture",
-  "SceneScape post-decode timestamp capture element",
+  "Scenescape post-decode timestamp capture element",
 )
 
 
@@ -45,10 +45,10 @@ class PostDecodeTimestampCapture(GstBase.BaseTransform):
   """Attach post-decode timestamp and FPS metadata to each buffer."""
 
   __gstmetadata__ = (
-    "SceneScape Post-Decode Timestamp Capture",
+    "Scenescape Post-Decode Timestamp Capture",
     "Filter/Metadata/Video",
     "Capture post-decode timestamp and FPS; publish as GVA JSON message",
-    "Intel SceneScape",
+    "Intel Scenescape",
   )
 
   __gsttemplates__ = (
