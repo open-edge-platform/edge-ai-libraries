@@ -52,10 +52,12 @@ export const isAsyncJobError = (error: unknown): error is AsyncJobStatus =>
 export const handleAsyncJobError = (
   error: AsyncJobStatus,
   titlePrefix: string,
+  toastId?: string,
 ) => {
   if (error.state === "FAILED") {
     const description = formatErrorMessage(error.details);
     toast.error(`${titlePrefix} error`, {
+      id: toastId,
       description,
     });
   } else if (
@@ -67,16 +69,22 @@ export const handleAsyncJobError = (
       "Operation cancelled",
     );
     toast.error(`${titlePrefix} cancelled`, {
+      id: toastId,
       description,
     });
   }
 };
 
-export const handleApiError = (error: unknown, title: string) => {
+export const handleApiError = (
+  error: unknown,
+  title: string,
+  toastId?: string,
+) => {
   const errorMessage = isApiError(error)
     ? error.data.message
     : (getValidationErrorMessage(error) ?? getErrorMessage(error));
   toast.error(title, {
+    id: toastId,
     description: errorMessage,
   });
 

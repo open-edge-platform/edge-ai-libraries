@@ -78,6 +78,8 @@ type CreatePipelineDialogProps = {
   children: ReactNode;
 };
 
+const CREATE_PIPELINE_ERROR_TOAST_ID = "create-pipeline-error";
+
 export const CreatePipelineDialog = ({
   children,
 }: CreatePipelineDialogProps) => {
@@ -232,14 +234,23 @@ export const CreatePipelineDialog = ({
       if (response.id) {
         setOpen(false);
         reset();
+        toast.dismiss(CREATE_PIPELINE_ERROR_TOAST_ID);
         toast.success("Pipeline created successfully");
         navigate(`/pipelines/vision/${response.id}/${variantName}`);
       }
     } catch (error) {
       if (isAsyncJobError(error)) {
-        handleAsyncJobError(error, "Pipeline validation");
+        handleAsyncJobError(
+          error,
+          "Pipeline validation",
+          CREATE_PIPELINE_ERROR_TOAST_ID,
+        );
       } else {
-        handleApiError(error, "Failed to process pipeline");
+        handleApiError(
+          error,
+          "Failed to process pipeline",
+          CREATE_PIPELINE_ERROR_TOAST_ID,
+        );
       }
       console.error("Failed to process pipeline:", error);
     }
@@ -281,12 +292,17 @@ export const CreatePipelineDialog = ({
         setOpen(false);
         reset();
         setSelectedTemplate(null);
+        toast.dismiss(CREATE_PIPELINE_ERROR_TOAST_ID);
         toast.success("Pipeline created successfully");
         const variantId = variants[0]?.id || "default";
         navigate(`/pipelines/vision/${response.id}/${variantId}`);
       }
     } catch (error) {
-      handleApiError(error, "Failed to create pipeline from template");
+      handleApiError(
+        error,
+        "Failed to create pipeline from template",
+        CREATE_PIPELINE_ERROR_TOAST_ID,
+      );
       console.error("Failed to create pipeline from template:", error);
     }
   };
