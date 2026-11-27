@@ -56,7 +56,7 @@ for prerequisites and limitations.
 ## Observability
 
 `./install.sh observability enable|disable|show` manages telemetry for the
-Inference Router and the installed harness (Hermes or OpenClaw). `enable` takes the collection and storage
+Inference Router and the installed harness (Hermes, OpenClaw or Deep Agents Code). `enable` takes the collection and storage
 options (`--backend`, `--endpoint`, `--content`); `disable` can delete collected
 data (`--clean`) or keep the managed Jaeger (`--keep-jaeger`); `show` prints a
 CLI summary, with Jaeger providing the full trace view. The Router persists
@@ -64,7 +64,8 @@ request counters and latencies to a JSONL file and serves them on `/v1/metrics`.
 Each agent records per-turn traces through its own OpenTelemetry exporter (the
 `hermes-otel` plugin or OpenClaw's `diagnostics-otel` plugin) into a local
 SQLite store, and optionally exports them to a
-managed or external Jaeger. For OpenClaw a small loopback OTLP
+managed or external Jaeger. Deep Agents Code gets a small extension installed by
+the installer (host runtime and OpenShell). For OpenClaw and dcode a small loopback OTLP
 receiver fills the local store.
 Harness telemetry also works in OpenShell sandboxes for OpenClaw and Hermes (`--runtime openshell`).
 With `--target all` (or when `--backend` is given or saved), a host-side bridge also turns each Router

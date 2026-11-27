@@ -253,6 +253,7 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 |---|---|---|---|
 | Hermes | `hermes-otel` plugin | Installs and enables the plugin, writes `$HERMES_HOME/hermes_otel.yaml` | `$HERMES_HOME/hermes_otel_live.db`, written by the plugin |
 | OpenClaw | `@openclaw/diagnostics-otel` plugin | Installs (or re-enables) the plugin at the installed OpenClaw's version and merges `diagnostics` into the OpenClaw config | `$OPENCLAW_STATE_DIR/openclaw_otel_live.db` (default `~/.openclaw`), written by the OTLP receiver |
+| Deep Agents Code (`dcode`) | Extension shipped with the installer (`scripts/lib/dcode-otel-extension.py`) | Copies the extension to `$DEEPAGENTS_HOME/extensions/agent_harness_otel.py` (default `~/.deepagents`), writes `agent-harness-otel.json` next to it, and adds a managed block to `$DEEPAGENTS_HOME/.env` that sets `DEEPAGENTS_CODE_EXPERIMENTAL=1`. With `--runtime openshell` the same files are written inside the sandbox (the extension is baked into the image) | `$DEEPAGENTS_HOME/dcode_otel_live.db` on the host runtime, `<state>/openshell-telemetry/dcode_otel_live.db` with `--runtime openshell`, written by the OTLP receiver |
 
 - **Hermes:** run `hermes gateway restart` and start a new session. A Hermes
   process that was already running (the gateway, or the plugin host it
@@ -284,6 +285,34 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   `--backend sqlite` with OpenClaw. With `--backend jaeger` OpenClaw accepts
   only `off` or `full`, since its exporter has no preview mode.
 - OpenClaw spans carry no session id, so `show` reports `sessions: 0` for them.
+- **Deep Agents Code:** dcode's built-in tracing only targets LangSmith, so the
+  installer adds a small extension (a LangChain callback handler, no extra
+  dependencies beyond the OpenTelemetry packages dcode already ships) that turns
+  each run into an OpenTelemetry trace: a root `agent` span with the graph nodes
+  (`model`, `tools`, middleware), a `chat <model>` span per model call (with
+  `gen_ai.usage.*` token counts) and an `execute_tool <name>` span per tool
+  call. Spans also carry `langfuse.observation.*` attributes, so a Langfuse
+  OTLP endpoint renders them as generations and tools. Use
+  `--backend jaeger --endpoint <traces-url>` with the full traces URL, which is
+  passed to dcode as given (for Langfuse,
+  `https://<host>/api/public/otel/v1/traces`; the `jaeger` backend value only
+  means "export over OTLP"). Restart dcode after `enable` or `disable`: extensions
+  load only at start. dcode treats extensions as experimental and loads them
+  only when `DEEPAGENTS_CODE_EXPERIMENTAL=1`; `enable` sets it through a marked
+  block in `$DEEPAGENTS_HOME/.env`, which `disable` removes (the rest of the
+  file is kept). The flag applies to every extension in
+  `$DEEPAGENTS_HOME/extensions/`, so your own extensions load while telemetry is
+  enabled. For an authenticated OTLP endpoint such as Langfuse, start dcode with
+  `OTEL_EXPORTER_OTLP_HEADERS` set (for example
+  `Authorization=Basic%20<base64>`; encode spaces as `%20`). The extension needs `langchain-core`, `opentelemetry-sdk` and
+  `opentelemetry-exporter-otlp-proto-http` in dcode's own environment; `enable`
+  checks this first. Prompt and response text is recorded only with
+  `--content preview|full` (the default `off` records timings, models, token
+  counts and tool names). Files that this installer did not write are never
+  overwritten. With `--runtime openshell` the sandbox reaches the receiver or
+  Jaeger through the same egress rule as the other agents; start dcode in the
+  sandbox again after `enable` or `disable`, and rebuild a sandbox created before
+  this support (remove it and install it again).
 
 ### Inference Router
 

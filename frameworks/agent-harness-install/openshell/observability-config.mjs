@@ -20,7 +20,7 @@ const stateFile = path.join(home, ".harness-observability.json");
 const openclawConfig = path.join(home, ".openclaw", "openclaw.json");
 const baseUrl = /^https?:\/\/[A-Za-z0-9._-]+(:[1-9][0-9]{0,4})?(\/[A-Za-z0-9._~%\/-]*[A-Za-z0-9._~%-])?$/;
 const pluginDir = "/home/node/.openclaw/npm/projects";
-const script = "/opt/harness/observability-config.mjs";
+const script = process.env.HARNESS_OBSERVABILITY_SCRIPT || "/opt/harness/observability-config.mjs";
 // Hermes: the hermes-otel plugin is installed and enabled in the image (enabling downloads
 // dependencies, which the default sandbox policy does not allow); its exporter is switched through this file only.
 const hermesHome = process.env.HERMES_HOME || "/home/node/.hermes";
@@ -29,6 +29,18 @@ const hermesPlugin = path.join(hermesHome, "plugins", "hermes_otel", "plugin.yam
 // The sandbox user's HOME is /sandbox, but the image installs Hermes under /home/node.
 const hermesBin = process.env.HERMES_BIN || "/home/node/.local/bin/hermes";
 const hermesMarker = "# Managed by agent-harness-install (metrics)";
+// dcode: the extension is baked into the image; enabling copies it into the profile's extensions directory and
+// switches extension loading on through the profile .env. Markers match scripts/lib/metrics.sh.
+const dcodeHome = process.env.DEEPAGENTS_HOME || path.join(home, ".deepagents");
+const dcodeSource = process.env.HARNESS_DCODE_EXTENSION_SRC || "/opt/harness/dcode-otel-extension.py";
+const dcodePython = process.env.HARNESS_DCODE_PYTHON || "/home/node/.local/share/uv/tools/deepagents-code/bin/python";
+const dcodeExtensionDir = path.join(dcodeHome, "extensions");
+const dcodeExtension = path.join(dcodeExtensionDir, "agent_harness_otel.py");
+const dcodeSettings = path.join(dcodeHome, "agent-harness-otel.json");
+const dcodeEnv = path.join(dcodeHome, ".env");
+const dcodeSettingsMark = '"managed_by": "agent-harness-install (metrics)"';
+const dcodeEnvBegin = "# BEGIN agent-harness-install managed observability -- do not edit between markers";
+const dcodeEnvEnd = "# END agent-harness-install managed observability";
 
 function writeFile(file, content) {
   fs.mkdirSync(path.dirname(file), {recursive: true, mode: 0o700});
@@ -132,6 +144,61 @@ function hermesInert() {
   writeFile(hermesConfig, `${hermesMarker}\nenabled: false\n`);
 }
 
+function lstatOrNull(file) {
+  try {
+    return fs.lstatSync(file);
+  } catch {
+    return null;
+  }
+}
+
+// A file this installer did not write (or a symlink) is never replaced or removed.
+function dcodeFileState(file, mark) {
+  const stat = lstatOrNull(file);
+  if (!stat) return "absent";
+  if (stat.isSymbolicLink() || !stat.isFile()) return "foreign";
+  return fs.readFileSync(file, "utf8").includes(mark) ? "managed" : "foreign";
+}
+
+function assertDcodeWritable() {
+  for (const dir of [dcodeHome, dcodeExtensionDir, dcodeEnv])
+    if (lstatOrNull(dir)?.isSymbolicLink()) throw Error(`Refusing to write through a symlink: ${dir}`);
+  if (dcodeFileState(dcodeExtension, hermesMarker) === "foreign")
+    throw Error(`${dcodeExtension} exists and is not managed by this installer; move it aside and retry`);
+  if (dcodeFileState(dcodeSettings, dcodeSettingsMark) === "foreign")
+    throw Error(`${dcodeSettings} exists and is not managed by this installer; move it aside and retry`);
+}
+
+function assertDcodePackages() {
+  const result = spawnSync(dcodePython, ["-c",
+    "import langchain_core, opentelemetry.sdk.trace, opentelemetry.exporter.otlp.proto.http.trace_exporter"],
+    {encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60000});
+  if (result.error || result.status !== 0)
+    throw Error(`dcode's Python environment (${dcodePython}) lacks langchain-core, opentelemetry-sdk or opentelemetry-exporter-otlp-proto-http, which the telemetry extension needs`);
+}
+
+// Adds or removes the installer's block in the profile .env (CRLF-tolerant); the rest of the file is kept.
+function dcodeEnvSet(on) {
+  const existing = fs.existsSync(dcodeEnv) ? fs.readFileSync(dcodeEnv, "utf8") : "";
+  const kept = [];
+  let skip = false;
+  for (const raw of existing.split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    if (line === dcodeEnvBegin) { skip = true; continue; }
+    if (line === dcodeEnvEnd) { skip = false; continue; }
+    if (!skip) kept.push(raw);
+  }
+  let text = kept.join("\n");
+  if (on) {
+    if (text && !text.endsWith("\n")) text += "\n";
+    text += `${dcodeEnvBegin}\nDEEPAGENTS_CODE_EXPERIMENTAL=1\n${dcodeEnvEnd}\n`;
+  } else if (!/\S/.test(text)) {
+    fs.rmSync(dcodeEnv, {force: true});
+    return;
+  }
+  writeFile(dcodeEnv, text);
+}
+
 function openclawMatches(expect, endpoint) {
   const otel = currentOpenclawConfig().diagnostics?.otel;
   return expect === "on"
@@ -150,6 +217,11 @@ switch (command) {
       if (!fs.existsSync(script) || !hermesPluginInstalled() || hermesConfigState() === "absent")
         throw Error("This sandbox image predates telemetry support (no hermes-otel plugin); remove the sandbox and install it again");
       assertHermesConfigWritable();
+    } else if (agent === "deepagents-code") {
+      if (!fs.existsSync(script) || !fs.existsSync(dcodeSource))
+        throw Error("This sandbox image predates telemetry support (no dcode telemetry extension); remove the sandbox and install it again");
+      assertDcodePackages();
+      assertDcodeWritable();
     } else {
       throw Error("Unsupported sandbox agent");
     }
@@ -199,6 +271,21 @@ switch (command) {
     // Image build: no gateway exists yet.
     if (args[0] !== "no-restart") restartHermesGateway();
     break;
+  case "dcode-enable": {
+    const [tracesUrl, content] = args;
+    validBase(tracesUrl);
+    validContent(content);
+    assertDcodeWritable();
+    writeFile(dcodeExtension, fs.readFileSync(dcodeSource, "utf8"));
+    writeFile(dcodeSettings, `${JSON.stringify({managed_by: "agent-harness-install (metrics)", enabled: true, endpoint: tracesUrl, content}, null, 2)}\n`);
+    dcodeEnvSet(true);
+    break;
+  }
+  case "dcode-disable":
+    if (dcodeFileState(dcodeExtension, hermesMarker) === "managed") fs.rmSync(dcodeExtension);
+    if (dcodeFileState(dcodeSettings, dcodeSettingsMark) === "managed") fs.rmSync(dcodeSettings);
+    if (!lstatOrNull(dcodeEnv)?.isSymbolicLink() && fs.existsSync(dcodeEnv) && fs.readFileSync(dcodeEnv, "utf8").includes(dcodeEnvBegin)) dcodeEnvSet(false);
+    break;
   case "status": {
     const [agent] = args;
     if (agent === "hermes") {
@@ -215,6 +302,17 @@ switch (command) {
       const otel = currentOpenclawConfig().diagnostics?.otel;
       console.log(`diagnostics-otel plugin ${pluginInstalled() ? "installed" : "not installed"}`);
       console.log(`diagnostics.otel.enabled: ${otel?.enabled === true}${otel?.endpoint ? ` (${otel.endpoint})` : ""}`);
+    } else if (agent === "deepagents-code") {
+      const installed = dcodeFileState(dcodeExtension, hermesMarker) === "managed";
+      console.log(`dcode telemetry extension ${installed ? `installed (${dcodeExtension})` : "not installed"}`);
+      if (dcodeFileState(dcodeSettings, dcodeSettingsMark) === "managed") {
+        const settings = readJson(dcodeSettings);
+        console.log(`Exporter settings: ${dcodeSettings} (${settings.enabled === true ? `on, ${settings.endpoint}` : "off"})`);
+      } else {
+        console.log(`No exporter settings in ${dcodeSettings}`);
+      }
+      if (fs.existsSync(dcodeEnv) && fs.readFileSync(dcodeEnv, "utf8").includes(dcodeEnvBegin))
+        console.log(`Extensions switched on through DEEPAGENTS_CODE_EXPERIMENTAL in ${dcodeEnv}`);
     } else {
       throw Error("Unsupported sandbox agent");
     }

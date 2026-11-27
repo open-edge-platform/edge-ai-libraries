@@ -207,6 +207,7 @@ main() {
   ok "Inference Router removed"
   metrics_remove_jaeger
   metrics_remove_managed_config
+  metrics_remove_dcode_managed
   metrics_receiver_stop
   metrics_router_bridge_stop
   # OpenClaw keeps its config when the CLI is removed; an exporter we enabled would resume after a reinstall.

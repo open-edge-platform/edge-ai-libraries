@@ -4,6 +4,7 @@
 !scripts/
 !scripts/lib/
 !scripts/lib/*.sh
+!scripts/lib/dcode-otel-extension.py
 !openshell/
 !openshell/Dockerfile
 !openshell/agent-start.sh

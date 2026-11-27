@@ -4,8 +4,8 @@
 """Loopback OTLP/HTTP trace receiver that keeps spans in a local SQLite store.
 
 Started by `./install.sh observability enable --backend sqlite` for agents that
-export OpenTelemetry themselves (OpenClaw, and Hermes inside an OpenShell
-sandbox). Rows use the same `events` table as the Hermes hermes-otel
+export OpenTelemetry themselves (OpenClaw, dcode through its agent-harness
+extension, and Hermes inside an OpenShell sandbox). Rows use the same `events` table as the Hermes hermes-otel
 plugin so `observability show/disable --clean` handle every agent alike. Standard
 library only: the OTLP protobuf messages are decoded by hand (only the fields
 stored here).
@@ -53,6 +53,8 @@ CONTENT_KEYS = {
     "gen_ai.tool.call.result",
     "input.value",
     "output.value",
+    "langfuse.observation.input",
+    "langfuse.observation.output",
 }
 # Indexed forms such as gen_ai.prompt.0.content.
 CONTENT_PREFIXES = ("gen_ai.prompt.", "gen_ai.completion.", "llm.prompts", "llm.completions", "openclaw.content.")
@@ -317,7 +319,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--db", required=True)
-    ap.add_argument("--agent", choices=("openclaw", "hermes"), required=True)
+    ap.add_argument("--agent", choices=("openclaw", "hermes", "deepagents-code"), required=True)
     ap.add_argument("--content", choices=("off", "preview", "full"), default="off")
     ap.add_argument("--max-rows", type=int, default=200000)
     ap.add_argument("--pidfile")

@@ -88,7 +88,7 @@ usage() {
     --help, -h                        Show this help message and exit
 
   Observability options (./install.sh observability ...):
-    --backend <sqlite|jaeger>          enable only; where telemetry goes. For the harness (Hermes or OpenClaw): sqlite = local store
+    --backend <sqlite|jaeger>          enable only; where telemetry goes. For the harness (Hermes, OpenClaw or dcode): sqlite = local store
                                        only (default); jaeger = managed loopback Jaeger container, or your own Jaeger at --endpoint.
                                        For the Router, --target all exports spans (sqlite unless --backend says otherwise) and
                                        --target router only when --backend is given (or saved): a host-side bridge
@@ -104,8 +104,9 @@ usage() {
     show prints a CLI summary (Router requests/tokens/latency per model; harness local-store span summary) and the Jaeger UI
     URL when Jaeger is the backend; Jaeger gives the full trace view.
     Router telemetry is persisted as a JSONL file and readable via /v1/metrics. Harness telemetry in an OpenShell sandbox
-    (--runtime openshell) supports OpenClaw and Hermes and --endpoint (a collector the sandbox can reach by hostname or IPv4;
-    not loopback).
+    (--runtime openshell) supports OpenClaw, Hermes and dcode, and --endpoint (a collector the sandbox can reach by hostname or IPv4;
+    not loopback). dcode telemetry installs a dcode extension that exports its LangChain runs as OTLP spans;
+    it needs DEEPAGENTS_CODE_EXPERIMENTAL=1, which enable records in the dcode profile's .env, and a dcode restart.
 
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)

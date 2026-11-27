@@ -951,6 +951,221 @@ openclaw_disable_turns_content_capture_off() {
   grep -Fxq 'openclaw config set diagnostics.otel.captureContent false' "$ACTIONS"
 }
 
+# dcode_fixture -- fixture for Deep Agents Code on the host: a stub dcode executable (no
+# Python beside it, so the environment check is skipped), a scratch DEEPAGENTS_HOME and a stubbed receiver.
+dcode_fixture() {
+  fixture
+  HARNESS_AGENT=deepagents-code
+  DEEPAGENTS_HOME="$HOME/deepagents"
+  export ACTIONS DEEPAGENTS_HOME
+  mkdir -p "$HOME/bin" "$DEEPAGENTS_HOME"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$HOME/bin/dcode"
+  chmod +x "$HOME/bin/dcode"
+  PATH="$HOME/bin:$PATH"
+  metrics_receiver_start() { printf 'receiver start %s %s %s\n' "$1" "$2" "$3" >>"$ACTIONS"; }
+  metrics_receiver_stop() { printf 'receiver stop\n' >>"$ACTIONS"; }
+  metrics_harness_check
+}
+
+dcode_enable_disable() {
+  dcode_fixture
+  [[ "$M_AGENT" == deepagents-code ]]
+  local ext="$DEEPAGENTS_HOME/extensions/agent_harness_otel.py" settings="$DEEPAGENTS_HOME/agent-harness-otel.json" envf="$DEEPAGENTS_HOME/.env"
+  printf 'MY_KEY=abc\nOTHER=1' >"$envf"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=full
+  metrics_enable_harness
+  grep -Fq "$METRICS_CONFIG_MARKER" "$ext"
+  [[ "$(stat -c '%a' "$ext")" == 600 && "$(stat -c '%a' "$settings")" == 600 ]]
+  grep -Fq "\"endpoint\": \"http://127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT}/v1/traces\"" "$settings"
+  grep -Fq '"content": "full"' "$settings"
+  grep -Fxq 'DEEPAGENTS_CODE_EXPERIMENTAL=1' "$envf"
+  grep -Fxq 'MY_KEY=abc' "$envf"
+  grep -Fxq 'OTHER=1' "$envf"
+  grep -Fxq "receiver start deepagents-code $DEEPAGENTS_HOME/dcode_otel_live.db full" "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.agent)" == deepagents-code ]]
+  # A second enable replaces the block instead of repeating it.
+  metrics_enable_harness
+  [[ "$(grep -c 'DEEPAGENTS_CODE_EXPERIMENTAL' "$envf")" == 1 ]]
+  metrics_disable_harness
+  refute test -e "$ext"
+  refute test -e "$settings"
+  [[ "$(cat "$envf")" == $'MY_KEY=abc\nOTHER=1' ]]
+  grep -Fxq 'receiver stop' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  # A .env that only held the managed block goes away with it.
+  rm -f "$envf"
+  metrics_enable_harness
+  [[ -f "$envf" ]]
+  metrics_disable_harness
+  refute test -e "$envf"
+  # A CRLF .env (edited on Windows) still has its block replaced and removed.
+  printf 'A=1\n' >"$envf"
+  metrics_enable_harness
+  sed -i 's/$/\r/' "$envf"
+  metrics_enable_harness
+  [[ "$(grep -c 'DEEPAGENTS_CODE_EXPERIMENTAL' "$envf")" == 1 ]]
+  metrics_disable_harness
+  [[ "$(cat "$envf")" == $'A=1\r' ]]
+}
+
+dcode_jaeger_and_content() {
+  dcode_fixture
+  local settings="$DEEPAGENTS_HOME/agent-harness-otel.json"
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT="" M_CONTENT=preview
+  metrics_enable_harness
+  grep -Fq "\"endpoint\": \"http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces\"" "$settings"
+  grep -Fq '"content": "preview"' "$settings"
+  refute grep -Fq 'receiver start' "$ACTIONS"
+  [[ "$(metrics_state_get harness.managed_jaeger)" == true ]]
+  metrics_disable_harness
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  refute test -e "$settings"
+  # An external endpoint is used as given.
+  M_BACKEND=jaeger M_ENDPOINT=http://collector.example:4318/v1/traces M_CONTENT=off
+  metrics_enable_harness
+  grep -Fq '"endpoint": "http://collector.example:4318/v1/traces"' "$settings"
+}
+
+dcode_refuses_foreign_files() {
+  dcode_fixture
+  local ext="$DEEPAGENTS_HOME/extensions/agent_harness_otel.py" settings="$DEEPAGENTS_HOME/agent-harness-otel.json"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  mkdir -p "$DEEPAGENTS_HOME/extensions"
+  printf '# mine\n' >"$ext"
+  expect_failure 'not managed by this installer' metrics_enable_harness
+  refute grep -Fq 'receiver start' "$ACTIONS"
+  [[ "$(metrics_state_get harness.enabled)" != true ]]
+  metrics_disable_harness
+  [[ "$(cat "$ext")" == '# mine' ]]
+  rm -f "$ext"
+  printf '{}\n' >"$settings"
+  expect_failure 'not managed by this installer' metrics_enable_harness
+  [[ "$(cat "$settings")" == '{}' ]]
+  rm -f "$settings"
+  # A symlinked extensions directory is never written through.
+  mkdir -p "$HOME/elsewhere"
+  rm -rf "$DEEPAGENTS_HOME/extensions"
+  ln -s "$HOME/elsewhere" "$DEEPAGENTS_HOME/extensions"
+  expect_failure 'symlink' metrics_enable_harness
+  refute test -e "$HOME/elsewhere/agent_harness_otel.py"
+}
+
+dcode_cli_and_data_dir_are_required() {
+  dcode_fixture
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  rmdir "$DEEPAGENTS_HOME"
+  expect_failure 'data directory' metrics_enable_harness
+  mkdir -p "$DEEPAGENTS_HOME"
+  rm -f "$HOME/bin/dcode"
+  command_exists() { [[ "$1" != dcode ]] && command -v "$1" >/dev/null 2>&1; }
+  expect_failure 'dcode not found' metrics_enable_harness
+  refute grep -Fq 'receiver start' "$ACTIONS"
+}
+
+dcode_openshell_needs_a_sandbox() {
+  openshell_fixture deepagents-code
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  TEST_SANDBOX_GONE=1 expect_failure 'sandbox does not exist' metrics_enable_harness
+  refute grep -Fq 'allow ' "$ACTIONS"
+  [[ -z "$(metrics_state_get harness.enabled)" ]]
+}
+
+dcode_extension_compiles() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$SCRIPT_DIR/scripts/lib/dcode-otel-extension.py"
+  grep -Fq "$METRICS_CONFIG_MARKER" "$SCRIPT_DIR/scripts/lib/dcode-otel-extension.py"
+}
+
+# Needs langchain-core and the OpenTelemetry OTLP exporter; HARNESS_TEST_DCODE_PYTHON can point at dcode's own Python.
+dcode_extension_exports_spans() {
+  local py="${HARNESS_TEST_DCODE_PYTHON:-python3}"
+  command -v "$py" >/dev/null || { echo "# skipped: $py not found"; return 0; }
+  "$py" -c 'import langchain_core, opentelemetry.sdk.trace, opentelemetry.exporter.otlp.proto.http.trace_exporter' >/dev/null 2>&1 \
+    || { echo "# skipped: langchain-core or the OpenTelemetry OTLP exporter is not installed"; return 0; }
+  "$py" - "$SCRIPT_DIR/scripts/lib" "$TEST_ROOT" <<'PY'
+import asyncio, importlib.util, json, os, socket, sqlite3, subprocess, sys, time, urllib.request, uuid
+
+lib, root = sys.argv[1:3]
+urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+port = s.getsockname()[1]
+s.close()
+db = f"{root}/dcode-ext.db"
+proc = subprocess.Popen([sys.executable, f"{lib}/metrics-otlp-receiver.py", "--port", str(port), "--db", db, "--agent", "deepagents-code", "--content", "full"])
+try:
+    for _ in range(100):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=1)
+            break
+        except OSError:
+            time.sleep(0.1)
+    cfg = f"{root}/dcode-ext.json"
+    with open(cfg, "w") as f:
+        json.dump({"enabled": True, "endpoint": f"http://127.0.0.1:{port}/v1/traces", "content": "full"}, f)
+    os.environ["HARNESS_DCODE_OTEL_CONFIG"] = cfg
+    spec = importlib.util.spec_from_file_location("agent_harness_otel_ext", f"{lib}/dcode-otel-extension.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class API:
+        hooks = []
+        def on_shutdown(self, fn):
+            self.hooks.append(fn)
+
+    asyncio.run(mod.extension(API()))
+    h = mod._handler
+    assert h is not None and API.hooks, "extension did not register"
+
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.outputs import ChatGeneration, LLMResult
+    root_id, node_id, llm_id, tool_id = (uuid.uuid4() for _ in range(4))
+    h.on_chain_start({}, {}, run_id=root_id, name="agent")
+    h.on_chain_start({}, {}, run_id=node_id, parent_run_id=root_id, name="model", metadata={"langgraph_node": "model"})
+    # A chain that is not a graph node gets no span; its children attach to the node.
+    other = uuid.uuid4()
+    h.on_chain_start({}, {}, run_id=other, parent_run_id=node_id, name="RunnableSequence")
+    h.on_chat_model_start({}, [[HumanMessage("hello there")]], run_id=llm_id, parent_run_id=other,
+                          metadata={"ls_model_name": "m", "thread_id": "t1"})
+    msg = AIMessage(content="ok", usage_metadata={"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+                    response_metadata={"finish_reason": "stop", "model_name": "m"})
+    h.on_llm_end(LLMResult(generations=[[ChatGeneration(message=msg)]]), run_id=llm_id)
+    h.on_chain_end({}, run_id=other)
+    h.on_tool_start({"name": "ls"}, "x", run_id=tool_id, parent_run_id=node_id, name="ls", inputs={"path": "."})
+    h.on_tool_error(RuntimeError("boom"), run_id=tool_id)
+    h.on_chain_end({}, run_id=node_id)
+    h.on_chain_end({}, run_id=root_id)
+    h.flush()
+
+    rows = []
+    for _ in range(100):
+        con = sqlite3.connect(db)
+        rows = con.execute("SELECT name, span_id, parent_span_id, session_id, status, data FROM events").fetchall()
+        con.close()
+        if len(rows) >= 4:
+            break
+        time.sleep(0.1)
+    by = {r[0]: r for r in rows}
+    assert set(by) == {"agent", "model", "chat m", "execute_tool ls"}, sorted(by)
+    assert by["agent"][2] is None and by["model"][2] == by["agent"][1]
+    assert by["chat m"][2] == by["model"][1] and by["execute_tool ls"][2] == by["model"][1]
+    assert by["chat m"][3] == "t1" and by["execute_tool ls"][4] == "ERROR"
+    data = json.loads(by["chat m"][5])
+    assert data["gen_ai.usage.input_tokens"] == 3 and data["gen_ai.usage.output_tokens"] == 2, data
+    assert data["gen_ai.response.finish_reasons"] == ["stop"] and "hello there" in data["gen_ai.input.messages"], data
+    # Settings switched off: the handler records nothing more.
+    with open(cfg, "w") as f:
+        json.dump({"enabled": False}, f)
+    asyncio.run(mod.extension(API()))
+    h.on_chain_start({}, {}, run_id=uuid.uuid4(), name="agent2")
+    assert not h._spans
+    print("dcode extension ok")
+finally:
+    proc.terminate()
+    proc.wait(10)
+PY
+}
+
 receiver_stores_filtered_spans() {
   command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
   python3 - "$SCRIPT_DIR/scripts/lib/metrics-otlp-receiver.py" "$TEST_ROOT" <<'PY'
@@ -1064,6 +1279,20 @@ for content in ("off", "preview", "full"):
         assert "y" * 200 in run_row[3] and "y" * 201 not in run_row[3]
     else:
         assert "x" * 500 in run_row[3] and "y" * 500 in run_row[3]
+
+# dcode: every span is kept; the Langfuse observation fields are content like the gen_ai ones.
+dc = request(span("chat m", {"gen_ai.request.model": "m", "langfuse.observation.input": "x" * 500, "gen_ai.input.messages": "y" * 500}), span("agent", {"session.id": "s1"}))
+for content in ("off", "preview", "full"):
+    got = run("deepagents-code", content, lambda port: post(port, dc) == 200 or sys.exit("post failed"))
+    assert [r[0] for r in got] == ["chat m", "agent"], got
+    data = got[0][3]
+    assert "gen_ai.request.model" in data and "s1" in got[1][3], got
+    if content == "off":
+        assert "langfuse.observation.input" not in data and "gen_ai.input.messages" not in data, data
+    elif content == "preview":
+        assert "x" * 200 in data and "x" * 201 not in data
+    else:
+        assert "x" * 500 in data and "y" * 500 in data
 
 # A storage failure is retryable (503), not a malformed request (400).
 db = f"{root}/broken.db"
@@ -1222,6 +1451,85 @@ openshell_hermes_lifecycle() {
   printf 'enabled: true\n' >"$cfg"
   expect_failure 'not managed by this installer' metrics_enable_harness
   grep -Fxq 'enabled: true' "$cfg"
+}
+
+openshell_dcode_lifecycle() {
+  openshell_fixture deepagents-code
+  unset DEEPAGENTS_HOME
+  local home="$SANDBOX_HOME/.deepagents" port="$HARNESS_OTLP_RECEIVER_PORT" ext settings envf
+  ext="$home/extensions/agent_harness_otel.py" settings="$home/agent-harness-otel.json" envf="$home/.env"
+  export HARNESS_DCODE_EXTENSION_SRC="$SCRIPT_DIR/scripts/lib/dcode-otel-extension.py" HARNESS_DCODE_PYTHON="$HOME/dcode-python"
+  export HARNESS_OBSERVABILITY_SCRIPT="$METRICS_OS_SCRIPT"
+  printf '#!/bin/sh\nexit ${DCODE_PY_RC:-0}\n' >"$HARNESS_DCODE_PYTHON"
+  chmod 755 "$HARNESS_DCODE_PYTHON"
+  mkdir -p "$home"
+  printf 'KEEP=1\n' >"$envf"
+  sandbox_script check deepagents-code
+  DCODE_PY_RC=1 expect_failure 'lacks langchain-core' sandbox_script check deepagents-code
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=full
+  metrics_enable_harness
+  grep -Fxq "check deepagents-code" "$ACTIONS"
+  grep -Fxq "receiver start deepagents-code $HOME/.harness-test/openshell-telemetry/dcode_otel_live.db full" "$ACTIONS"
+  grep -Fxq "allow harness_otel ${port} host.openshell.internal" "$ACTIONS"
+  refute grep -Fxq restart "$ACTIONS"
+  cmp "$ext" "$HARNESS_DCODE_EXTENSION_SRC"
+  [[ "$(node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1]));console.log(s.enabled,s.endpoint,s.content)' "$settings")" \
+    == "true http://host.openshell.internal:${port}/v1/traces full" ]]
+  grep -Fxq KEEP=1 "$envf"
+  grep -Fxq DEEPAGENTS_CODE_EXPERIMENTAL=1 "$envf"
+  [[ "$(metrics_state_get harness.enabled)" == true && "$(metrics_state_get harness.runtime)" == openshell ]]
+  sandbox_script status deepagents-code | grep -Fq "on, http://host.openshell.internal:${port}/v1/traces"
+  # Enabling again replaces the block instead of adding a second one.
+  metrics_enable_harness
+  [[ "$(grep -Fc DEEPAGENTS_CODE_EXPERIMENTAL=1 "$envf")" == 1 ]]
+  # Settings that the sandbox script cannot take are refused before anything is written.
+  expect_failure 'Invalid' sandbox_script dcode-enable 'http://x:1/;rm' off
+  expect_failure 'Invalid content mode' sandbox_script dcode-enable http://x:1/v1/traces everything
+  metrics_disable_harness
+  grep -Fxq 'unallow harness_otel' "$ACTIONS"
+  refute test -e "$ext"
+  refute test -e "$settings"
+  [[ "$(cat "$envf")" == KEEP=1 ]]
+  sandbox_script status deepagents-code | grep -Fq 'not installed'
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
+  # A .env that holds only the managed block goes away with it; CRLF files are handled.
+  rm -f "$envf"
+  sandbox_script dcode-enable http://x:1/v1/traces off
+  sandbox_script dcode-disable
+  refute test -e "$envf"
+  printf 'A=1\r\n' >"$envf"
+  sandbox_script dcode-enable http://x:1/v1/traces off
+  sandbox_script dcode-disable
+  [[ "$(tr -d '\r' <"$envf")" == A=1 ]]
+  # An external traces URL reaches the extension exactly as given.
+  M_BACKEND=jaeger M_BACKEND_GIVEN=1 M_ENDPOINT=https://collector.example.net/otlp/traces
+  metrics_enable_harness
+  grep -Fxq 'allow harness_otel 443 collector.example.net' "$ACTIONS"
+  grep -Fq '"endpoint": "https://collector.example.net/otlp/traces"' "$settings"
+  metrics_disable_harness
+  # Files that this installer did not write are never replaced.
+  printf 'mine\n' >"$HOME/mine"
+  mkdir -p "$home/extensions"
+  cp "$HOME/mine" "$ext"
+  expect_failure 'not managed by this installer' sandbox_script check deepagents-code
+  expect_failure 'not managed by this installer' metrics_enable_harness
+  cmp "$ext" "$HOME/mine"
+  rm -f "$ext"
+  cp "$HOME/mine" "$settings"
+  expect_failure 'not managed by this installer' metrics_enable_harness
+  cmp "$settings" "$HOME/mine"
+  sandbox_script dcode-disable
+  cmp "$settings" "$HOME/mine"
+  rm -f "$settings"
+  # A symlinked extensions directory is never written through.
+  mkdir -p "$HOME/elsewhere"
+  rm -rf "$home/extensions"
+  ln -s "$HOME/elsewhere" "$home/extensions"
+  expect_failure 'symlink' metrics_enable_harness
+  refute test -e "$HOME/elsewhere/agent_harness_otel.py"
+  rm -f "$home/extensions"
+  # An image from before this support has no extension to copy.
+  HARNESS_DCODE_EXTENSION_SRC="$HOME/absent.py" expect_failure 'predates telemetry support' sandbox_script check deepagents-code
 }
 
 openshell_missing_sandbox() {
@@ -1625,7 +1933,7 @@ PY
 harness_show_and_disable_follow_the_recorded_owner() {
   fixture
   HARNESS_RUNTIME=openshell
-  HARNESS_AGENT=deepagents-code
+  HARNESS_AGENT=unsupported-agent
   refute metrics_harness_check
   refute metrics_harness_check enable
   metrics_state_set harness.enabled true harness.agent hermes
@@ -1633,7 +1941,7 @@ harness_show_and_disable_follow_the_recorded_owner() {
   refute metrics_harness_check enable
   metrics_harness_check show
   [[ "$M_AGENT" == hermes && "$HARNESS_AGENT" == hermes ]]
-  HARNESS_AGENT=deepagents-code
+  HARNESS_AGENT=unsupported-agent
   metrics_harness_check disable
   [[ "$M_AGENT" == hermes ]]
 }
@@ -1756,9 +2064,17 @@ run_case 'an unknown OpenClaw version is refused instead of guessed' openclaw_un
 run_case 'OpenClaw plugin install retries from npm when ClawHub fails' openclaw_install_falls_back_to_npm
 run_case 'a timed-out OpenClaw foreign-exporter check fails closed' openclaw_foreign_check_times_out_closed
 run_case 'OpenClaw disable also turns content capture off' openclaw_disable_turns_content_capture_off
+run_case 'dcode extension, settings and .env block are installed and removed; the user .env is kept' dcode_enable_disable
+run_case 'dcode with Jaeger: managed container, external endpoint, preview content' dcode_jaeger_and_content
+run_case 'dcode refuses foreign extension/settings files and symlinked directories' dcode_refuses_foreign_files
+run_case 'dcode needs its data directory and CLI before anything is changed' dcode_cli_and_data_dir_are_required
+run_case 'dcode telemetry on the OpenShell runtime needs the sandbox to exist' dcode_openshell_needs_a_sandbox
+run_case 'the dcode extension is valid Python and carries the managed marker' dcode_extension_compiles
+run_case 'the dcode extension turns LangChain callbacks into parented spans with usage, session and content' dcode_extension_exports_spans
 run_case 'OpenShell OpenClaw: egress rule, staged config, sandbox restart, other runtimes refused' openshell_openclaw_lifecycle
 run_case 'OpenShell jaeger uses the managed container; an external endpoint is allowed, loopback refused' openshell_jaeger_uses_the_managed_container
 run_case 'OpenShell Hermes: plugin baked in, hermes_otel.yaml switched inside the sandbox, foreign file and old image refused' openshell_hermes_lifecycle
+run_case 'OpenShell dcode: extension copied into the sandbox profile, .env block kept apart, foreign files and old image refused' openshell_dcode_lifecycle
 run_case 'OpenShell: a missing sandbox fails before any change' openshell_missing_sandbox
 run_case 'OpenShell disable and sandbox removal tolerate a sandbox that is gone' openshell_disable_tolerates_a_removed_sandbox
 run_case 'OpenShell show reads the sandbox and points at the other runtime' openshell_show_reports_sandbox_and_other_runtime

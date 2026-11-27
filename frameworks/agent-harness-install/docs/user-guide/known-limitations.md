@@ -120,6 +120,10 @@ For sandbox setup, architecture and lifecycle guidance, see
   because many HTTP clients ignore `localhost` and CIDR entries in `no_proxy` for `127.0.0.1`.
   Run it without the proxy variables:
   `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY dcode ...`.
+  The default dcode install holds `langgraph-api` below 0.19 (not with a custom
+  `DCODE_INSTALL_URL`): newer releases start a Go core reached over gRPC on `127.0.0.1`, and the sandbox
+  denies the IPv4-mapped IPv6 sockets gRPC uses for that, so the server exits
+  with code 3 (`Server did not become healthy within 60s`).
 - The Intel® Core™ Ultra iGPU/Intel® Arc™ lineup has no fixed appliance concept, so
   there is no dual-node pairing/reboot-resume receipt handling.
 - Model export (`optimum-cli export openvino`) is CPU/host-bound and can be
@@ -144,19 +148,30 @@ For sandbox setup, architecture and lifecycle guidance, see
   batch (SQLite ignores repeats). After an
   OpenClaw sandbox restart the command waits up to 60 seconds (wall clock) for the
   gateway and only warns if it is still not accepting connections.
+- `./install.sh observability` for Deep Agents Code relies
+  on dcode's experimental extension loader: it needs `DEEPAGENTS_CODE_EXPERIMENTAL=1`
+  (set through a managed block in `~/.deepagents/.env`), a dcode restart after
+  enable or disable, and the OpenTelemetry packages in dcode's environment. It
+  traces only dcode's own agent runs; spans from a dcode that was started
+  before `enable` are not recorded. The experimental flag also loads your own
+  extensions in `~/.deepagents/extensions/` while telemetry is enabled. If the
+  collector is down, dcode runs normally (a few seconds slower at exit) and that
+  run's spans are lost. If dcode is killed with SIGKILL, the root `agent` span is
+  missing and dcode's `langgraph dev` server can keep running.
 - `./install.sh observability` for OpenClaw with the
   `sqlite` backend starts a loopback OTLP receiver that does not survive a
   reboot and accepts writes from any local user (it listens on 127.0.0.1 only);
   re-run `observability enable` to start it again. OpenClaw spans carry
   no session id, and OpenClaw's configuration and plugin changes need its
   gateway stopped: stop it (`openclaw gateway stop`) before enable or disable
-  and start it again afterwards. With `--runtime openshell`, OpenClaw and Hermes
-  are supported (Hermes with the receiver for `sqlite` too), only the
+  and start it again afterwards. With `--runtime openshell`, OpenClaw, Hermes
+  and Deep Agents Code are supported (Hermes and dcode with the receiver for `sqlite` too), only the
   `sqlite` backend, the managed Jaeger, or an external `--endpoint` reachable by
   hostname or IPv4 (not loopback; `https` endpoints and DNS names are only as
   reachable as the sandbox's network allows) can be used, enabling
   or disabling for OpenClaw restarts the sandbox (for Hermes the Hermes gateway
-  process inside it is restarted), and a sandbox installed before this support
+  process inside it is restarted; dcode needs no restart from the installer, but
+  a running dcode loads the extension only at start), and a sandbox installed before this support
   lacks the exporter (remove it and install it again to rebuild its image). A
   Hermes sandbox also keeps the plugin's own local store inside the sandbox.
   `--content preview` needs the `sqlite`

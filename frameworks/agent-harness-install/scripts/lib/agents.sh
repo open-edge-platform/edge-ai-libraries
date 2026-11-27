@@ -188,6 +188,14 @@ to accept the risk and proceed without pinning)."
   spin "Installing dcode" bash "$installer_tmp"
   rm -f "$installer_tmp"
   export PATH="$HOME/.local/bin:$PATH"
+  # langgraph-api 0.19 reaches its Go core over gRPC on 127.0.0.1, which the OpenShell sandbox breaks by denying
+  # IPv4-mapped IPv6 sockets (dcode then exits with "Server did not become healthy"). Only the pinned install is held back.
+  if [[ -z "${DCODE_INSTALL_URL:-}" ]]; then
+    local dcode_python
+    command -v uv >/dev/null 2>&1 || error "uv not found after the dcode install; cannot pin langgraph-api<0.19."
+    dcode_python="$(uv tool dir)/deepagents-code/bin/python"
+    spin "Pinning dcode's langgraph-api below 0.19" uv pip install --python "$dcode_python" "langgraph-api<0.19"
+  fi
 }
 
 # Writes dcode's [models.providers.openai] section (its "Compatible APIs"

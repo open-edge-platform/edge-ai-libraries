@@ -38,6 +38,8 @@ USER root
 COPY openshell/agent-start.sh /usr/local/bin/harness-agent-start
 COPY openshell/model-config.mjs /opt/harness/model-config.mjs
 COPY openshell/observability-config.mjs /opt/harness/observability-config.mjs
+# The sandbox policy allows no download at run time; 'observability enable' copies this into the dcode profile.
+COPY scripts/lib/dcode-otel-extension.py /opt/harness/dcode-otel-extension.py
 RUN chmod 755 /usr/local/bin/harness-agent-start
 USER node
 RUN if [ "$HARNESS_AGENT" = hermes ]; then HERMES_HOME=/home/node/.hermes node /opt/harness/observability-config.mjs hermes-disable no-restart; fi

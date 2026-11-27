@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 73 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 80 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -310,10 +310,18 @@ codes and resulting state, not real containers.
 | `jaeger_port_mismatch_is_rejected` | Existing Jaeger with other ports | Fail instead of reusing a container that is not published on exactly the two configured loopback ports (wildcard, IPv6-any, wrong or extra ports). |
 | `openclaw_enable_disable` | OpenClaw lifecycle (stub CLI) | Install the plugin once, merge the `diagnostics` config pointing at the receiver with content capture on, start the receiver; disable turns the exporter and plugin off and stops the receiver; a later enable re-enables the installed plugin without a second install. |
 | `openclaw_jaeger_and_foreign_exporter` | OpenClaw with Jaeger and a foreign exporter | Point the exporter at the Jaeger OTLP base URL and stop the receiver; refuse to overwrite a `diagnostics.otel` exporter this installer did not set up; reject `--content preview` with Jaeger. |
-| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the OpenClaw spans it needs, honour the content modes, answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, and answer 400 for a negative `Content-Length` or an oversized chunk. |
+| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the OpenClaw spans it needs (every dcode span is kept), honour the content modes (including dcode's `langfuse.observation.*` fields), answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, and answer 400 for a negative `Content-Length` or an oversized chunk. |
 | `openclaw_disable_needs_installer_ownership` | OpenClaw disable without a recorded enable | Leave the user's own exporter and plugin alone. |
 | `only_one_harness_exporter_is_recorded` | Two agents, one exporter | Refuse to enable another agent while one owns the exporter; `show` and `disable` follow the recorded owner. |
 | `openclaw_failed_enable_can_be_disabled` | OpenClaw enable that fails midway | Record the enable first so `disable` turns the exporter off and stops the receiver. |
+| `dcode_enable_disable` | Deep Agents Code lifecycle (stub CLI) | Install the extension and settings with mode 600, add the marked `.env` block next to the user's own lines, point the settings at the receiver, start it; a repeated enable keeps one block; disable removes only what was written and stops the receiver. |
+| `dcode_jaeger_and_content` | dcode with Jaeger | Point the settings at the managed Jaeger (removed on disable) or an external endpoint and record the content mode; no receiver is started. |
+| `dcode_refuses_foreign_files` | Foreign dcode files | Fail before any change when the extension or settings file is not the installer's, or `extensions/` is a symlink; disable leaves such files alone. |
+| `dcode_cli_and_data_dir_are_required` | Missing dcode | Fail before starting the receiver when the dcode data directory or the CLI is missing. |
+| `dcode_openshell_needs_a_sandbox` | dcode on OpenShell without a sandbox | Fail before any egress rule or state change when the sandbox does not exist. |
+| `openshell_dcode_lifecycle` | OpenShell dcode lifecycle (real sandbox script, scratch home) | Check the packages and image, copy the extension, settings and marked `.env` block into the sandbox profile with the receiver and egress rule; keep the user's `.env` (LF and CRLF); disable removes only the managed files and the rule; an external traces URL is used as given; foreign files, a symlinked directory and an image without the extension are refused. |
+| `dcode_extension_compiles` | Extension file | Parse the extension as Python and check it carries the managed marker. |
+| `dcode_extension_exports_spans` | Extension behaviour | Drive the callback handler with LangChain events and read the spans back from the real receiver: parenting through skipped chains, token usage, session id, content, error status, and no spans once the settings are switched off. Skipped without `langchain-core` and the OpenTelemetry OTLP exporter (set `HARNESS_TEST_DCODE_PYTHON` to dcode's Python). |
 | `foreign_jaeger_is_never_reused_or_removed` | Jaeger ownership | Refuse to reuse, and leave in place on removal, a same-named container without the installer's label. |
 | `docker_query_failure_is_not_absence` | Docker query failure | Fail instead of treating a failed container query as an absent container. |
 | `rejected_endpoint_is_not_echoed` | Endpoint errors | Never print the rejected endpoint, which may carry credentials. |

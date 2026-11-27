@@ -16,7 +16,12 @@
 #            collector; for Hermes the hermes-otel plugin is baked in and
 #            switched through its hermes_otel.yaml) and a hot-loaded policy
 #            rule lets it reach the host receiver or Jaeger through
-#            host.openshell.internal.
+#            host.openshell.internal. dcode has native
+#            tracing for LangSmith only, so a small dcode extension
+#            (dcode-otel-extension.py, dropped into ~/.deepagents/extensions;
+#            inside a sandbox it is baked into the image and copied there)
+#            exports its LangChain runs as OTLP spans, to the same loopback
+#            receiver (--backend sqlite) or to Jaeger.
 #   router   Inference Router. It cannot export OTLP; its telemetry backend is
 #            either "memory" (default, lost on restart) or "file" (JSONL in its
 #            workspace). Both are readable through its /v1/metrics endpoint.
@@ -55,6 +60,11 @@ HARNESS_OTLP_RECEIVER_PORT="${HARNESS_OTLP_RECEIVER_PORT:-4319}"
 # Rows kept by that receiver; the oldest are pruned beyond it.
 HARNESS_OTLP_RECEIVER_MAX_ROWS="${HARNESS_OTLP_RECEIVER_MAX_ROWS:-200000}"
 METRICS_RECEIVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/metrics-otlp-receiver.py"
+# dcode: extension source, and the markers around the one line this installer adds to the profile's .env
+# (dcode loads extensions only when DEEPAGENTS_CODE_EXPERIMENTAL is set).
+METRICS_DCODE_EXTENSION_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dcode-otel-extension.py"
+METRICS_DCODE_ENV_BEGIN="# BEGIN agent-harness-install managed observability -- do not edit between markers"
+METRICS_DCODE_ENV_END="# END agent-harness-install managed observability"
 # --runtime openshell: sandbox-side half (piped into the sandbox's node) and the
 # name of the policy rule that lets the agent reach the host collector.
 METRICS_OS_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/openshell/observability-config.mjs"
@@ -258,9 +268,9 @@ metrics_resolve_harness_settings() {
         H_ENDPOINT="http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces"
       fi ;;
   esac
-  # Only the hermes-otel plugin has a preview mode; OpenClaw's exporter
-  # either sends prompt text or not, and the receiver can only shorten it.
-  if [[ "${M_AGENT:-hermes}" != hermes && "$H_BACKEND" == jaeger && "$H_CONTENT" == preview ]]; then
+  # The hermes-otel plugin and the dcode extension have a preview mode; OpenClaw's
+  # exporter either sends prompt text or not, and the receiver can only shorten it.
+  if [[ "${M_AGENT:-hermes}" == openclaw && "$H_BACKEND" == jaeger && "$H_CONTENT" == preview ]]; then
     error "--content preview needs --backend sqlite for $(agent_display_name "$M_AGENT") (its exporter has no preview mode); use off or full with Jaeger."
   fi
 }
@@ -390,11 +400,15 @@ metrics_info_jaeger_stays() {
 }
 
 # ---------------------------------------------------------------------------
-# Harness (Hermes, OpenClaw)
+# Harness (Hermes, OpenClaw, dcode)
 # ---------------------------------------------------------------------------
 
 metrics_hermes_home() {
   printf '%s' "${HERMES_HOME:-$HOME/.hermes}"
+}
+
+metrics_dcode_home() {
+  printf '%s' "${DEEPAGENTS_HOME:-$HOME/.deepagents}"
 }
 
 metrics_openclaw_home() {
@@ -436,12 +450,14 @@ metrics_harness_store() {
     case "$1" in
       openclaw) printf '%s/openshell-telemetry/openclaw_otel_live.db' "$(harness_state_root)" ;;
       hermes) printf '%s/openshell-telemetry/hermes_otel_live.db' "$(harness_state_root)" ;;
+      deepagents-code) printf '%s/openshell-telemetry/dcode_otel_live.db' "$(harness_state_root)" ;;
     esac
     return 0
   fi
   case "$1" in
     hermes) printf '%s/hermes_otel_live.db' "$(metrics_hermes_home)" ;;
     openclaw) printf '%s/openclaw_otel_live.db' "$(metrics_openclaw_home)" ;;
+    deepagents-code) printf '%s/dcode_otel_live.db' "$(metrics_dcode_home)" ;;
   esac
 }
 
@@ -453,7 +469,7 @@ metrics_harness_check() {
   if [[ "$verb" == show || "$verb" == disable ]]; then
     owner="$(metrics_harness_owner)"
     case "$owner" in
-      hermes | openclaw)
+      hermes | openclaw | deepagents-code)
         M_AGENT="$owner"
         if metrics_openshell; then HARNESS_AGENT="$owner"; fi
         return 0 ;;
@@ -465,14 +481,14 @@ metrics_harness_check() {
     M_AGENT="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
     HARNESS_AGENT="$M_AGENT"
     case "$M_AGENT" in
-      openclaw | hermes) return 0 ;;
+      openclaw | hermes | deepagents-code) return 0 ;;
       *) M_SKIP_REASON="no telemetry support for the selected harness (${M_AGENT})" ;;
     esac
     return 1
   fi
   M_AGENT="$(resolve_installed_agent)"
   case "$M_AGENT" in
-    hermes | openclaw) ;;
+    hermes | openclaw | deepagents-code) ;;
     *)
       M_SKIP_REASON="no telemetry support for the selected harness (${M_AGENT})"
       return 1 ;;
@@ -549,6 +565,129 @@ metrics_write_hermes_otel_config() {
   } >"$tmp" || { rm -f "$tmp"; error "Could not write ${cfg}."; }
   chmod 600 "$tmp"
   mv -f "$tmp" "$cfg"
+}
+
+# ---------------------------------------------------------------------------
+# dcode: agent-harness OpenTelemetry extension
+# ---------------------------------------------------------------------------
+
+metrics_dcode_extension_file() { printf '%s/extensions/agent_harness_otel.py' "$(metrics_dcode_home)"; }
+metrics_dcode_settings_file() { printf '%s/agent-harness-otel.json' "$(metrics_dcode_home)"; }
+metrics_dcode_env_file() { printf '%s/.env' "$(metrics_dcode_home)"; }
+METRICS_DCODE_SETTINGS_MARK='"managed_by": "agent-harness-install (metrics)"'
+
+# metrics_dcode_python -- the Python of dcode's own environment (the extension
+# runs inside it), when it can be found next to the dcode executable.
+metrics_dcode_python() {
+  local bin
+  bin="$(command -v dcode 2>/dev/null)" || return 1
+  bin="$(readlink -f "$bin" 2>/dev/null)" || return 1
+  if [[ -x "${bin%/*}/python" ]]; then
+    printf '%s' "${bin%/*}/python"
+    return 0
+  fi
+  return 1
+}
+
+# Fails before any side effect when dcode cannot run the extension.
+metrics_check_dcode_environment() {
+  local py
+  command_exists dcode || error "dcode not found on PATH. Install it first: ./install.sh --harness deepagents-code --model <model>"
+  if py="$(metrics_dcode_python)"; then
+    "$py" -c 'import langchain_core, opentelemetry.sdk.trace, opentelemetry.exporter.otlp.proto.http.trace_exporter' >/dev/null 2>&1 \
+      || error "dcode's Python environment (${py%/*}) lacks langchain-core, opentelemetry-sdk or opentelemetry-exporter-otlp-proto-http, which the telemetry extension needs."
+  else
+    warn "Could not find dcode's Python environment, so its langchain-core and OpenTelemetry packages were not checked; without them the telemetry extension stays inactive."
+  fi
+}
+
+# Fails before any side effect if the extension, its settings or the profile .env cannot be written.
+metrics_check_dcode_paths() {
+  local home path
+  home="$(metrics_dcode_home)"
+  [[ -d "$home" && ! -L "$home" ]] || error "dcode data directory ${home} not found or is a symlink."
+  [[ ! -L "${home}/extensions" ]] || error "Refusing to write through a symlink: ${home}/extensions"
+  path="$(metrics_dcode_extension_file)"
+  [[ ! -L "$path" ]] || error "Refusing to write through a symlink: ${path}"
+  if [[ -e "$path" ]] && ! grep -Fq "$METRICS_CONFIG_MARKER" "$path"; then
+    error "${path} exists and is not managed by this installer; move it aside and re-run."
+  fi
+  path="$(metrics_dcode_settings_file)"
+  [[ ! -L "$path" ]] || error "Refusing to write through a symlink: ${path}"
+  if [[ -e "$path" ]] && ! grep -Fq "$METRICS_DCODE_SETTINGS_MARK" "$path"; then
+    error "${path} exists and is not managed by this installer; move it aside and re-run."
+  fi
+  path="$(metrics_dcode_env_file)"
+  [[ ! -L "$path" ]] || error "Refusing to write through a symlink: ${path}"
+}
+
+# metrics_dcode_env_set <on|off> -- adds or removes the installer's block in the
+# profile .env (dcode reads DEEPAGENTS_CODE_EXPERIMENTAL from it); the rest of the file is kept.
+metrics_dcode_env_set() {
+  local envf tmp
+  envf="$(metrics_dcode_env_file)"
+  tmp="$(mktemp "${envf}.tmp.XXXXXX")" || error "Could not write ${envf}."
+  if [[ -f "$envf" ]]; then
+    awk -v b="$METRICS_DCODE_ENV_BEGIN" -v e="$METRICS_DCODE_ENV_END" \
+      '{ line = $0; sub(/\r$/, "", line) } line == b { skip = 1; next } line == e { skip = 0; next } !skip' "$envf" >"$tmp" \
+      || { rm -f "$tmp"; error "Could not rewrite ${envf}."; }
+    chmod --reference="$envf" "$tmp" 2>/dev/null || chmod 600 "$tmp"
+  else
+    chmod 600 "$tmp"
+  fi
+  if [[ "$1" == on ]]; then
+    # A last line without a newline would otherwise swallow the marker.
+    if [[ -s "$tmp" && -n "$(tail -c 1 "$tmp")" ]]; then printf '\n' >>"$tmp"; fi
+    printf '%s\nDEEPAGENTS_CODE_EXPERIMENTAL=1\n%s\n' "$METRICS_DCODE_ENV_BEGIN" "$METRICS_DCODE_ENV_END" >>"$tmp"
+  fi
+  if [[ "$1" == off ]] && ! grep -q '[^[:space:]]' "$tmp"; then
+    rm -f -- "$tmp" "$envf"
+  else
+    mv -f "$tmp" "$envf"
+  fi
+}
+
+# metrics_write_dcode_config <backend> <endpoint> <content> -- installs the
+# extension, its settings and the .env switch. dcode picks them up on its next start.
+metrics_write_dcode_config() {
+  local backend="$1" endpoint="$2" content="$3" home ext settings tmp traces
+  metrics_check_dcode_paths
+  [[ -f "$METRICS_DCODE_EXTENSION_SRC" ]] || error "Missing ${METRICS_DCODE_EXTENSION_SRC}."
+  home="$(metrics_dcode_home)"
+  ext="$(metrics_dcode_extension_file)"
+  settings="$(metrics_dcode_settings_file)"
+  if [[ "$backend" == sqlite ]]; then
+    traces="http://127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT}/v1/traces"
+  else
+    traces="$endpoint"
+  fi
+  mkdir -p -- "${home}/extensions"
+  tmp="$(mktemp "${ext}.tmp.XXXXXX")" || error "Could not write ${ext}."
+  cp -- "$METRICS_DCODE_EXTENSION_SRC" "$tmp" || { rm -f "$tmp"; error "Could not write ${ext}."; }
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$ext"
+  tmp="$(mktemp "${settings}.tmp.XXXXXX")" || error "Could not write ${settings}."
+  # endpoint and content were validated (plain http(s) URL, fixed words), so they are safe to embed.
+  printf '{\n  %s,\n  "enabled": true,\n  "endpoint": "%s",\n  "content": "%s"\n}\n' \
+    "$METRICS_DCODE_SETTINGS_MARK" "$traces" "$content" >"$tmp" \
+    || { rm -f "$tmp"; error "Could not write ${settings}."; }
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$settings"
+  metrics_dcode_env_set on
+}
+
+# Removes only what this installer wrote. Also used by the uninstaller, so
+# --keep-agent-data does not leave an exporter behind.
+metrics_remove_dcode_managed() {
+  local home path
+  home="$(metrics_dcode_home)"
+  [[ -d "$home" && ! -L "$home" ]] || return 0
+  path="$(metrics_dcode_extension_file)"
+  if [[ -f "$path" && ! -L "$path" ]] && grep -Fq "$METRICS_CONFIG_MARKER" "$path"; then rm -f -- "$path"; fi
+  path="$(metrics_dcode_settings_file)"
+  if [[ -f "$path" && ! -L "$path" ]] && grep -Fq "$METRICS_DCODE_SETTINGS_MARK" "$path"; then rm -f -- "$path"; fi
+  path="$(metrics_dcode_env_file)"
+  if [[ -f "$path" && ! -L "$path" ]] && grep -Fq "$METRICS_DCODE_ENV_BEGIN" "$path"; then metrics_dcode_env_set off; fi
 }
 
 # ---------------------------------------------------------------------------
@@ -806,6 +945,9 @@ metrics_enable_harness_preflight() {
         command_exists openclaw || error "OpenClaw CLI not found on PATH. Install it first: ./install.sh --harness openclaw --model <model>"
         command_exists timeout || error "'timeout' (coreutils) is required."
         metrics_check_openclaw_otel_config ;;
+      deepagents-code)
+        metrics_check_dcode_environment
+        metrics_check_dcode_paths ;;
     esac
   fi
   metrics_resolve_harness_settings
@@ -871,6 +1013,19 @@ metrics_enable_harness() {
         metrics_write_openclaw_otel_config "$backend" "$endpoint" "$content"
         if [[ "$backend" != sqlite ]]; then metrics_receiver_stop; fi
       fi ;;
+    deepagents-code)
+      # Recorded before the first change, so a failed enable can still be disabled.
+      metrics_state_set harness.enabled true harness.agent deepagents-code harness.runtime "$runtime"
+      if metrics_openshell; then
+        metrics_enable_openshell_sandbox "$backend" "$endpoint" "$content"
+      else
+        # The receiver is up before dcode is pointed at it, so no span is lost.
+        if [[ "$backend" == sqlite ]]; then
+          metrics_receiver_start "$M_AGENT" "$(metrics_harness_store "$M_AGENT")" "$content"
+        fi
+        metrics_write_dcode_config "$backend" "$endpoint" "$content"
+        if [[ "$backend" != sqlite ]]; then metrics_receiver_stop; fi
+      fi ;;
   esac
   kept=false
   if [[ "$managed" != true ]]; then
@@ -904,6 +1059,15 @@ Send a message ('./install.sh connect --runtime openshell --harness openclaw') a
       else
         info "Start (or restart) the OpenClaw Gateway to apply this: only the running Gateway exports spans, 'openclaw agent --local' does not.
 Then send a message and verify with: ./install.sh observability show --target harness"
+      fi ;;
+    deepagents-code)
+      if metrics_openshell; then
+        info "Start dcode in the sandbox again to apply this (extensions load only at start): ./install.sh connect --runtime openshell --harness deepagents-code
+Then chat and verify with: ./install.sh observability show --target harness --runtime openshell"
+      else
+        info "Restart dcode to apply this (a running session loads extensions only at start, or on /restart).
+Then chat and verify with: ./install.sh observability show --target harness
+The telemetry extension is experimental dcode functionality: it is switched on through DEEPAGENTS_CODE_EXPERIMENTAL=1 in $(metrics_dcode_env_file), which dcode reads at start."
       fi ;;
   esac
 }
@@ -949,14 +1113,19 @@ metrics_enable_openshell_sandbox() {
   openshell_allow_host_port "$METRICS_OS_RULE" "$port" "$host"
   ok "Sandbox egress allowed to ${host}:${port}"
   case "$M_AGENT" in
-    hermes)
-      # The plugin takes the full traces URL; an external one is used exactly as given.
+    hermes | deepagents-code)
+      # Both exporters take the full traces URL; an external one is used exactly as given.
       traces="${base}/v1/traces"
       if [[ "$backend" != sqlite && "$endpoint" != "http://127.0.0.1:${HARNESS_JAEGER_OTLP_PORT}/v1/traces" ]]; then
         traces="${endpoint%/}"
       fi
-      metrics_os_exec hermes-enable "$traces" "$content" \
-        || error "Could not write Hermes's exporter settings inside the sandbox (see above)." ;;
+      if [[ "$M_AGENT" == hermes ]]; then
+        metrics_os_exec hermes-enable "$traces" "$content" \
+          || error "Could not write Hermes's exporter settings inside the sandbox (see above)."
+      else
+        metrics_os_exec dcode-enable "$traces" "$content" \
+          || error "Could not install the dcode telemetry extension inside the sandbox (see above)."
+      fi ;;
     openclaw)
       metrics_os_exec openclaw-stage on "$base" "$content" \
         || error "Could not stage OpenClaw's exporter settings inside the sandbox (see above)."
@@ -1026,6 +1195,7 @@ metrics_disable_harness() {
     case "$M_AGENT" in
       hermes) metrics_disable_hermes ;;
       openclaw) metrics_disable_openclaw ;;
+      deepagents-code) metrics_remove_dcode_managed ;;
     esac
   fi
   if [[ "$M_AGENT" != hermes ]] || metrics_openshell; then metrics_receiver_stop; fi
@@ -1050,13 +1220,14 @@ metrics_disable_harness() {
       warn "Harness telemetry disabled, but its collected data was not cleaned (see above)."
     fi
   else
-    ok "Harness telemetry disabled (exporter left installed; its local store was kept; add --clean to delete it)"
+    ok "Harness telemetry disabled (exporter $([[ "$M_AGENT" == deepagents-code ]] && echo removed || echo 'left installed'); its local store was kept; add --clean to delete it)"
   fi
   case "$M_AGENT" in
     hermes)
       if metrics_openshell; then info "The Hermes gateway inside the sandbox was restarted to apply this."
       else info "Restart running Hermes sessions/gateways to apply."; fi ;;
     openclaw) if ! metrics_openshell; then info "Restart the OpenClaw Gateway to apply."; fi ;;
+    deepagents-code) info "The dcode telemetry extension and its settings were removed; restart dcode to apply." ;;
   esac
 }
 
@@ -1091,6 +1262,11 @@ metrics_disable_openshell_sandbox() {
       if [[ "$(metrics_state_get harness.enabled)" == true ]]; then
         metrics_os_exec hermes-disable \
           || error "Could not turn Hermes's exporter off inside the sandbox (see above)."
+      fi ;;
+    deepagents-code)
+      if [[ "$(metrics_state_get harness.enabled)" == true ]]; then
+        metrics_os_exec dcode-disable \
+          || error "Could not remove the dcode telemetry extension inside the sandbox (see above)."
       fi ;;
   esac
   openshell_remove_policy_rule "$METRICS_OS_RULE"
@@ -1244,6 +1420,16 @@ metrics_show_harness_agent() {
         info "diagnostics.otel.enabled: $(metrics_openclaw_run 60 config get diagnostics.otel.enabled --json 2>/dev/null || echo unknown)"
       else
         info "OpenClaw CLI not found on PATH"
+      fi ;;
+    deepagents-code)
+      if [[ -f "$(metrics_dcode_extension_file)" ]] && grep -Fq "$METRICS_CONFIG_MARKER" "$(metrics_dcode_extension_file)"; then
+        ok "dcode telemetry extension installed ($(metrics_dcode_extension_file))"
+        info "Settings: $(metrics_dcode_settings_file)"
+      else
+        info "dcode telemetry extension not installed (checked $(metrics_dcode_extension_file); set DEEPAGENTS_HOME if dcode uses another home)"
+      fi
+      if grep -Fq "$METRICS_DCODE_ENV_BEGIN" "$(metrics_dcode_env_file)" 2>/dev/null; then
+        info "Extensions switched on through DEEPAGENTS_CODE_EXPERIMENTAL in $(metrics_dcode_env_file)"
       fi ;;
   esac
 }
