@@ -24,12 +24,12 @@ installer which sets up an optimized execution environment for autonomous
 agents on Intel hardware. AHI installs the chosen Agent harness, sets up
 the Routing capability, provides Observability options, and the configured
 Security capabilities. AHI is used across all Agentic blueprint applications
-in Open Edge Platform with notable examples being
-[Virtual Security Guard Agent](https://github.com/open-edge-platform/metro-ai-suite/tree/release-2026.3.0/virtual-security-guard-agent)
+in Open Edge Platform, with notable examples being
+[Virtual Security Guard Agent](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/virtual-security-guard-agent/index.html)
 in **Metro Suite**,
-[QSR Store Agent](https://github.com/intel-retail/qsr-agent/tree/main)
+[QSR Store Agent](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/ai-suite-retail/qsr-store-agent/index.html)
 in **Retail Suite**, and
-[Factory Defects Inspector Agent](https://github.com/open-edge-platform/manufacturing-ai-suite/tree/release-2026.3.0/factory-defects-inspector-agent)
+[Factory Defects Inspector Agent](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/ai-suite-manufacturing/factory-defects-inspector-agent/index.html)
 in **Manufacturing Suite**.
 
 The following sections provide overview of the major features offered. In
@@ -54,7 +54,7 @@ security.
 ## Inference Router
 
 The inference backend is **configurable**, but every request goes through the
-[**Inference Router** (IR)](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/microservices/inference-router).
+[**Inference Router** (IR)](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/inference-router/index.html).
 The agents are wired to the router's endpoint, never directly to a model
 server. By default the Router sits in front of a local **OpenVINO™ Model
 Server** (OVMS) serving an OpenAI-compatible `/v3/chat/completions` endpoint
@@ -74,7 +74,7 @@ non-interactively without a selection.
 The Inference Router provides integration with
 [KV Quantization](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/kv-quant-offload)
 and
-[Token compression](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
+[Token compression](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/adaptive-token-compressor/index.html)
 to offer KV-cache and Prompt optimization capabilities.
 
 ## Agentic AI Security
@@ -135,7 +135,7 @@ Overview (non-technical) <./overview.md>
 ./how-it-works.md
 ./agentic-ai-security.md
 ./known-limitations.md
-./release-notes.md
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->
