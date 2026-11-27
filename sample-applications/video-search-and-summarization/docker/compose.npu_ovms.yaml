@@ -3,4 +3,4 @@
 
 services:
   ovms-service:
-    image: openvino/model_server:2026.4.1-gpu
+    image: openvino/model_server:weekly@sha256:9b750a5cc0cf23190830bdfb6b5ad07997b6cb69a42bf8d2e774cbaaa1d1588f

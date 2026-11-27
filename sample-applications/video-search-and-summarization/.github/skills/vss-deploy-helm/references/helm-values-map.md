@@ -87,7 +87,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `pipelinemanager.env.SEARCH_FEATURE` | `FEATURE_OFF` | Turned on by search/unified/dual overrides. |
 | `nginx.service.type` | `NodePort` | External UI access is via service `vss-nginx` when release name is `vss`. |
 | `ovms.enabled` | `false`; summary/search/unified overrides set true except vLLM override disables it | OVMS inference backend. |
-| `ovms.image.repository/tag/Gputag` | `openvino/model_server` / `2026.4.1` / `2026.4.1-gpu` | Template chooses GPU tag when OVMS device uses GPU. |
+| `ovms.image.repository/tag/Gputag` | `openvino/model_server` / `weekly@sha256:9b750a5cc0cf23190830bdfb6b5ad07997b6cb69a42bf8d2e774cbaaa1d1588f` (both) | OVMS 2026.5.0 weekly pinned by digest; one image serves CPU, GPU and NPU. | |
 | `ovms.claimSize` | `6Gi` from parent | OVMS model PVC size. |
 | `videoingestion.claimSize` | `2Gi` from parent | Object-detection model PVC size. |
 | `multimodaldataprep.modelPvc.size` | chart value | DataPrep model-cache PVC size when enabled. |
