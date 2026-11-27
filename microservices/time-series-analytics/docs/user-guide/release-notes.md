@@ -1,31 +1,31 @@
 # Release Notes: Time Series Analytics
 
-## Version 2026.3
+## Version 2026.3.0
 
-**December 2026**
+**Release Date:** December 7, 2026
 
 This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.8.7**, and **a smaller containerized image**, along with dependency updates and documentation improvements.
 
-**New**
+**New:**
 
-- **Pipeline status APIs**: added endpoints to stop a running UDF task and check its status without shutting down Kapacitor.
+- **Pipeline status APIs**: added endpoints to check the configured User Defined Function (UDF) task's status and stop analytics. Stopping analytics shuts down Kapacitor and verifies it has stopped, while keeping the API and UDF configuration available.
 
-**Improved**
+**Improved:**
 
 - **Kapacitor**: built version 1.8.7 from source and kept build tools out of the runtime image.
-- **Smaller Containerized image**: Removed not used dependencies and simplified driver installation.
+- **Smaller containerized image**: removed unused dependencies and simplified driver installation.
 - **Dependencies**: updated Python runtime, test, and simulator dependencies, including FastAPI, scikit-learn, asyncua, and protobuf.
 - **Deployment images**: updated Docker image versions to 2026.3.0 and refreshed the Python base image.
 - **Validation**: added shell linting to CI and corrected ShellCheck findings in startup scripts.
 - **Documentation**: improved component cross-links, standardized admonitions, and updated release documentation.
 
-**Fixed**
+**Fixed:**
 
 - **Configuration API**: corrected the restart field to use a non-nullable boolean in the API and OpenAPI schema.
 - **Swagger UI**: fixed the display of the optional restart parameter.
 - **Classifier startup**: resolved CodeQL findings in startup handling.
 
-**Removed**
+**Removed:**
 
 - **Helm deployment**: Helm charts have been retired and are no longer maintained or distributed starting with version 2026.3. Use Docker Compose for deployment.
 

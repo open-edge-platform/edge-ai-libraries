@@ -1,20 +1,20 @@
 # Release Notes: Multimodal Data Preparation for Retrieval
 
-## Version 2026.3.0-rc2
+## Version 2026.3.0
 
-**Release Date:** December 7, 2026
+**Release Date**: December 7, 2026
 
 **New**:
 
-- **On-demand single-frame retrieval (`GET /media/frame`):** reconstruct one frame from already-stored media (an uploaded file or a live `segments/*.mp4` clip) and return it as raw `image/jpeg` or as base64 inside JSON. Frames are decoded on demand and never written back to storage. The endpoint is query-agnostic — it addresses a frame by `video_id`/`stream_id` + `timestamp` (+ an optional `crop_bbox` for `variant=crop`) — so a downstream agent can take the address straight from a `search-ms` result's `best_frame_info` and fetch the peak-scoring frame to hand to a VLM. In VSS this is also exposed through pipeline-manager at `GET /manager/frames`.
-- **Live (RTSP) stream ingestion as a managed resource:** the new `/media/streams` CRUD surface registers a camera and ingests it continuously on a background worker — create (single and batch), list with `state`/`tags` filters, inspect stats, pause/resume and reconfigure via `PATCH`, and delete (single and batch) with optional `purge_embeddings` / `purge_media`. Registrations are persisted and restored on restart, dropped sources reconnect with a bounded budget, and live embeddings are addressable through the existing media endpoints (`bucket_name` = `MM_DATAPREP_LIVE_STREAM_BUCKET`, `video_id` = `stream_id`).
+- **On-demand single-frame retrieval (`GET /media/frame`):** reconstruct one frame from already-stored media (an uploaded file or a live `segments/*.mp4` clip) and return it as raw `image/jpeg` or as base64 inside JSON. Frames are decoded on demand and never written back to storage. The endpoint is query-agnostic — it addresses a frame by `video_id`/`stream_id` + `timestamp` (+ an optional `crop_bbox` for `variant=crop`) — so a downstream agent can take the address straight from a `search-ms` result's `best_frame_info` and fetch the peak-scoring frame to hand to a Vision Language Model (VLM). In Video Search and Summarization (VSS), this is also exposed through pipeline-manager at `GET /manager/frames`.
+- **Live (RTSP) stream ingestion as a managed resource:** the new `/media/streams` Create, Read, Update, Delete (CRUD) surface registers a camera and ingests it continuously on a background worker — create (single and batch), list with `state`/`tags` filters, inspect statistics, pause/resume and reconfigure via `PATCH`, and delete (single and batch) with optional `purge_embeddings` / `purge_media`. Registrations are persisted and restored on restart, dropped sources reconnect with a bounded budget, and live embeddings are addressable through the existing media endpoints (`bucket_name` = `MM_DATAPREP_LIVE_STREAM_BUCKET`, `video_id` = `stream_id`).
 - **Playback media for live streams:** each stream records N-second MP4 segments (`MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS`, default 10), and every live embedding points at the segment covering its frame — so a retrieval hit on a live camera is playable.
-- **Live retention:** `MM_DATAPREP_LIVE_RETENTION_HOURS` (default `0` = keep forever) prunes live embeddings and media past the window; requires the new vector-store `delete_embeddings_before()` operation, implemented for both VDMS and Milvus.
+- **Live retention:** `MM_DATAPREP_LIVE_RETENTION_HOURS` (default `0` = keep forever) prunes live embeddings and media past the window; requires the new vector-store `delete_embeddings_before()` operation, implemented for both Visual Data Management System (VDMS) and Milvus.
 - **Live telemetry and health:** live sessions are recorded by `GET /telemetry`, and `GET /health` reports live-stream counts per state.
-- **External media correlation contract:** every live embedding now records `sensor_id` (stable identity of the physical source, settable at registration and defaulting to the `stream_id`), `capture_time` with an explicit `capture_time_source`, and `media_owner`. These let media stored by another service be matched back to an embedding without changing the decode or embedding path. See [Stream Manager Integration Readiness](../integration/stream-manager-readiness.md).
+- **External media correlation contract:** every live embedding now records `sensor_id` (stable identity of the physical source, settable at registration and defaulting to the `stream_id`), `capture_time` with an explicit `capture_time_source`, and `media_owner`. These fields enable media stored by another service to be matched back to an embedding, independently of where this service stores its own media.
 - **Camera-clock capture timestamps for live streams:** `capture_time` is derived from each frame's PTS anchored to the best available clock, rather than from the ingest instant. This removes per-frame pipeline jitter and lets an independent consumer of the same RTSP feed resolve the same frame. The source degrades through `rtcp_sender_report` → `stream_anchored` → `ingest_estimated`, reported in `capture_time_source`; implausible camera clocks are rejected rather than trusted. Segment bucketing is unchanged and still uses ingest time. **In practice expect `stream_anchored`:** validation against a Hikvision DS-2CD1023G0E-I found the camera emits no RTCP at all — a raw probe saw 4316 RTP packets and 0 RTCP packets over 45 s on TCP, and none on UDP — so no client can recover an NTP mapping. Always branch on `capture_time_source` rather than assuming camera-clock accuracy.
 - **Camera clock-skew warning:** starting a live stream probes the device's HTTP `Date` header and logs a warning when its clock disagrees with the host by more than `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` (default 2). The check is vendor-neutral, sends no credentials, runs off the ingestion path, and never alters a stored timestamp — it surfaces the otherwise-invisible condition that makes a camera unusable as a shared time reference when correlating with an external recorder. It distinguishes genuine drift from embedded web servers that stamp local time but label it `GMT`. Disable with `MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED=false`.
-- **Object detection with Hugging Face OpenVINO models:** set `MM_DATAPREP_DETECTION_MODEL_NAME` to any object-detection model in the [Hugging Face `OpenVINO` namespace](https://huggingface.co/OpenVINO) supported by OpenVINO Model API, for example `OpenVINO/yolox_s-int8-ov`. Input size, NMS and class labels come from the model's own metadata, and only the selected model is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR`. Detection runs on CPU, GPU or NPU; `OpenVINO/yolox_s-int8-ov`, `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are verified on all three.
+- **Object detection with Hugging Face OpenVINO™ models:** set `MM_DATAPREP_DETECTION_MODEL_NAME` to any object-detection model in the [Hugging Face `OpenVINO` namespace](https://huggingface.co/OpenVINO) supported by OpenVINO™ Model API, for example `OpenVINO/yolox_s-int8-ov`. Input size, Non-Maximum Suppression (NMS), and class labels come from the model's own metadata, and only the selected model is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR`. Detection runs on CPU, GPU, or NPU; `OpenVINO/yolox_s-int8-ov`, `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov`, and `OpenVINO/YOLO11n-fp16-ov` are verified on all three.
 - **Detection class filter:** `MM_DATAPREP_DETECTION_CLASSES` (for example `person,car`) keeps only the listed classes. Names are checked against the model's labels at startup.
 - `GET /health` reports `detection_model`, `detection_device` and `detection_classes`.
 
@@ -25,7 +25,7 @@
 
 **Fixed**:
 
-- **Live streams now produce embeddings promptly.** Batches were only flushed once `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` sampled frames had accumulated, and the "drain whatever is left" path only runs at end-of-stream — which an RTSP source never reaches. A camera at 12.5 fps with `frame_interval=15` therefore produced nothing for roughly five minutes while pinning shared-memory blocks. Partially filled batches from live sources are now flushed once the oldest frame reaches `MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS` (default 20).
+- **Live streams now produce embeddings promptly.** Batches were only flushed once `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` sampled frames had accumulated, and the "drain whatever is left" path only runs at end-of-stream — which an RTSP source never reaches. A camera at 12.5 frames per second with `frame_interval=15` therefore produced nothing for roughly five minutes while pinning shared-memory blocks. Partially filled batches from live sources are now flushed once the oldest frame reaches `MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS` (default 20).
 - **Live stream statistics no longer stay at zero.** `frames_processed` and `embeddings_created` were only updated after the ingestion pipeline returned, which for a continuous stream never happens. Progress is now reported per stored batch, so `GET /media/streams/{stream_id}` reflects ingestion while it runs.
 - **Recorded live media is now downloadable.** `GET /media` lists live objects under `<stream_id>/segments/...`, but `GET /media/download` rejected the `/` in those paths and a bare `video_id` returned an arbitrary object — so a retrieval hit on a live camera could not be played back. The endpoint accepts a new `media_path` query parameter resolved strictly within the stream's own prefix.
 - **External correlation fields now reach the vector database.** `sensor_id`, `capture_time`, `capture_time_source`, and `media_owner` were computed per frame but were not part of the enforced canonical metadata contract, so they were stripped before storage and never appeared in retrieval results.
@@ -35,8 +35,8 @@
 - **Ingestion no longer hangs on a stuck inference call.** If a detection or embedding inference never returned (for example after a GPU hang), the video job stayed `running` forever. A stall watchdog now fails the job when no pipeline stage makes progress for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds (default `300`, `0` disables it), with an error that names the stalled stage. See [Troubleshooting](troubleshooting.md).
 - **Ingestion no longer hangs when a decoder thread dies.** A frame larger than the shared-memory block size (for example 4K portrait video against the 1920x1080 default) killed the producer thread without signalling completion, leaving the request spinning forever and never returning. Decoder failures are now forwarded to the consumer and raised, and the request is rejected with `400 Bad Request` naming `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` and the required byte count instead of an opaque `500`. The failure path also shuts down the shared-memory pools, which previously leaked on every failed request.
 - **Concurrent embedding requests no longer abort the worker.** Two overlapping inference calls could overwrite each other's async completion callback, writing a result into a wrong-sized buffer and terminating the process with SIGABRT. Inference submission is now serialized per model instance and callback exceptions are re-raised in the submitting thread.
-- **ROI consolidation metadata is no longer shared between requests.** `merged_boxes_count` and `context_expansion_applied` were held on the shared detector, so overlapping requests could attach another frame's values to a crop. They are now kept per thread.
-- **ROI consolidation honours `0`.** `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD=0` or `MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE=0` was silently replaced with `0.2`.
+- **Region of Interest (ROI) consolidation metadata is no longer shared between requests.** `merged_boxes_count` and `context_expansion_applied` were held on the shared detector, so overlapping requests could attach another frame's values to a crop. They are now kept per thread.
+- **ROI consolidation honors `0`.** `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD=0` or `MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE=0` was silently replaced with `0.2`.
 
 **Upgrade Notes**:
 
@@ -46,18 +46,18 @@
   `DELETE /media/streams/{stream_id}` replaces client-disconnect as the stop
   signal.
 - Live-stream registrations are stored in a PostgreSQL `live_streams` table
-  (`MM_DATAPREP_LIVE_STREAM_DB_*`). The standalone compose bundles a `postgres`
+  (`MM_DATAPREP_LIVE_STREAM_DB_*`). The standalone Compose file bundles a `postgres`
   service; in the VSS stack the registry reuses the shared PostgreSQL instance.
 - Live ingestion grows the vector index indefinitely unless
   `MM_DATAPREP_LIVE_RETENTION_HOURS` is set.
 - **Breaking:** `MM_DATAPREP_DETECTION_MODEL_NAME` has no default and is
   required while object detection is enabled. It takes an `OpenVINO/<repo>`
-  Hugging Face id; GitHub YOLOX names such as `yolox_s` are rejected. Set
+  Hugging Face identifier; GitHub YOLOX names such as `yolox_s` are rejected. Set
   `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false` to run without detection.
 - **Breaking:** `src/config.yaml` and `CONFIG_FILEPATH` have been removed; all
   configuration is read from `MM_DATAPREP_*` environment variables.
 - **Breaking:** the `detection_confidence` request parameter has been removed
-  from the upload, process, image, batch, directory and live-stream APIs, and
+  from the upload, process, image, batch, directory, and live-stream APIs, and
   live-stream responses no longer return it. The value was never applied per
   request; the threshold is the service setting `MM_DATAPREP_DETECTION_CONFIDENCE`.
   Requests that still send the field are accepted and the field is ignored.

@@ -2,13 +2,12 @@
 
 ## Version 2026.3.0
 
-**Release Date:** TBD
+**Release Date:** December 7, 2026
 
-**Improvements:**
+**Improved:**
+
 - CVE fixes and security updates.
 - Documentation updates: standardized admonitions and refreshed diagrams.
-
----
 
 ## Version 2026.2.0
 
