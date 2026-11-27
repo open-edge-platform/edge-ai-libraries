@@ -265,7 +265,8 @@ makes a healthy `ovms-service` a required dependency of `pipeline-manager`, so
 startup fails instead of continuing without a model server.
 For OVMS GPU, `setup.sh` also adds
 `docker/compose.gpu_ovms.yaml` and switches `ovms-service` to
-`openvino/model_server:2026.4.1-gpu`.
+`openvino/model_server:weekly@sha256:9b750a5cc0cf23190830bdfb6b5ad07997b6cb69a42bf8d2e774cbaaa1d1588f` (the same pinned image
+the CPU path uses).
 
 The skill's fresh `bash -c` deployment flow prevents derived OVMS storage names
 from leaking between runs. If switching from OVMS to vLLM manually in the same

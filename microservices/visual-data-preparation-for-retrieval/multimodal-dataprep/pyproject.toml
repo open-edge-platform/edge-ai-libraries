@@ -29,6 +29,13 @@ name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 priority = "explicit"
 
+# Needed so the openvino 2026.5.0 RC required by multimodal-embedding-serving can be resolved:
+# Poetry does not inherit sources from path dependencies.
+[[tool.poetry.source]]
+name = "openvino-nightly"
+url = "https://storage.openvinotoolkit.org/simple/wheels/nightly"
+priority = "explicit"
+
 [tool.poetry.group.dev]
 optional = true
 

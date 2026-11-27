@@ -39,7 +39,7 @@ data:
   {{- if $dpUsesAccelerator }}
   MM_DATAPREP_USE_OPENVINO: "true"
   {{- else }}
-  {{- if hasKey .Values.embedding "sdkUseOpenVino" }}
+  {{- if not (kindIs "invalid" .Values.embedding.sdkUseOpenVino) }}
   MM_DATAPREP_USE_OPENVINO: {{ printf "%v" .Values.embedding.sdkUseOpenVino | quote }}
   {{- else if hasKey .Values.global.env "SDK_USE_OPENVINO" }}
   MM_DATAPREP_USE_OPENVINO: {{ printf "%v" .Values.global.env.SDK_USE_OPENVINO | quote }}
