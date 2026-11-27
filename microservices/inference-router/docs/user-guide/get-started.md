@@ -466,7 +466,7 @@ Notes:
 
 The router can compress prompts before they reach the backend to cut token
 usage, via plugins based on the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor).
+[Adaptive Token Compressor](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/adaptive-token-compressor/index.html).
 Use the unified `compressor` node and select the compressor type with
 `settings.type`:
 
@@ -481,10 +481,9 @@ Use the unified `compressor` node and select the compressor type with
 
 The compress server and tool predictor are **not** part of the router.
 For deployment instructions, see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
-repository.
+[Adaptive Token Compressor Compress Server Deployment](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/adaptive-token-compressor/compress-server-deployment.html) guide.
 For detailed purpose and behavior of each compressor, see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor) repository documentation.
+[Adaptive Token Compressor Get Started](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/adaptive-token-compressor/get-started.html) guide.
 
 ### Configuration
 
@@ -572,9 +571,8 @@ plugins:
 
 The small model is faster but saves fewer tool tokens. Size `top_k` to the
 number of tools per request. For measured results and how to choose `top_k`,
-see the ToolCompressor configuration guide in the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
-repository.
+see the ToolCompressor configuration guide for the
+[Adaptive Token Compressor](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/adaptive-token-compressor/get-started.html#toolcompressor-configuration).
 
 #### Selecting per-compressor metrics
 

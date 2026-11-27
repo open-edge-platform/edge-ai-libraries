@@ -92,7 +92,7 @@ in this terminal, with these changes:
 If you already have an INT4 package, for example one converted on another host,
 skip steps 2 and 3 there and put it at
 `./gme-ov/gme-qwen2-vl-2b-instruct-openvino-int4` before step 4. Only a package
-written by [`scripts/export_gme_ov.py`](../../scripts/export_gme_ov.py) with
+written by [`scripts/export_gme_ov.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/scripts/export_gme_ov.py) with
 `GME_PRECISION=int4` works: the service needs its `gme_openvino_config.json`
 and finds the model only under the `-int4` directory name. A directory without
 the suffix holds the INT8 package.

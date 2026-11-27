@@ -211,7 +211,7 @@ Run the following from the microservice root, in one Bash terminal:
    ```
 
 3. Convert it to OpenVINO with
-   [`scripts/export_gme_ov.py`](../../scripts/export_gme_ov.py), which uses the
+   [`scripts/export_gme_ov.py`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/scripts/export_gme_ov.py), which uses the
    precision from `GME_PRECISION` and writes the model under `./gme-ov`:
 
    ```bash

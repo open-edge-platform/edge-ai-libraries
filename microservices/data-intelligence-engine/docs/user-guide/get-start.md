@@ -108,7 +108,7 @@ List the registrations with `./databases.sh read`. Each backend takes these
 `options`:
 
 | `type` / `backend` | `options`, with addresses as the engine container sees them |
-|---|---|
+| --- | --- |
 | `vector` / `milvus` | `uri` (required), e.g. `http://milvus-standalone:19530`; other keys, such as `token` or `db_name`, go to the Milvus client |
 | `graph` / `nebula` | `url` (required), e.g. `nebula://nebula-graphd:9669`; optional `username` (default `root`), `password` and `space` |
 | `object` / `filesystem` | `root` (required), a directory inside the container, e.g. `<workspace>/content` (the host workspace path, see Step 1) |
@@ -167,5 +167,5 @@ pool and rank). The same search is `POST /v1/retrieve`; the web console at
 - [How to prepare models](how-to-guides/how-to-prepare-models.md).
 - [User guide](user-guide.md) — concepts, configuration and troubleshooting.
 - [API reference](api.md).
-- [Skills for agent](../../skills/README.md) — let an OpenClaw agent query this
+- [Skills for agent](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/skills/README.md) — let an OpenClaw agent query this
   retrieval through the `knowledgebase` skill.

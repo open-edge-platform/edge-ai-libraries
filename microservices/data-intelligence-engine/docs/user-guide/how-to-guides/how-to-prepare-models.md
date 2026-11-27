@@ -310,9 +310,9 @@ docker run --rm -e http_proxy -e https_proxy -e no_proxy \
   '
 ```
 
-For ViCLIP-L, change `viclip-b` to `viclip-l` in the command. Output must be new or empty. See [export_viclip_ov.py](../../../scripts/export_viclip_ov.py) for all options.
+For ViCLIP-L, change `viclip-b` to `viclip-l` in the command. Output must be new or empty. See [export_viclip_ov.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/scripts/export_viclip_ov.py) for all options.
 
-For optional Cosmos, run `./scripts/prepare-models.sh cosmos-224p` from the engine directory; it uses [export_cosmos_ov.py](../../../scripts/export_cosmos_ov.py).
+For optional Cosmos, run `./scripts/prepare-models.sh cosmos-224p` from the engine directory; it uses [export_cosmos_ov.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/scripts/export_cosmos_ov.py).
 
 #### 3. Output directory and options
 
@@ -481,4 +481,4 @@ Each source records the model it uses in its `profile` when it is created; see i
 
   A missing or corrupt cache fails with a preparation error; the engine never fetches it.
 - **Video captions**: provided by an external video-summary service; set `ENGINE_VIDEO_SUMMARY_BASE_URL`. Without it, captioning is skipped and embedding is unaffected.
-- **OKF extraction**: uses an external LLM service; see the [OKF extractor](../../../tools/okf_extractor/README.md).
+- **OKF extraction**: uses an external LLM service; see the [OKF extractor](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/tools/okf_extractor/README.md).

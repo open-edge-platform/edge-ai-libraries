@@ -108,7 +108,7 @@ The database manager creates adapters lazily on first use.
 Supported backends are:
 
 | Type | Backend | Status |
-|---|---|---|
+| --- | --- | --- |
 | `vector` | Milvus | Vector indexing and retrieval are implemented. |
 | `object` | Filesystem | Asset content storage is implemented. |
 | `graph` | NebulaGraph | OKF concept-graph ingest and graph/RRF retrieval are implemented; general property-graph write-back is limited. |
@@ -205,7 +205,7 @@ of knowledge belong in separate graph sources, each with its own space.
 Which formats a graph source builds from is its `operator_options.asset_types`:
 
 | `asset_types` | Accepts | Notes |
-|---|---|---|
+| --- | --- | --- |
 | unset or `["okf"]` | OKF bundles | The default. |
 | `["okf", "document"]` | OKF bundles and documents | Needs `external_extractor` and a vector source for chunk provenance. |
 
@@ -233,7 +233,7 @@ always live in vector sources, where concepts cite them.
 The extractor settings must be nested under `operator_options.external_extractor`,
 not pasted directly into `operator_options`. The latter is rejected with a
 configuration error rather than silently creating an OKF-bundle-only source.
-Use [the complete source example](../../scripts/example/graph-source-with-extractor.json)
+Use [the complete source example](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/scripts/example/graph-source-with-extractor.json)
 when creating a document-extracting graph source.
 
 The engine stages persisted content blocks/captions in `ENGINE_UPLOAD_DIR` and
@@ -250,7 +250,7 @@ serving (and building uploaded bundles) while an extraction runs. When a job
 runs depends on `trigger`:
 
 | `trigger` | When extraction runs |
-|---|---|
+| --- | --- |
 | `"auto"` or `{"mode": "auto", "debounce_seconds": 15}` | After document materialization/sync, a job waits for `debounce_seconds` without another document change (default 15, `0` to start at once), so a bulk upload is one extraction. Unchanged pool syncs do not restart the timer. |
 | `{"mode": "schedule", "cron": "0 2 * * *", "timezone": "Asia/Shanghai"}` | At each matching minute of the 5-field cron expression (`timezone` defaults to UTC), only if documents changed since the last extraction. Minutes missed while the engine is down are not caught up. |
 | `"manual"` | Only when requested with `POST .../asset_pools/{pool}/extractions`. |
@@ -328,7 +328,7 @@ and `concept_count`. The engine validates the completed shared folder and
 publishes it as the pool's extracted bundle asset (above). There are no archive or multipart file transfers. Non-empty task
 instruction overrides, a `goal`, and a summary `language` can be supplied in
 `external_extractor.options`. Model access and execution limits remain server
-configuration. See the [OKF service guide](../../tools/okf_extractor/README.md) for
+configuration. See the [OKF service guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/tools/okf_extractor/README.md) for
 schemas, the two-stage pipeline, and the optional Compose deployment. Synchronous
 tasks may need a timeout longer than the default 3600 seconds.
 
@@ -539,7 +539,7 @@ and figure context per source through `operator_options`, `top_k` and
 graph retriever's options.
 
 | Variable | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `ENGINE_HOST` | `0.0.0.0` | Bind address. |
 | `ENGINE_PORT` | `16022` | Service port. |
 | `ENGINE_LOG_LEVEL` | `INFO` | Level of the engine's own log lines, such as OKF extraction jobs being queued, started, finished or failed. |
@@ -610,7 +610,7 @@ request values take precedence.
 Multimodal tuning is also in `src/config.py`, **not environment variables**:
 
 | Constant | Value | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `SHORT_VIDEO_MAX_SECONDS` | `60.0` | Whole-clip embedding cutoff; longer video needs segmentation, not yet implemented. |
 | `BACKFILL_BATCH_SIZE` | `32` | Assets per catch-up write for a newly attached source. |
 | `ASR_SEGMENT_SECONDS` | `30.0` | Maximum transcript-block duration, split near pauses. |
@@ -631,7 +631,7 @@ commit `.env` or production credentials. Existing deployment files do not need
 to be overwritten.
 
 | Variable | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `ENGINE_PORT` | `16022` | Published host port in Compose; the local Python process uses it as its listener port. |
 | `ENGINE_CONTAINER_PORT` | `16022` | Container listener, port-mapping target, and healthcheck port. |
 | `ENGINE_WORKSPACE_HOST_PATH` | `../../workspace` | Host bind-mount source, relative to the Compose directory. `quickstart.sh` sets it to the absolute workspace path. |

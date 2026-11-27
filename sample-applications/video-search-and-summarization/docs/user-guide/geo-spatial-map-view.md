@@ -23,7 +23,7 @@ With Helm, set `feature.map: "FEATURE_ON"` in the `vss-ui` chart values.
 ## Define Locations
 
 Edit the locations (id, label, latitude, longitude, cameras) in
-[`config/geo-intersections.json`](../../config/geo-intersections.json).
+[`config/geo-intersections.json`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/config/geo-intersections.json).
 
 A search result is pinned to a location when its video tag is the location id
 itself or starts with `<location id>-` (for example `intersection_1-camera2` or

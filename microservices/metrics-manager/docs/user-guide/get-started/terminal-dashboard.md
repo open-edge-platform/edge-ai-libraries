@@ -39,7 +39,7 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges \
 ./native/bin/mm-tui --help
 ```
 
-Start a telemetry backend using the [Docker guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/docs/user-guide/get-started.md), then run:
+Start a telemetry backend using the [Docker guide](../get-started.md), then run:
 
 ```bash
 ./native/bin/mm-tui \
@@ -190,7 +190,7 @@ throughput is not GPU-specific bandwidth. Unavailable data is distinct from zero
 ### Optional network and storage
 
 Enable the relevant collectors using the
-[native Docker collector guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/docs/user-guide/get-started/native-docker-collectors.md). Configuration
+[native Docker collector guide](./native-docker-collectors.md). Configuration
 filters change the display, not collection or permissions:
 
 - `network.interfaces`, `maxInterfaces` (default 8), and `speedMbps` overrides
