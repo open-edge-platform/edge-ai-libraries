@@ -23,13 +23,21 @@ import { defineConfig, devices } from "@playwright/test";
  * Set `PLAYWRIGHT_WEB_SERVER=1` (what CI does) to let Playwright serve the
  * production bundle itself via `vite preview` instead of requiring an already
  * running UI. No backend is involved in that mode.
+ *
+ * Set `PLAYWRIGHT_WEB_SERVER=dev` to let Playwright start the Vite dev server
+ * instead (port `PLAYWRIGHT_DEV_PORT`, default 5173). Its CSS is injected as
+ * `<style>` tags, so trace / UI Mode snapshots keep the page styling.
  */
-const useWebServer = process.env.PLAYWRIGHT_WEB_SERVER === "1";
-const previewPort = Number(process.env.PLAYWRIGHT_PREVIEW_PORT ?? 4173);
+const webServerMode = process.env.PLAYWRIGHT_WEB_SERVER;
+const useDevServer = webServerMode === "dev";
+const useWebServer = webServerMode === "1" || useDevServer;
+const serverPort = useDevServer
+  ? Number(process.env.PLAYWRIGHT_DEV_PORT ?? 5173)
+  : Number(process.env.PLAYWRIGHT_PREVIEW_PORT ?? 4173);
 
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ??
-  (useWebServer ? `http://localhost:${previewPort}` : "http://localhost");
+  (useWebServer ? `http://localhost:${serverPort}` : "http://localhost");
 
 const crossBrowserDir = "tests/e2e/cross-browser/**";
 
@@ -57,7 +65,7 @@ export default defineConfig({
   },
   webServer: useWebServer
     ? {
-        command: `npm run preview -- --port ${previewPort} --strictPort`,
+        command: `npm run ${useDevServer ? "dev" : "preview"} -- --port ${serverPort} --strictPort`,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

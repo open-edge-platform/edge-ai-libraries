@@ -12,6 +12,7 @@
     "generate:api": "npx @rtk-query/codegen-openapi src/api/api.config.json",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:e2e:ui:dev": "PLAYWRIGHT_WEB_SERVER=dev playwright test --project=chromium --ui-port=8080",
     "test:e2e:cross-browser": "playwright test tests/e2e/cross-browser"
   },
   "dependencies": {
