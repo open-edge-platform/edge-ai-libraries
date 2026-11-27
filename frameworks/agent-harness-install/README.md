@@ -78,7 +78,7 @@ Each agent records per-turn traces through its own OpenTelemetry exporter (the
 SQLite store, and optionally exports them to a
 managed or external Jaeger. For OpenClaw a small loopback OTLP
 receiver fills the local store.
-Harness telemetry is unavailable in OpenShell sandboxes.
+Harness telemetry also works in OpenShell sandboxes for OpenClaw and Hermes (`--runtime openshell`).
 Settings are kept in `~/.agent-harness-install/metrics.json`, so Router config
 regeneration preserves them. See [Observability](./docs/user-guide/get-started.md#observability)
 for details.

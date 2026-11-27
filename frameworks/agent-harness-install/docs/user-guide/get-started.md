@@ -260,7 +260,7 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 - **One exporter at a time:** the installer records which agent owns the
   exporter. `enable` for another agent is refused until `disable`, and `show`
   and `disable` act on the recorded agent whichever one is selected.
-- **`--backend sqlite` for OpenClaw:** OpenClaw exports
+- **`--backend sqlite` for OpenClaw (and Hermes in OpenShell):** the agents export
   OTLP, so the installer starts a small loopback-only receiver
   (`scripts/lib/metrics-otlp-receiver.py`, Python 3.8+, standard library only)
   on `127.0.0.1:4319` (`HARNESS_OTLP_RECEIVER_PORT`) that writes the same
@@ -272,6 +272,16 @@ installed). Each agent keeps its own exporter; the installer only configures it.
 - **`--content`:** `preview` (a short excerpt) exists for Hermes and for
   `--backend sqlite` with OpenClaw. With `--backend jaeger` OpenClaw accepts
   only `off` or `full`, since its exporter has no preview mode.
+  For Hermes, `off` also turns off the plugin's `capture_tool_command`,
+  `capture_tool_target` and `capture_error_message`, so tool command lines,
+  paths and error text are not recorded either; the receiver drops the same
+  attributes. A `hermes-otel` plugin that predates those settings cannot honour
+  `off` on its own, so `enable` refuses it (host runtime, or OpenShell with a
+  collector other than the local receiver): update the plugin, or pin a newer
+  one with `HARNESS_HERMES_OTEL_REF`.
+- The receiver's store directory is private to your user (mode 700 for
+  directories the installer owns) and the store file is mode 600; symlinks and
+  files owned by another user are refused.
 - OpenClaw spans carry no session id, so `show` reports `sessions: 0` for them.
 
 ### Cleaning collected data and keeping Jaeger
@@ -321,9 +331,35 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   managed container). Use it for the full trace view, which the CLI summary
   does not replace.
 
-Limitations: harness telemetry is not available in OpenShell sandboxes (the
-sandbox has no network egress beyond the router). After an OpenShell install, pass `--runtime openshell` to
-`observability` (otherwise the runtime defaults to `host`). Router telemetry
+Harness telemetry also works inside an OpenShell sandbox for OpenClaw and Hermes:
+pass `--runtime openshell` (and `--harness <agent>`)
+to `observability`; otherwise the runtime defaults to `host`. The sandbox's
+default policy does not allow egress to a collector or to package registries, so
+the exporter is built into the sandbox image and
+`enable` adds one policy rule that lets the agent reach only the host collector
+(the receiver for `sqlite`, the managed Jaeger for `jaeger`) through
+`host.openshell.internal`; `disable` removes it. The collected data stays on the
+host. Enabling or disabling OpenClaw restarts its sandbox so the gateway reloads
+its settings. For Hermes the
+`hermes-otel` plugin is installed and enabled in the image (enabling downloads
+Python dependencies, which the default policy does not allow) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
+rewrites that file inside the sandbox and stops the Hermes gateway process there,
+which the next turn starts again with the new settings. With `--backend sqlite`
+the host receiver stores Hermes's spans in
+`openshell-telemetry/hermes_otel_live.db` (the plugin's own local store inside
+the sandbox is not read). With `--backend jaeger --endpoint <url>` the sandbox
+exports to your own collector instead of the managed Jaeger: `enable` allows
+sandbox egress to exactly that host and port (port 80/443 by scheme when the URL
+has none), and only for `POST` to the exporter's traces path, from the agent's
+own executables (Node for OpenClaw, Python for Hermes); `GET`, `HEAD` and
+`OPTIONS` are denied, and `disable` removes the rule. A collector other than
+`host.openshell.internal` must use `https://`, since plain http would leave this
+machine unencrypted. The collector must be reachable from the
+sandbox by hostname or IPv4 address; loopback and IPv6 literals are refused (use
+`host.openshell.internal` for a collector on the same machine, or omit
+`--endpoint` for the managed Jaeger). A sandbox created before this support
+must be removed and installed again to gain the exporter or to accept an
+external `--endpoint`. Router telemetry
 works in both
 runtimes. The Router's `ir_metrics.jsonl` is append-only while the Router runs;
 the installer rotates it once it exceeds `HARNESS_IR_TELEMETRY_MAX_BYTES` (see
@@ -337,11 +373,15 @@ Overrides:
 `HARNESS_JAEGER_IMAGE`, `HARNESS_JAEGER_CONTAINER`,
 `HARNESS_JAEGER_UI_PORT`, `HARNESS_JAEGER_OTLP_PORT`.
 
-By default the plugin is installed from Hermes's reviewed plugin catalog
-(`hermes plugins install hermes_otel`), which checks out the commit pinned
-there and applies Hermes's removal kill-list. To pin another commit, set
-`HARNESS_HERMES_OTEL_REF` to a full 40-character SHA; it is passed as `--ref`
-and applies to a fresh plugin install only (an installed plugin is left as is).
+By default the plugin is installed from Hermes's plugin catalog
+(`hermes plugins install hermes_otel`) at v1.33.3
+(`ead500947cffdfc8307ec55fb150d9fbc720e781`), the first release that supports
+`capture_tool_command` and so honours `--content off`. To pin another commit,
+set `HARNESS_HERMES_OTEL_REF` to a full 40-character SHA; set it empty to
+install the commit pinned in the catalog instead. It is passed as `--ref` and
+applies to a fresh plugin install only (an installed plugin is left as is). The
+default applies to the catalog plugin only; with another
+`HARNESS_HERMES_OTEL_PLUGIN` source no ref is passed unless you set one.
 
 ### Harness backends
 

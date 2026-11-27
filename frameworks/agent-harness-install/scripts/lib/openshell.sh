@@ -593,6 +593,16 @@ _install_openshell_agent() {
     validate_hermes_pin
     pin_args=(--build-arg "HERMES_PINNED_COMMIT=$HERMES_PINNED_COMMIT" --build-arg "HERMES_PINNED_SHA256=$HERMES_PINNED_SHA256")
   fi
+  if [[ "$agent" == hermes ]]; then
+    # The default sandbox policy denies registry egress, so its telemetry plugin is installed into the image.
+    local otel_ref="${HARNESS_HERMES_OTEL_REF:-}"
+    if declare -F metrics_check_plugin_source >/dev/null; then
+      HARNESS_HERMES_OTEL_PLUGIN="${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}" metrics_check_plugin_source
+      otel_ref="$(metrics_hermes_otel_ref)"
+    fi
+    pin_args+=(--build-arg "HERMES_OTEL_PLUGIN=${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}"
+      --build-arg "HERMES_OTEL_REF=${otel_ref}")
+  fi
   docker build --build-arg "HARNESS_AGENT=$agent" "${pin_args[@]}" \
     --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg http_proxy --build-arg https_proxy \
     -f "${SCRIPT_DIR}/openshell/Dockerfile" -t "$image" "$SCRIPT_DIR" \
@@ -652,6 +662,82 @@ openshell_agent_exec() {
   # Login-shell initialization can replace the image PATH; callers use explicit CLI paths.
   openshell sandbox exec --name "$OPENSHELL_NAME" --no-login-shell "${tty_args[@]}" \
     -g "$OPENSHELL_GATEWAY" -- "$@"
+}
+
+# The helpers below act on the sandbox selected by openshell_load_profile.
+openshell_sandbox_phase() {
+  openshell sandbox get "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" -o json \
+    | node -e 'let d="";process.stdin.on("data",x=>d+=x).on("end",()=>console.log(JSON.parse(d).phase))'
+}
+
+openshell_ensure_ready() {
+  local phase
+  phase="$(openshell_sandbox_phase)" || error "Cannot inspect sandbox ${OPENSHELL_NAME}."
+  if [[ "$phase" == Stopped ]]; then
+    openshell sandbox start "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
+      || error "Cannot resume stopped sandbox ${OPENSHELL_NAME}."
+  fi
+  openshell_wait_phase Ready
+}
+
+openshell_restart_sandbox() {
+  openshell sandbox stop "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
+    || error "Could not stop sandbox ${OPENSHELL_NAME}."
+  openshell_wait_phase Stopped
+  openshell sandbox start "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
+    || error "Could not restart sandbox ${OPENSHELL_NAME}."
+  openshell_wait_phase Ready
+}
+
+# openshell_allow_otlp_post <rule-name> <host> <port> <path> <binary>... -- lets just
+# these binaries POST to one path on one host:port. The rule is hot-loaded;
+# replacing it first drops a host, port or path from an earlier configuration.
+# The endpoint is added read-only and its GET/HEAD/OPTIONS are then denied (deny wins),
+# so the only request left is the allowed POST. A failure after the first call removes the rule.
+openshell_allow_otlp_post() {
+  local rule="$1" host="$2" port="$3" path="$4" binary method spec
+  shift 4
+  local -a bin_args=() deny_args=()
+  [[ "$rule" =~ ^[a-z][a-z0-9_]*$ ]] || error "Invalid OpenShell policy rule name."
+  [[ "$port" =~ ^[1-9][0-9]{0,4}$ ]] || error "Invalid sandbox egress port: ${port}"
+  (( port <= 65535 )) || error "Invalid sandbox egress port: ${port}"
+  [[ "$host" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || error "Invalid sandbox egress host."
+  [[ "$path" =~ ^/[A-Za-z0-9._~%/-]*$ ]] || error "Invalid sandbox egress path: ${path}"
+  (( $# )) || error "No sandbox binaries given for the egress rule."
+  for binary in "$@"; do
+    [[ "$binary" == /* && ! "$binary" =~ [[:space:]] ]] || error "Invalid sandbox binary: ${binary}"
+    bin_args+=(--binary "$binary")
+  done
+  spec="${host}:${port}"
+  for method in GET HEAD OPTIONS; do
+    deny_args+=(--add-deny "${spec}:${method}:/" --add-deny "${spec}:${method}:/**")
+  done
+  openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --remove-rule "$rule" --wait >/dev/null 2>&1 || true
+  openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --rule-name "$rule" "${bin_args[@]}" \
+    --add-endpoint "${spec}:read-only:rest:enforce" --wait \
+    || error "Could not allow sandbox egress to ${spec}."
+  openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --rule-name "$rule" "${bin_args[@]}" \
+    --add-allow "${spec}:POST:${path}" "${deny_args[@]}" --wait \
+    || { openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --remove-rule "$rule" --wait >/dev/null 2>&1 || true
+         error "Could not restrict sandbox egress to POST ${spec}${path}; the rule was removed."; }
+}
+
+openshell_remove_policy_rule() {
+  local rule="$1" policy
+  [[ "$rule" =~ ^[a-z][a-z0-9_]*$ ]] || error "Invalid OpenShell policy rule name."
+  openshell policy update "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --remove-rule "$rule" --wait >/dev/null 2>&1 && return 0
+  # A rule that is already gone is the state wanted, but only a successful policy read can show that.
+  policy="$(openshell policy get "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" --full 2>/dev/null)" \
+    || error "Could not remove sandbox egress rule ${rule}, or read the policy to confirm it is gone."
+  if grep -Eq "^[[:space:]]*${rule}:" <<<"$policy"; then
+    error "Could not remove sandbox egress rule ${rule}."
+  fi
+}
+
+# Resets the harness telemetry state after a sandbox is deleted, so it is not
+# reported as enabled for a sandbox that no longer exists.
+openshell_forget_harness_telemetry() {
+  ! declare -F metrics_openshell_sandbox_removed >/dev/null || metrics_openshell_sandbox_removed "$1"
 }
 
 openshell_wait_agent_config() {
@@ -801,6 +887,7 @@ _remove_openshell_agent_locked() {
   dir="$(openshell_profile_dir)"
   # Only active profile.json records block host uninstall; preserve the removed identity for audit.
   mv -- "$dir/profile.json" "$dir/removed-profile.json"
+  openshell_forget_harness_telemetry "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
   info "Owned sandbox/provider removed. Shared inference, host agents and OpenShell gateway were not removed."
   info "Ownership record retained at ${dir}/removed-profile.json."
 }

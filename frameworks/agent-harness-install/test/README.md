@@ -170,7 +170,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 
 The command above retains the all-in-one local behavior. In CI, named steps
 run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (74 direct
-cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (54
+cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (60
 unit cases plus 9 CLI entry-point cases in a separate step), and model
 defaults (7 executed offline cases; two explicit Hermes image-required skips). A separate
 TAP-reporting regression step validates the reporting helper itself.
@@ -292,6 +292,28 @@ computer use or complete filesystem isolation on all Landlock configurations.
 The suite does not automate browser chat or a real cross-agent model switch.
 Those require separate acceptance checks; offline lifecycle tests use fixtures
 and mocks rather than live OVMS model changes.
+
+### Harness observability end-to-end check
+
+`bash test/otel-openshell-e2e.sh` is a manual, hardware-backed check of the
+OpenShell harness telemetry. For each of Hermes and OpenClaw
+it installs the sandbox, chats once with telemetry off, then for the `sqlite`
+and `jaeger` backends enables telemetry, chats with a unique marker and asserts
+the marker is found in the host store or Jaeger. It then asserts that
+`observability disable --clean` removes the `harness_otel` egress rule and
+uninstalls the sandbox. It is not part of any CI gate.
+
+It refuses to run unless an env file (default `~/ahi-e2e.env`, or `--env-file`)
+sets `SRC` and an isolated `HARNESS_STATE_DIRNAME`. That alone does not isolate
+the Router: `observability` runs with its default target (Router and harness),
+and the Router workspace defaults to the live
+`~/.agent-harness-install/inference-router/workspace`. On a host with a live
+deployment, also set `HARNESS_IR_WORKSPACE_DIR` and give the env file its own
+container names and ports
+(`HARNESS_OVMS_CONTAINER`, `HARNESS_IR_CONTAINER`, `HARNESS_BACKEND_NETWORK`,
+`HARNESS_JAEGER_CONTAINER`, `HARNESS_*_PORT`, `HARNESS_OTLP_RECEIVER_PORT`).
+Options: `--harness`, `--backend`, `--skip-install`, `--keep`,
+`--full-uninstall`; logs go to `~/otel-e2e-logs/<timestamp>`.
 
 ## GitHub Actions setup
 

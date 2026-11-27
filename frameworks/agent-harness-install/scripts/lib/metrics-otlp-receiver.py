@@ -4,10 +4,11 @@
 """Loopback OTLP/HTTP trace receiver that keeps spans in a local SQLite store.
 
 Started by `./install.sh observability enable --backend sqlite` for agents that
-export OpenTelemetry themselves (OpenClaw). Rows use the same
-`events` table as the Hermes hermes-otel plugin so `observability show/disable
---clean` handle every agent alike. Standard library only: the OTLP protobuf
-messages are decoded by hand (only the fields stored here).
+export OpenTelemetry themselves (OpenClaw, and Hermes inside an OpenShell
+sandbox). Rows use the same `events` table as the Hermes hermes-otel
+plugin so `observability show/disable --clean` handle every agent alike. Standard
+library only: the OTLP protobuf messages are decoded by hand (only the fields
+stored here).
 """
 
 import argparse
@@ -56,6 +57,15 @@ CONTENT_KEYS = {
 # Indexed forms such as gen_ai.prompt.0.content.
 CONTENT_PREFIXES = ("gen_ai.prompt.", "gen_ai.completion.", "llm.prompts", "llm.completions", "openclaw.content.")
 DROP_KEYS = {"gen_ai.tool.definitions", "openclaw.content.tool_definitions"}
+# Tool command lines, targets and error text: free text that content=off withholds too.
+TOOL_TEXT_KEYS = {
+    "hermes.tool.command",
+    "hermes.tool.target",
+    "hermes.error.message",
+    "error.message",
+    "exception.message",
+    "exception.stacktrace",
+}
 SESSION_KEYS = (
     "openclaw.sessionKey",
     "session.id",
@@ -63,7 +73,9 @@ SESSION_KEYS = (
 
 
 def keep_span(agent, span):
-    return span["name"] in OPENCLAW_SPANS
+    if agent == "openclaw":
+        return span["name"] in OPENCLAW_SPANS
+    return True
 
 
 def is_content(key):
@@ -73,7 +85,7 @@ def is_content(key):
 def span_data(span, content):
     out = {}
     for key, val in span["attrs"].items():
-        if key in DROP_KEYS:
+        if key in DROP_KEYS or (content == "off" and key in TOOL_TEXT_KEYS):
             continue
         if is_content(key):
             if content == "off":
@@ -301,7 +313,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--db", required=True)
-    ap.add_argument("--agent", choices=("openclaw",), required=True)
+    ap.add_argument("--agent", choices=("openclaw", "hermes"), required=True)
     ap.add_argument("--content", choices=("off", "preview", "full"), default="off")
     ap.add_argument("--max-rows", type=int, default=200000)
     ap.add_argument("--pidfile")
