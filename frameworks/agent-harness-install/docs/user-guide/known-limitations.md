@@ -138,6 +138,14 @@ For sandbox setup, architecture and lifecycle guidance, see
 - `mcp register` has Hermes's configuration shape and OpenClaw's `mcp set` command
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
   registration script.
+- `./install.sh observability` for OpenClaw with the
+  `sqlite` backend starts a loopback OTLP receiver that does not survive a
+  reboot; re-run `observability enable` to start it again. OpenClaw spans carry
+  no session id, and OpenClaw's configuration and plugin changes need its
+  gateway stopped: stop it (`openclaw gateway stop`) before enable or disable
+  and start it again afterwards. Hermes inside an
+  OpenShell sandbox is not supported. `--content preview` needs the `sqlite`
+  backend for OpenClaw.
 - `HARNESS_OVMS_EXPORTER` normally defaults to `docker-pull` (the OpenShell
   Qwen3.5 default uses `hf-snapshot` instead), which runs OVMS's own
   "-py" Docker image (bundles `optimum-cli`) in `--pull` mode to download,
