@@ -79,6 +79,9 @@ SQLite store, and optionally exports them to a
 managed or external Jaeger. For OpenClaw a small loopback OTLP
 receiver fills the local store.
 Harness telemetry also works in OpenShell sandboxes for OpenClaw and Hermes (`--runtime openshell`).
+With `--target all` (or when `--backend` is given or saved), a host-side bridge also turns each Router
+request into a span (service `inference-router`) in the same store or Jaeger,
+without changing the Router.
 Settings are kept in `~/.agent-harness-install/metrics.json`, so Router config
 regeneration preserves them. See [Observability](./docs/user-guide/get-started.md#observability)
 for details.
@@ -119,11 +122,13 @@ for details.
 │       ├── inference-router.sh     # Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
 │       ├── agents.sh               # Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
 │       ├── harness-mcp.sh          # registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
-│       └── metrics.sh              # observability commands for Router and Hermes telemetry
+│       ├── metrics.sh              # observability commands for Router and harness telemetry
+│       ├── metrics-otlp-receiver.py # loopback OTLP receiver behind --backend sqlite for OpenClaw
+│       └── metrics-router-bridge.py # host-side bridge that tails the Router's ir_metrics.jsonl and exports one span trace per request
 ├── docs/
 │   └── user-guide/                 # usage documentation (see Documentation above)
 └── test/
-    ├── metrics-test.sh             # observability behavior tests (Docker/Hermes stubbed)
+    ├── metrics-test.sh             # observability behavior tests (Docker and agent CLIs stubbed)
     ├── metrics-cli-test.sh         # observability CLI entry-point tests
     ├── smoke-test.sh               # end-to-end smoke test suite (phased; see --list)
     └── full-flow-test.sh           # full install -> real chat completion -> uninstall run, per agent

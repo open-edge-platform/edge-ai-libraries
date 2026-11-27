@@ -8,7 +8,12 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_ROOT="$(mktemp -d)"
-trap 'rm -rf -- "$TEST_ROOT"' EXIT
+trap 'bridge_cleanup; rm -rf -- "$TEST_ROOT"' EXIT
+bridge_cleanup() {
+  local pid
+  pid="$(cat "$HOME/.agent-harness-install/metrics-router-bridge.pid" 2>/dev/null || true)"
+  [[ -z "$pid" ]] || kill "$pid" 2>/dev/null || true
+}
 
 FAKE="$TEST_ROOT/fake"
 BIN="$TEST_ROOT/bin"
@@ -240,6 +245,28 @@ case_rejects_bad_input() {
   check 'router state untouched by a rejected mode' state_is router.enabled ''
 }
 
+case_router_bridge_runs_and_stops() {
+  if [[ ! -d /proc/self || -z "$(command -v python3)" ]]; then echo '  skipped: needs /proc and python3'; return 0; fi
+  local pidfile="$HOME/.agent-harness-install/metrics-router-bridge.pid" pid
+  cli observability enable --target router
+  check 'router alone starts no bridge' test ! -e "$pidfile"
+  cli observability enable --target router --backend sqlite
+  check 'enable exits 0' rc_is 0
+  check 'bridge state saved' state_is router.bridge sqlite
+  check 'bridge is running' test -s "$pidfile"
+  pid="$(cat "$pidfile" 2>/dev/null)"
+  cli observability show --target router
+  check 'show reports the bridge' out_has 'Router telemetry bridge running'
+  cli observability disable --target router
+  check 'disable exits 0' rc_is 0
+  check 'bridge stopped' test ! -e "$pidfile"
+  check 'bridge process is gone' test ! -d "/proc/${pid:-0}"
+  check 'bridge state cleared' state_is router.bridge ''
+  cli observability enable --target router --content full
+  check 'content without a backend is rejected for the Router' rc_fails
+  check 'router state untouched' state_is router.enabled false
+}
+
 # The help text is an unquoted heredoc, so a stray backtick would execute.
 case_help_runs_nothing() {
   cli --help
@@ -257,6 +284,7 @@ run_case 'an unreachable Docker daemon is an error' case_docker_down_is_an_error
 run_case 'disable accepts a plugin that is already disabled' case_disable_survives_an_already_disabled_plugin
 run_case '--target all disable still disables the Router when the harness fails' case_all_disable_still_reaches_router
 run_case 'bad input is rejected without side effects' case_rejects_bad_input
+run_case 'the Router bridge starts with --backend and stops on disable' case_router_bridge_runs_and_stops
 run_case '--help prints the observability options without running any command' case_help_runs_nothing
 
 printf '1..%d\n' "$N"

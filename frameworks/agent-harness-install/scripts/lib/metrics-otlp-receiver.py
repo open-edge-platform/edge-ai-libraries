@@ -234,15 +234,19 @@ class Store:
         if not rows:
             return
         with self.lock:
-            self.con.executemany(
-                "INSERT INTO events (kind, ts, data, trace_id, span_id, parent_span_id, session_id, name, status, "
-                "start_ns, end_ns, duration_ms) VALUES ('span', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
-            self.inserted += len(rows)
-            if self.max_rows and self.inserted >= 500:
-                self.inserted = 0
-                self.con.execute(
-                    "DELETE FROM events WHERE seq <= (SELECT MAX(seq) FROM events) - ?", (self.max_rows,))
-            self.con.commit()
+            try:
+                self.con.executemany(
+                    "INSERT INTO events (kind, ts, data, trace_id, span_id, parent_span_id, session_id, name, status, "
+                    "start_ns, end_ns, duration_ms) VALUES ('span', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+                self.inserted += len(rows)
+                if self.max_rows and self.inserted >= 500:
+                    self.inserted = 0
+                    self.con.execute(
+                        "DELETE FROM events WHERE seq <= (SELECT MAX(seq) FROM events) - ?", (self.max_rows,))
+                self.con.commit()
+            except sqlite3.Error:
+                self.con.rollback()
+                raise
 
     def close(self):
         with self.lock:
@@ -296,11 +300,20 @@ def make_handler(store):
                 if (self.headers.get("Content-Encoding") or "").lower() == "gzip":
                     inflater = zlib.decompressobj(31)
                     body = inflater.decompress(body, MAX_BODY)
-                store.add(parse_export_request(body))
+                spans = list(parse_export_request(body))
             except Exception:
                 # Any malformed or hostile payload must end in a reply, not a dead handler thread.
                 try:
                     self._reply(400, "text/plain")
+                except OSError:
+                    pass
+                return
+            try:
+                store.add(spans)
+            except sqlite3.Error:
+                # 400 would make the exporter drop a valid batch; 503 is retried.
+                try:
+                    self._reply(503, "text/plain")
                 except OSError:
                     pass
                 return

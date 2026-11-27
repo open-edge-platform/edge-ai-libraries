@@ -88,12 +88,18 @@ usage() {
     --help, -h                        Show this help message and exit
 
   Observability options (./install.sh observability ...):
-    --backend <sqlite|jaeger>          enable only; where the harness (Hermes or OpenClaw) sends telemetry. sqlite = local store
-                                       only (default); jaeger = managed loopback Jaeger container, or your own Jaeger at --endpoint
+    --backend <sqlite|jaeger>          enable only; where telemetry goes. For the harness (Hermes or OpenClaw): sqlite = local store
+                                       only (default); jaeger = managed loopback Jaeger container, or your own Jaeger at --endpoint.
+                                       For the Router, --target all exports spans (sqlite unless --backend says otherwise) and
+                                       --target router only when --backend is given (or saved): a host-side bridge
+                                       tails its ir_metrics.jsonl and sends one trace per request (service inference-router) to the
+                                       same store/Jaeger as the harness. Router code is not modified.
     --endpoint <url>                   enable only; OTLP/HTTP traces URL of an existing Jaeger, e.g. http://host:4318/v1/traces
-    --content <off|preview|full>       enable only; how much prompt/response text is recorded (default: off; OpenClaw: preview needs sqlite)
-    --clean                            disable only; also delete the collected data (Router ir_metrics.jsonl, harness local store,
-                                       and the managed Jaeger with its traces)
+                                       (needs --backend jaeger, or a saved jaeger backend)
+    --content <off|preview|full>       enable only; how much prompt/response text is recorded (default: off; OpenClaw: preview needs sqlite;
+                                       Router: whether the event metadata/details are attached to spans)
+    --clean                            disable only; also delete the collected data (Router ir_metrics.jsonl and span store,
+                                       harness local store, and the managed Jaeger with its traces)
     --keep-jaeger                      disable only; keep the managed Jaeger container (and its traces) running
     show prints a CLI summary (Router requests/tokens/latency per model; harness local-store span summary) and the Jaeger UI
     URL when Jaeger is the backend; Jaeger gives the full trace view.
