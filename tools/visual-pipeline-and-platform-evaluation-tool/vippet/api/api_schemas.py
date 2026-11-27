@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cpu_topology import normalize_cpu_ids
 
@@ -109,9 +109,257 @@ class TestJobState(str, Enum):
 
 
 class AudioJobState(str, Enum):
+    """
+    **State of an asynchronous audio pipeline job.**
+
+    ## Values
+    - `RUNNING` - Speech conversion is in progress
+    - `COMPLETED` - Job finished, including cancellation without a result
+    - `FAILED` - Job execution failed
+    """
+
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+
+class SpeechVoice(str, Enum):
+    """
+    **Supported voice for speech synthesis.**
+
+    ## Values
+    - `Ryan`
+    - `Miles`
+    - `Aaron`
+    - `Nora`
+    - `Elena`
+    - `Kabir`
+    - `Angus`
+    """
+
+    RYAN = "Ryan"
+    MILES = "Miles"
+    AARON = "Aaron"
+    NORA = "Nora"
+    ELENA = "Elena"
+    KABIR = "Kabir"
+    ANGUS = "Angus"
+
+
+class TranscriptionResponse(BaseModel):
+    """
+    **Validated transcription returned by the speech-to-text service.**
+
+    ## Attributes
+    - `text` - Recognized text, limited to 16000 characters
+    """
+
+    text: str = Field(
+        max_length=16000, description="Recognized speech, up to 16000 characters."
+    )
+
+
+class AudioPipelineDefaultsResponse(BaseModel):
+    """
+    **Default inputs supplied by an audio pipeline definition.**
+
+    ## Attributes
+    - `audio` - Optional bundled recording filename for speech-to-text
+    - `language` - Optional transcription language code
+    - `text` - Optional default text for speech synthesis
+    - `voice` - Optional default synthesis voice
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    audio: str | None = Field(
+        default=None,
+        description="Default registered recording filename for transcription.",
+    )
+    language: str | None = Field(
+        default=None, description="Default two-letter transcription language code."
+    )
+    text: str | None = Field(
+        default=None, description="Default text for speech synthesis."
+    )
+    voice: str | None = Field(
+        default=None, description="Default speech synthesis voice."
+    )
+
+
+class AudioPipelineVariantResponse(BaseModel):
+    """
+    **Audio pipeline variant targeting a particular inference device.**
+
+    ## Attributes
+    - `id` - Variant identifier used when starting a run
+    - `name` - Human-readable variant name
+    - `device` - Target inference device: CPU, GPU, or NPU
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(description="Variant identifier used when starting a run.")
+    name: str = Field(description="Human-readable variant name.")
+    device: Literal["CPU", "GPU", "NPU"] = Field(description="Target inference device.")
+
+
+class AudioPipelineResponse(BaseModel):
+    """
+    **Read-only audio pipeline definition exposed by the Voice catalog.**
+
+    ## Attributes
+    - `id` - Pipeline identifier used when starting a run
+    - `name` - Human-readable pipeline name
+    - `description` - Description of the speech conversion operation
+    - `type` - Pipeline type, always `audio`
+    - `operation` - `speech_to_text` or `text_to_speech`
+    - `tags` - Tags used to categorize the pipeline
+    - `thumbnail` - Optional Base64-encoded pipeline thumbnail
+    - `required_models` - Names of models required by the pipeline
+    - `variants` - Available device-specific execution variants
+    - `defaults` - Default recording, language, text, and voice inputs
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(description="Pipeline identifier used when starting a run.")
+    name: str = Field(description="Human-readable pipeline name.")
+    description: str = Field(
+        description="Description of the speech conversion operation."
+    )
+    type: Literal["audio"] = Field(description="Pipeline category, always audio.")
+    operation: Literal["speech_to_text", "text_to_speech"] = Field(
+        description="Speech conversion operation."
+    )
+    tags: list[str] = Field(description="Tags used to categorize the pipeline.")
+    thumbnail: str | None = Field(
+        default=None, description="Optional Base64-encoded pipeline thumbnail."
+    )
+    required_models: list[str] = Field(
+        description="Names of models required by the pipeline."
+    )
+    variants: list[AudioPipelineVariantResponse] = Field(
+        description="Available device-specific execution variants."
+    )
+    defaults: AudioPipelineDefaultsResponse = Field(
+        description="Default inputs supplied by the pipeline."
+    )
+
+
+class AudioPipelineJobStartResponse(BaseModel):
+    """
+    **Response returned when an audio pipeline run is accepted.**
+
+    ## Attributes
+    - `job_id` - Job identifier used to poll status and retrieve its result
+    - `status` - Job state when the run was accepted
+
+    ### Example
+    ```json
+    {"job_id": "audio-job-123", "status": "RUNNING"}
+    ```
+    """
+
+    job_id: str = Field(
+        description="Job identifier used to poll status and retrieve results."
+    )
+    status: AudioJobState = Field(description="Job state when the run was accepted.")
+
+
+class AudioRecordingResponse(BaseModel):
+    """
+    **Bundled recording available as input to speech-to-text pipelines.**
+
+    ## Attributes
+    - `filename` - Registered recording filename
+    - `duration_seconds` - Recording duration in seconds
+    - `audio_url` - Public API URL for playing or downloading the recording
+    """
+
+    filename: str = Field(description="Registered WAV recording filename.")
+    duration_seconds: float = Field(description="Recording duration in seconds.")
+    audio_url: str = Field(
+        description="Public API URL for playing or downloading the recording."
+    )
+
+
+class SampleAudioRecordingResponse(BaseModel):
+    """
+    **Allowlisted sample recording and its local download status.**
+
+    ## Attributes
+    - `filename` - Sample WAV filename
+    - `gender` - Speaker gender reported by the sample catalog
+    - `format` - Audio encoding description
+    - `sample_rate` - Sample rate description
+    - `description` - Description of the recorded speech
+    - `downloaded` - Whether the sample is available locally
+    """
+
+    filename: str = Field(description="Allowlisted sample WAV filename.")
+    gender: Literal["F", "M"] = Field(
+        description="Speaker gender reported by the sample catalog."
+    )
+    format: str = Field(description="Audio encoding description.")
+    sample_rate: str = Field(description="Sample rate description.")
+    description: str = Field(description="Description of the recorded speech.")
+    downloaded: bool = Field(description="Whether the sample is available locally.")
+
+
+class AudioRecordingRunRequest(BaseModel):
+    """
+    **Request to transcribe a registered audio recording.**
+
+    String values are trimmed and unknown fields are rejected.
+
+    ## Attributes
+    - `recording` - Registered recording filename, from 1 to 255 characters
+    - `language` - Two-letter lowercase transcription language code
+
+    ### Example
+    ```json
+    {"recording": "sample.wav", "language": "en"}
+    ```
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    recording: str = Field(
+        min_length=1, max_length=255, description="Registered recording filename."
+    )
+    language: str = Field(
+        pattern=r"^[a-z]{2}$",
+        description="Two-letter lowercase transcription language code.",
+    )
+
+
+class AudioPipelineRunRequest(BaseModel):
+    """
+    **Request to synthesize speech from text using an audio pipeline.**
+
+    String values are trimmed and unknown fields are rejected.
+
+    ## Attributes
+    - `input` - Text to synthesize, from 1 to 200 characters
+    - `voice` - Supported synthesis voice selected from `SpeechVoice`
+
+    ### Example
+    ```json
+    {"input": "Hello world", "voice": "Ryan"}
+    ```
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    input: str = Field(
+        min_length=1,
+        max_length=200,
+        description="Text to synthesize, from 1 to 200 characters.",
+    )
+    voice: SpeechVoice = Field(
+        description="Supported voice selected for speech synthesis."
+    )
 
 
 class BenchmarkTestCaseRunStatus(str, Enum):
@@ -2076,24 +2324,71 @@ class DensityJobStatus(TestsJobStatus):
 
 
 class AudioJobSummary(BaseModel):
-    id: str
-    pipeline_id: str
-    pipeline_name: str
-    operation: Literal["speech_to_text", "text_to_speech"]
-    variant_id: str
-    variant_name: str
-    device: Literal["CPU", "GPU", "NPU"]
-    state: AudioJobState
-    created_at: datetime
-    modified_at: datetime
-    service_round_trip_ms: float | None = None
-    artifact_available: bool
-    error: str | None = None
+    """
+    **Audio job summary without transcripts or internal artifact paths.**
+
+    ## Attributes
+    - `id` - Job identifier
+    - `pipeline_id` - Identifier of the executed audio pipeline
+    - `pipeline_name` - Human-readable pipeline name
+    - `operation` - `speech_to_text` or `text_to_speech`
+    - `variant_id` - Identifier of the selected execution variant
+    - `variant_name` - Human-readable variant name
+    - `device` - Inference device selected for the run
+    - `state` - Current audio job state
+    - `created_at` - Job creation timestamp in UTC
+    - `modified_at` - Last state transition timestamp in UTC
+    - `service_round_trip_ms` - Optional speech-service round-trip time in ms
+    - `artifact_available` - Whether an audio artifact is associated with the job
+    - `error` - Optional sanitized execution failure message
+    """
+
+    id: str = Field(description="Audio job identifier.")
+    pipeline_id: str = Field(description="Identifier of the executed audio pipeline.")
+    pipeline_name: str = Field(description="Human-readable pipeline name.")
+    operation: Literal["speech_to_text", "text_to_speech"] = Field(
+        description="Speech conversion operation."
+    )
+    variant_id: str = Field(description="Identifier of the selected execution variant.")
+    variant_name: str = Field(description="Human-readable execution variant name.")
+    device: Literal["CPU", "GPU", "NPU"] = Field(
+        description="Inference device selected for the run."
+    )
+    state: AudioJobState = Field(description="Current audio job state.")
+    created_at: datetime = Field(description="Job creation timestamp in UTC.")
+    modified_at: datetime = Field(description="Last state transition timestamp in UTC.")
+    service_round_trip_ms: float | None = Field(
+        default=None,
+        description="Speech-service round-trip time in milliseconds, when available.",
+    )
+    artifact_available: bool = Field(
+        description="Whether an audio artifact is associated with the job."
+    )
+    error: str | None = Field(
+        default=None, description="Sanitized execution failure message, if any."
+    )
 
 
 class AudioJobStatus(AudioJobSummary):
-    transcript: str | None = None
-    artifact_url: str | None = None
+    """
+    **Detailed audio job status including its available conversion result.**
+
+    Inherits the metadata and execution state from `AudioJobSummary`.
+
+    ## Attributes
+    - `transcript` - Recognized text for a successful speech-to-text run,
+      otherwise null
+    - `artifact_url` - Public URL of the generated speech audio, otherwise null
+    """
+
+    transcript: str | None = Field(
+        default=None,
+        description="Recognized text for a successful speech-to-text run, otherwise null.",
+    )
+    artifact_url: str | None = Field(
+        default=None,
+        description="Public URL of generated speech audio, otherwise null.",
+    )
 
 
 class PerformanceJobSummary(BaseModel):

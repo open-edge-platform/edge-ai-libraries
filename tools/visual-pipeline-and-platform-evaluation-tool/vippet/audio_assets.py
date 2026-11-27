@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import logging
 import os
 import re
@@ -9,6 +10,9 @@ import threading
 import wave
 from dataclasses import dataclass
 from pathlib import Path
+
+from audio_errors import AudioRecordingNotFoundError, SampleAudioStorageError
+from audio_service_client import fetch_sample_audio
 
 AUTO_AUDIO_DIR = os.path.normpath(os.environ.get("AUTO_AUDIO_DIR", "/audio/input/auto"))
 OUTPUT_AUDIO_DIR = os.path.normpath(os.environ.get("OUTPUT_AUDIO_DIR", "/audio/output"))
@@ -66,10 +70,11 @@ class AudioAssetsManager:
         return cls._instance
 
     def __init__(self) -> None:
-        if hasattr(self, "_initialized"):
-            return
-        self._ensure_directories()
-        self._initialized = True
+        with self._lock:
+            if getattr(self, "_initialized", False):
+                return
+            self._ensure_directories()
+            self._initialized = True
 
     @staticmethod
     def _ensure_directories() -> None:
@@ -140,6 +145,34 @@ class AudioAssetsManager:
         if duration is None:
             return None
         return AudioAsset(filename, str(path), duration)
+
+    async def download_sample_recording(self, filename: str) -> dict[str, str]:
+        """Install an allowlisted sample, reusing an existing valid local file.
+
+        Returns:
+            Metadata from the trusted sample catalog.
+
+        Raises:
+            AudioRecordingNotFoundError: The filename is not allowlisted.
+            SampleAudioDownloadError: The upstream download or validation fails.
+            SampleAudioStorageError: The downloaded sample cannot be stored.
+        """
+        recording = next(
+            (item for item in SAMPLE_AUDIO_RECORDINGS if item["filename"] == filename),
+            None,
+        )
+        if recording is None:
+            raise AudioRecordingNotFoundError("Sample audio recording not found.")
+        if await asyncio.to_thread(self.get_asset, filename) is None:
+            content = await fetch_sample_audio(recording["url"])
+            try:
+                await asyncio.to_thread(self.save_sample_recording, filename, content)
+            except (OSError, ValueError) as exc:
+                logger.error(
+                    "Unable to store sample audio recording: %s", type(exc).__name__
+                )
+                raise SampleAudioStorageError("Unable to store audio sample.") from exc
+        return recording
 
     def save_sample_recording(self, filename: str, content: bytes) -> AudioAsset:
         """Atomically store a downloaded catalog sample in the managed input directory."""

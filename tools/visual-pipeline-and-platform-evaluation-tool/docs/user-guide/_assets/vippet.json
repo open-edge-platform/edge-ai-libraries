@@ -719,6 +719,7 @@
           "jobs"
         ],
         "summary": "Get Audio Statuses",
+        "description": "# List Audio Job Statuses\n\n## Operation\nReturn job summaries without transcripts or internal artifact paths.\n\n## Example\n`GET /api/v1/jobs/audio/status` returns `[]` when no audio jobs have been started.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Audio job summaries, possibly empty |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_statuses",
         "responses": {
           "200": {
@@ -731,7 +732,8 @@
                   },
                   "type": "array",
                   "title": "Response Get Audio Statuses"
-                }
+                },
+                "example": []
               }
             }
           }
@@ -744,6 +746,7 @@
           "jobs"
         ],
         "summary": "Get Audio Job Status",
+        "description": "# Get Audio Job Status\n\n## Parameters\n- `job_id`: ID returned when starting an audio pipeline run.\n\n## Example\n`GET /api/v1/jobs/audio/audio-job-123/status` returns the job state and, on successful transcription, `transcript: \"Hello world\"`.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Job state, transcript, and public artifact URL when available |\n| 404 | Job does not exist |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_job_status",
         "parameters": [
           {
@@ -763,6 +766,21 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AudioJobStatus"
+                },
+                "example": {
+                  "id": "audio-job-123",
+                  "pipeline_id": "speech-to-text",
+                  "pipeline_name": "Speech to Text",
+                  "operation": "speech_to_text",
+                  "variant_id": "cpu",
+                  "variant_name": "CPU",
+                  "device": "CPU",
+                  "state": "COMPLETED",
+                  "created_at": "2026-11-27T12:00:00Z",
+                  "modified_at": "2026-11-27T12:00:01Z",
+                  "service_round_trip_ms": 125.0,
+                  "artifact_available": false,
+                  "transcript": "Hello world"
                 }
               }
             }
@@ -786,7 +804,7 @@
           "jobs"
         ],
         "summary": "Stop a running audio job",
-        "description": "Request cancellation of a RUNNING Speech to Text or Text to Speech job.",
+        "description": "# Stop Audio Job\n\n## Operation\nRequest cancellation of a running speech-to-text or text-to-speech job.\nA cancelled job completes without a transcript or audio artifact.\n\n## Example\n`DELETE /api/v1/jobs/audio/audio-job-123` returns:\n```json\n{\"message\": \"Job audio-job-123 stopped\"}\n```\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Cancellation completed |\n| 404 | Job does not exist |\n| 409 | Job is no longer running |\n| 503 | Voice initialization failed |",
         "operationId": "stop_audio_job",
         "parameters": [
           {
@@ -806,6 +824,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageResponse"
+                },
+                "example": {
+                  "message": "Job audio-job-123 stopped"
                 }
               }
             }
@@ -2267,7 +2288,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n  - `geti`: `category` is required; the model is resolved by name on\n    the configured Geti server, every OpenVINO precision it offers is\n    downloaded in parallel and `geti/<name>/` is scanned for the\n    installed precisions.\n- **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`, `geti`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n  - `geti`: `category` is required; the model is resolved by name on\n    the configured Geti server, every OpenVINO precision it offers is\n    downloaded in parallel and `geti/<name>/` is scanned for the\n    installed precisions.\n- **`category`** *(optional)* - Required when `hub` is `huggingface` or `geti`.\n- **`gated`** *(optional)* - Gating mode (`false`, `auto`, `manual`) from the\n  hub listing; stored on the registered model, `null` when omitted.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -3762,7 +3783,7 @@
             "description": "A requested filename is not in the sample manifest."
           },
           "409": {
-            "description": "A filename conflict or concurrent Pexels download exists."
+            "description": "A filename conflict exists."
           },
           "422": {
             "description": "Validation Error",
@@ -4327,6 +4348,7 @@
           "voice"
         ],
         "summary": "List Audio Pipelines",
+        "description": "# List Audio Pipelines\n\n## Operation\nReturn the read-only audio catalog, including variants and default inputs.\n\n## Example\n`GET /api/v1/voice/pipelines` returns pipeline definitions, or `[]` for an empty catalog.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Audio pipeline definitions |\n| 503 | Voice initialization failed |",
         "operationId": "list_audio_pipelines_voice_pipelines_get",
         "responses": {
           "200": {
@@ -4339,7 +4361,33 @@
                   },
                   "type": "array",
                   "title": "Response List Audio Pipelines Voice Pipelines Get"
-                }
+                },
+                "example": [
+                  {
+                    "id": "text-to-speech",
+                    "name": "Text to Speech",
+                    "description": "Generate speech from text.",
+                    "type": "audio",
+                    "operation": "text_to_speech",
+                    "tags": [
+                      "Audio"
+                    ],
+                    "required_models": [
+                      "SpeechT5"
+                    ],
+                    "variants": [
+                      {
+                        "id": "cpu",
+                        "name": "CPU",
+                        "device": "CPU"
+                      }
+                    ],
+                    "defaults": {
+                      "text": "Hello world",
+                      "voice": "Ryan"
+                    }
+                  }
+                ]
               }
             }
           }
@@ -4352,6 +4400,7 @@
           "voice"
         ],
         "summary": "List Audio Recordings",
+        "description": "# List Audio Recordings\n\n## Operation\nReturn bundled recordings with their durations and public playback URLs.\n\n## Example\n`GET /api/v1/voice/recordings` returns `[]` before any samples have been downloaded.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Available audio recordings |\n| 503 | Voice initialization failed |",
         "operationId": "list_audio_recordings_voice_recordings_get",
         "responses": {
           "200": {
@@ -4364,7 +4413,14 @@
                   },
                   "type": "array",
                   "title": "Response List Audio Recordings Voice Recordings Get"
-                }
+                },
+                "example": [
+                  {
+                    "filename": "OSR_us_000_0010_8k.wav",
+                    "duration_seconds": 33.65,
+                    "audio_url": "/api/v1/voice/recordings/OSR_us_000_0010_8k.wav/audio"
+                  }
+                ]
               }
             }
           }
@@ -4377,6 +4433,7 @@
           "voice"
         ],
         "summary": "Get Audio Recording",
+        "description": "# Get Audio Recording\n\n## Parameters\n- `filename`: Name of a registered recording, not an arbitrary file path.\n\n## Example\n`GET /api/v1/voice/recordings/OSR_us_000_0010_8k.wav/audio` returns the WAV bytes with `Content-Type: audio/wav`.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | WAV recording with caching disabled |\n| 404 | Recording does not exist |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_recording_voice_recordings__filename__audio_get",
         "parameters": [
           {
@@ -4391,7 +4448,117 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response"
+            "description": "Registered WAV recording",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "examples": {
+                  "sample": {
+                    "summary": "Downloaded Harvard sentences",
+                    "externalValue": "/api/v1/voice/recordings/OSR_us_000_0010_8k.wav/audio"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/sample-recordings": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "List Sample Audio Recordings",
+        "description": "# List Sample Audio Recordings\n\n## Operation\nReturn the allowlisted sample catalog, including audio metadata and whether\neach recording is already available locally. No files are downloaded.\n\n## Example\n`GET /api/v1/voice/sample-recordings` returns catalog entries with `downloaded: false` until installed.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Sample recordings and their local download status |\n| 503 | Voice initialization failed |",
+        "operationId": "list_sample_audio_recordings_voice_sample_recordings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SampleAudioRecordingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Sample Audio Recordings Voice Sample Recordings Get"
+                },
+                "example": [
+                  {
+                    "filename": "OSR_us_000_0010_8k.wav",
+                    "gender": "F",
+                    "format": "16b PCM",
+                    "sample_rate": "8 kHz",
+                    "description": "Harvard sentences",
+                    "downloaded": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/sample-recordings/{filename}/download": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Download Sample Audio Recording",
+        "description": "# Download Sample Audio Recording\n\n## Operation\nDownload an allowlisted WAV sample and store it locally for playback and\nspeech-to-text pipelines. Reuse an existing valid local recording.\n\n## Parameters\n- `filename`: Sample filename from the catalog, not a URL or arbitrary path.\n\n## Example\n`POST /api/v1/voice/sample-recordings/OSR_us_000_0010_8k.wav/download` returns the sample metadata with `downloaded: true`.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Sample is available locally |\n| 404 | Filename is not in the sample catalog |\n| 500 | Sample could not be stored locally |\n| 502 | Upstream download failed or returned invalid or oversized audio |\n| 503 | Voice initialization failed |\n| 504 | Upstream download timed out |",
+        "operationId": "download_sample_audio_recording_voice_sample_recordings__filename__download_post",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleAudioRecordingResponse"
+                },
+                "example": {
+                  "filename": "OSR_us_000_0010_8k.wav",
+                  "gender": "F",
+                  "format": "16b PCM",
+                  "sample_rate": "8 kHz",
+                  "description": "Harvard sentences",
+                  "downloaded": true
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The filename is not in the sample catalog."
+          },
+          "502": {
+            "description": "The upstream sample could not be downloaded."
+          },
+          "504": {
+            "description": "The upstream sample download timed out."
           },
           "422": {
             "description": "Validation Error",
@@ -4412,6 +4579,7 @@
           "voice"
         ],
         "summary": "Run Audio Pipeline Variant",
+        "description": "# Run Audio Pipeline Variant\n\n## Operation\nStart an asynchronous speech-to-text or text-to-speech job on the selected\nvariant. Poll its status through the audio job endpoints.\n\n## Request Body\n- JSON: `input` and `voice` for synthesis, or `recording` and `language`\n  for transcription of a registered recording.\n- Multipart: `file` and a two-letter `language` for uploaded audio.\n\n## Examples\nSynthesis: `POST /api/v1/voice/pipelines/text-to-speech/variants/cpu/runs`\n```json\n{\"input\": \"Hello world\", \"voice\": \"Ryan\"}\n```\nRegistered recording: `POST /api/v1/voice/pipelines/speech-to-text/variants/cpu/runs`\n```json\n{\"recording\": \"OSR_us_000_0010_8k.wav\", \"language\": \"en\"}\n```\nUploaded audio:\n```bash\ncurl -X POST http://localhost:7860/api/v1/voice/pipelines/speech-to-text/variants/cpu/runs -F file=@sample.wav -F language=en\n```\nAccepted response:\n```json\n{\"job_id\": \"audio-job-123\", \"status\": \"RUNNING\"}\n```\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 202 | Job ID and initial state |\n| 400 | Pipeline does not accept the selected input type |\n| 404 | Pipeline, variant, or recording does not exist |\n| 409 | Pipeline cannot run with the supplied inputs |\n| 413 | Audio upload exceeds the size limit |\n| 415 | Unsupported request content type |\n| 422 | Invalid request fields |\n| 503 | Voice initialization failed |",
         "operationId": "run_audio_pipeline_variant_voice_pipelines__pipeline_id__variants__variant_id__runs_post",
         "parameters": [
           {
@@ -4440,6 +4608,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AudioPipelineJobStartResponse"
+                },
+                "example": {
+                  "job_id": "audio-job-123",
+                  "status": "RUNNING"
                 }
               }
             }
@@ -4459,18 +4631,37 @@
           "required": true,
           "content": {
             "application/json": {
+              "examples": {
+                "synthesis": {
+                  "summary": "Synthesize speech",
+                  "value": {
+                    "input": "Hello world",
+                    "voice": "Ryan"
+                  }
+                },
+                "recording": {
+                  "summary": "Transcribe a downloaded sample",
+                  "value": {
+                    "recording": "OSR_us_000_0010_8k.wav",
+                    "language": "en"
+                  }
+                }
+              },
               "schema": {
                 "oneOf": [
                   {
                     "additionalProperties": false,
+                    "description": "**Request to synthesize speech from text using an audio pipeline.**\n\nString values are trimmed and unknown fields are rejected.\n\n## Attributes\n- `input` - Text to synthesize, from 1 to 200 characters\n- `voice` - Supported synthesis voice selected from `SpeechVoice`\n\n### Example\n```json\n{\"input\": \"Hello world\", \"voice\": \"Ryan\"}\n```",
                     "properties": {
                       "input": {
+                        "description": "Text to synthesize, from 1 to 200 characters.",
                         "maxLength": 200,
                         "minLength": 1,
                         "title": "Input",
                         "type": "string"
                       },
                       "voice": {
+                        "description": "Supported voice selected for speech synthesis.",
                         "enum": [
                           "Ryan",
                           "Miles",
@@ -4480,7 +4671,7 @@
                           "Kabir",
                           "Angus"
                         ],
-                        "title": "Voice",
+                        "title": "SpeechVoice",
                         "type": "string"
                       }
                     },
@@ -4493,14 +4684,17 @@
                   },
                   {
                     "additionalProperties": false,
+                    "description": "**Request to transcribe a registered audio recording.**\n\nString values are trimmed and unknown fields are rejected.\n\n## Attributes\n- `recording` - Registered recording filename, from 1 to 255 characters\n- `language` - Two-letter lowercase transcription language code\n\n### Example\n```json\n{\"recording\": \"sample.wav\", \"language\": \"en\"}\n```",
                     "properties": {
                       "recording": {
+                        "description": "Registered recording filename.",
                         "maxLength": 255,
                         "minLength": 1,
                         "title": "Recording",
                         "type": "string"
                       },
                       "language": {
+                        "description": "Two-letter lowercase transcription language code.",
                         "pattern": "^[a-z]{2}$",
                         "title": "Language",
                         "type": "string"
@@ -4517,6 +4711,15 @@
               }
             },
             "multipart/form-data": {
+              "examples": {
+                "upload": {
+                  "summary": "Transcribe an uploaded WAV",
+                  "value": {
+                    "file": "(binary WAV audio)",
+                    "language": "en"
+                  }
+                }
+              },
               "schema": {
                 "type": "object",
                 "required": [
@@ -4545,6 +4748,7 @@
           "voice"
         ],
         "summary": "Get Audio Pipeline Artifact",
+        "description": "# Get Audio Pipeline Artifact\n\n## Parameters\n- `job_id`: ID of a completed text-to-speech job.\n\n## Example\n`GET /api/v1/voice/jobs/audio-job-123/artifact` returns `speech.wav` with `Content-Type: audio/wav` after synthesis completes.\n\n## Response Codes\n| Code | Description |\n|------|-------------|\n| 200 | Generated WAV audio with caching disabled |\n| 404 | Job does not exist |\n| 409 | Job has no available audio artifact |\n| 503 | Voice initialization failed |",
         "operationId": "get_audio_pipeline_artifact_voice_jobs__job_id__artifact_get",
         "parameters": [
           {
@@ -4559,7 +4763,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response"
+            "description": "Generated speech WAV",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "examples": {
+                  "speech": {
+                    "summary": "Completed synthesis artifact",
+                    "externalValue": "/api/v1/voice/jobs/audio-job-123/artifact"
+                  }
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4595,21 +4813,25 @@
           "COMPLETED",
           "FAILED"
         ],
-        "title": "AudioJobState"
+        "title": "AudioJobState",
+        "description": "**State of an asynchronous audio pipeline job.**\n\n## Values\n- `RUNNING` - Speech conversion is in progress\n- `COMPLETED` - Job finished, including cancellation without a result\n- `FAILED` - Job execution failed"
       },
       "AudioJobStatus": {
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Audio job identifier."
           },
           "pipeline_id": {
             "type": "string",
-            "title": "Pipeline Id"
+            "title": "Pipeline Id",
+            "description": "Identifier of the executed audio pipeline."
           },
           "pipeline_name": {
             "type": "string",
-            "title": "Pipeline Name"
+            "title": "Pipeline Name",
+            "description": "Human-readable pipeline name."
           },
           "operation": {
             "type": "string",
@@ -4617,15 +4839,18 @@
               "speech_to_text",
               "text_to_speech"
             ],
-            "title": "Operation"
+            "title": "Operation",
+            "description": "Speech conversion operation."
           },
           "variant_id": {
             "type": "string",
-            "title": "Variant Id"
+            "title": "Variant Id",
+            "description": "Identifier of the selected execution variant."
           },
           "variant_name": {
             "type": "string",
-            "title": "Variant Name"
+            "title": "Variant Name",
+            "description": "Human-readable execution variant name."
           },
           "device": {
             "type": "string",
@@ -4634,20 +4859,24 @@
               "GPU",
               "NPU"
             ],
-            "title": "Device"
+            "title": "Device",
+            "description": "Inference device selected for the run."
           },
           "state": {
-            "$ref": "#/components/schemas/AudioJobState"
+            "$ref": "#/components/schemas/AudioJobState",
+            "description": "Current audio job state."
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Created At"
+            "title": "Created At",
+            "description": "Job creation timestamp in UTC."
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Modified At"
+            "title": "Modified At",
+            "description": "Last state transition timestamp in UTC."
           },
           "service_round_trip_ms": {
             "anyOf": [
@@ -4658,11 +4887,13 @@
                 "type": "null"
               }
             ],
-            "title": "Service Round Trip Ms"
+            "title": "Service Round Trip Ms",
+            "description": "Speech-service round-trip time in milliseconds, when available."
           },
           "artifact_available": {
             "type": "boolean",
-            "title": "Artifact Available"
+            "title": "Artifact Available",
+            "description": "Whether an audio artifact is associated with the job."
           },
           "error": {
             "anyOf": [
@@ -4673,7 +4904,8 @@
                 "type": "null"
               }
             ],
-            "title": "Error"
+            "title": "Error",
+            "description": "Sanitized execution failure message, if any."
           },
           "transcript": {
             "anyOf": [
@@ -4684,7 +4916,8 @@
                 "type": "null"
               }
             ],
-            "title": "Transcript"
+            "title": "Transcript",
+            "description": "Recognized text for a successful speech-to-text run, otherwise null."
           },
           "artifact_url": {
             "anyOf": [
@@ -4695,7 +4928,8 @@
                 "type": "null"
               }
             ],
-            "title": "Artifact Url"
+            "title": "Artifact Url",
+            "description": "Public URL of generated speech audio, otherwise null."
           }
         },
         "type": "object",
@@ -4712,21 +4946,25 @@
           "modified_at",
           "artifact_available"
         ],
-        "title": "AudioJobStatus"
+        "title": "AudioJobStatus",
+        "description": "**Detailed audio job status including its available conversion result.**\n\nInherits the metadata and execution state from `AudioJobSummary`.\n\n## Attributes\n- `transcript` - Recognized text for a successful speech-to-text run,\n  otherwise null\n- `artifact_url` - Public URL of the generated speech audio, otherwise null"
       },
       "AudioJobSummary": {
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Audio job identifier."
           },
           "pipeline_id": {
             "type": "string",
-            "title": "Pipeline Id"
+            "title": "Pipeline Id",
+            "description": "Identifier of the executed audio pipeline."
           },
           "pipeline_name": {
             "type": "string",
-            "title": "Pipeline Name"
+            "title": "Pipeline Name",
+            "description": "Human-readable pipeline name."
           },
           "operation": {
             "type": "string",
@@ -4734,15 +4972,18 @@
               "speech_to_text",
               "text_to_speech"
             ],
-            "title": "Operation"
+            "title": "Operation",
+            "description": "Speech conversion operation."
           },
           "variant_id": {
             "type": "string",
-            "title": "Variant Id"
+            "title": "Variant Id",
+            "description": "Identifier of the selected execution variant."
           },
           "variant_name": {
             "type": "string",
-            "title": "Variant Name"
+            "title": "Variant Name",
+            "description": "Human-readable execution variant name."
           },
           "device": {
             "type": "string",
@@ -4751,20 +4992,24 @@
               "GPU",
               "NPU"
             ],
-            "title": "Device"
+            "title": "Device",
+            "description": "Inference device selected for the run."
           },
           "state": {
-            "$ref": "#/components/schemas/AudioJobState"
+            "$ref": "#/components/schemas/AudioJobState",
+            "description": "Current audio job state."
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Created At"
+            "title": "Created At",
+            "description": "Job creation timestamp in UTC."
           },
           "modified_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Modified At"
+            "title": "Modified At",
+            "description": "Last state transition timestamp in UTC."
           },
           "service_round_trip_ms": {
             "anyOf": [
@@ -4775,11 +5020,13 @@
                 "type": "null"
               }
             ],
-            "title": "Service Round Trip Ms"
+            "title": "Service Round Trip Ms",
+            "description": "Speech-service round-trip time in milliseconds, when available."
           },
           "artifact_available": {
             "type": "boolean",
-            "title": "Artifact Available"
+            "title": "Artifact Available",
+            "description": "Whether an audio artifact is associated with the job."
           },
           "error": {
             "anyOf": [
@@ -4790,7 +5037,8 @@
                 "type": "null"
               }
             ],
-            "title": "Error"
+            "title": "Error",
+            "description": "Sanitized execution failure message, if any."
           }
         },
         "type": "object",
@@ -4807,7 +5055,8 @@
           "modified_at",
           "artifact_available"
         ],
-        "title": "AudioJobSummary"
+        "title": "AudioJobSummary",
+        "description": "**Audio job summary without transcripts or internal artifact paths.**\n\n## Attributes\n- `id` - Job identifier\n- `pipeline_id` - Identifier of the executed audio pipeline\n- `pipeline_name` - Human-readable pipeline name\n- `operation` - `speech_to_text` or `text_to_speech`\n- `variant_id` - Identifier of the selected execution variant\n- `variant_name` - Human-readable variant name\n- `device` - Inference device selected for the run\n- `state` - Current audio job state\n- `created_at` - Job creation timestamp in UTC\n- `modified_at` - Last state transition timestamp in UTC\n- `service_round_trip_ms` - Optional speech-service round-trip time in ms\n- `artifact_available` - Whether an audio artifact is associated with the job\n- `error` - Optional sanitized execution failure message"
       },
       "AudioPipelineDefaultsResponse": {
         "properties": {
@@ -4820,7 +5069,8 @@
                 "type": "null"
               }
             ],
-            "title": "Audio"
+            "title": "Audio",
+            "description": "Default registered recording filename for transcription."
           },
           "language": {
             "anyOf": [
@@ -4831,7 +5081,8 @@
                 "type": "null"
               }
             ],
-            "title": "Language"
+            "title": "Language",
+            "description": "Default two-letter transcription language code."
           },
           "text": {
             "anyOf": [
@@ -4842,7 +5093,8 @@
                 "type": "null"
               }
             ],
-            "title": "Text"
+            "title": "Text",
+            "description": "Default text for speech synthesis."
           },
           "voice": {
             "anyOf": [
@@ -4853,26 +5105,24 @@
                 "type": "null"
               }
             ],
-            "title": "Voice"
+            "title": "Voice",
+            "description": "Default speech synthesis voice."
           }
         },
         "type": "object",
-        "title": "AudioPipelineDefaultsResponse"
+        "title": "AudioPipelineDefaultsResponse",
+        "description": "**Default inputs supplied by an audio pipeline definition.**\n\n## Attributes\n- `audio` - Optional bundled recording filename for speech-to-text\n- `language` - Optional transcription language code\n- `text` - Optional default text for speech synthesis\n- `voice` - Optional default synthesis voice"
       },
       "AudioPipelineJobStartResponse": {
         "properties": {
           "job_id": {
             "type": "string",
-            "title": "Job Id"
+            "title": "Job Id",
+            "description": "Job identifier used to poll status and retrieve results."
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "RUNNING",
-              "COMPLETED",
-              "FAILED"
-            ],
-            "title": "Status"
+            "$ref": "#/components/schemas/AudioJobState",
+            "description": "Job state when the run was accepted."
           }
         },
         "type": "object",
@@ -4880,26 +5130,31 @@
           "job_id",
           "status"
         ],
-        "title": "AudioPipelineJobStartResponse"
+        "title": "AudioPipelineJobStartResponse",
+        "description": "**Response returned when an audio pipeline run is accepted.**\n\n## Attributes\n- `job_id` - Job identifier used to poll status and retrieve its result\n- `status` - Job state when the run was accepted\n\n### Example\n```json\n{\"job_id\": \"audio-job-123\", \"status\": \"RUNNING\"}\n```"
       },
       "AudioPipelineResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Pipeline identifier used when starting a run."
           },
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "Human-readable pipeline name."
           },
           "description": {
             "type": "string",
-            "title": "Description"
+            "title": "Description",
+            "description": "Description of the speech conversion operation."
           },
           "type": {
             "type": "string",
             "const": "audio",
-            "title": "Type"
+            "title": "Type",
+            "description": "Pipeline category, always audio."
           },
           "operation": {
             "type": "string",
@@ -4907,14 +5162,16 @@
               "speech_to_text",
               "text_to_speech"
             ],
-            "title": "Operation"
+            "title": "Operation",
+            "description": "Speech conversion operation."
           },
           "tags": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Tags"
+            "title": "Tags",
+            "description": "Tags used to categorize the pipeline."
           },
           "thumbnail": {
             "anyOf": [
@@ -4925,24 +5182,28 @@
                 "type": "null"
               }
             ],
-            "title": "Thumbnail"
+            "title": "Thumbnail",
+            "description": "Optional Base64-encoded pipeline thumbnail."
           },
           "required_models": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Required Models"
+            "title": "Required Models",
+            "description": "Names of models required by the pipeline."
           },
           "variants": {
             "items": {
               "$ref": "#/components/schemas/AudioPipelineVariantResponse"
             },
             "type": "array",
-            "title": "Variants"
+            "title": "Variants",
+            "description": "Available device-specific execution variants."
           },
           "defaults": {
-            "$ref": "#/components/schemas/AudioPipelineDefaultsResponse"
+            "$ref": "#/components/schemas/AudioPipelineDefaultsResponse",
+            "description": "Default inputs supplied by the pipeline."
           }
         },
         "type": "object",
@@ -4957,17 +5218,20 @@
           "variants",
           "defaults"
         ],
-        "title": "AudioPipelineResponse"
+        "title": "AudioPipelineResponse",
+        "description": "**Read-only audio pipeline definition exposed by the Voice catalog.**\n\n## Attributes\n- `id` - Pipeline identifier used when starting a run\n- `name` - Human-readable pipeline name\n- `description` - Description of the speech conversion operation\n- `type` - Pipeline type, always `audio`\n- `operation` - `speech_to_text` or `text_to_speech`\n- `tags` - Tags used to categorize the pipeline\n- `thumbnail` - Optional Base64-encoded pipeline thumbnail\n- `required_models` - Names of models required by the pipeline\n- `variants` - Available device-specific execution variants\n- `defaults` - Default recording, language, text, and voice inputs"
       },
       "AudioPipelineVariantResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Variant identifier used when starting a run."
           },
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "Human-readable variant name."
           },
           "device": {
             "type": "string",
@@ -4976,7 +5240,8 @@
               "GPU",
               "NPU"
             ],
-            "title": "Device"
+            "title": "Device",
+            "description": "Target inference device."
           }
         },
         "type": "object",
@@ -4985,21 +5250,25 @@
           "name",
           "device"
         ],
-        "title": "AudioPipelineVariantResponse"
+        "title": "AudioPipelineVariantResponse",
+        "description": "**Audio pipeline variant targeting a particular inference device.**\n\n## Attributes\n- `id` - Variant identifier used when starting a run\n- `name` - Human-readable variant name\n- `device` - Target inference device: CPU, GPU, or NPU"
       },
       "AudioRecordingResponse": {
         "properties": {
           "filename": {
             "type": "string",
-            "title": "Filename"
+            "title": "Filename",
+            "description": "Registered WAV recording filename."
           },
           "duration_seconds": {
             "type": "number",
-            "title": "Duration Seconds"
+            "title": "Duration Seconds",
+            "description": "Recording duration in seconds."
           },
           "audio_url": {
             "type": "string",
-            "title": "Audio Url"
+            "title": "Audio Url",
+            "description": "Public API URL for playing or downloading the recording."
           }
         },
         "type": "object",
@@ -5008,7 +5277,8 @@
           "duration_seconds",
           "audio_url"
         ],
-        "title": "AudioRecordingResponse"
+        "title": "AudioRecordingResponse",
+        "description": "**Bundled recording available as input to speech-to-text pipelines.**\n\n## Attributes\n- `filename` - Registered recording filename\n- `duration_seconds` - Recording duration in seconds\n- `audio_url` - Public API URL for playing or downloading the recording"
       },
       "BenchmarkJobResponse": {
         "properties": {
@@ -9115,6 +9385,55 @@
         ],
         "title": "PipelineValidation",
         "description": "**Request body for pipeline validation.**\n\n## Attributes\n- `pipeline_graph` - Structured graph representation of the pipeline\n- `parameters` - Optional parameter set for validation (e.g., `{\"max-runtime\": 10}`)\n\n### Example\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```"
+      },
+      "SampleAudioRecordingResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "description": "Allowlisted sample WAV filename."
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "F",
+              "M"
+            ],
+            "title": "Gender",
+            "description": "Speaker gender reported by the sample catalog."
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "description": "Audio encoding description."
+          },
+          "sample_rate": {
+            "type": "string",
+            "title": "Sample Rate",
+            "description": "Sample rate description."
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Description of the recorded speech."
+          },
+          "downloaded": {
+            "type": "boolean",
+            "title": "Downloaded",
+            "description": "Whether the sample is available locally."
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "gender",
+          "format",
+          "sample_rate",
+          "description",
+          "downloaded"
+        ],
+        "title": "SampleAudioRecordingResponse",
+        "description": "**Allowlisted sample recording and its local download status.**\n\n## Attributes\n- `filename` - Sample WAV filename\n- `gender` - Speaker gender reported by the sample catalog\n- `format` - Audio encoding description\n- `sample_rate` - Sample rate description\n- `description` - Description of the recorded speech\n- `downloaded` - Whether the sample is available locally"
       },
       "StatusResponse": {
         "properties": {

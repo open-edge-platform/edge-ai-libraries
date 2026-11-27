@@ -6,10 +6,21 @@ import os
 import tempfile
 import unittest
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier, Event
 from unittest.mock import patch
 
+import httpx
+
+import audio_service_client as speech_client
 from audio_assets import AudioAssetsManager
+from audio_errors import (
+    AudioRecordingNotFoundError,
+    SampleAudioDownloadError,
+    SampleAudioDownloadTimeoutError,
+    SampleAudioStorageError,
+)
 
 FIRST = "OSR_us_000_0010_8k.wav"
 SECOND = "OSR_us_000_0011_8k.wav"
@@ -25,7 +36,7 @@ def wav_bytes() -> bytes:
     return buffer.getvalue()
 
 
-class AudioAssetsManagerTests(unittest.TestCase):
+class AudioAssetsManagerTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
@@ -51,6 +62,174 @@ class AudioAssetsManagerTests(unittest.TestCase):
         self.assertTrue(self.auto_dir.is_dir())
         self.assertEqual(manager.list_assets(), [])
         self.assertEqual(list(self.auto_dir.iterdir()), [])
+
+    def test_initializes_once_across_threads(self) -> None:
+        start = Barrier(8)
+
+        def create() -> AudioAssetsManager:
+            start.wait(timeout=5)
+            return AudioAssetsManager()
+
+        with patch.object(
+            AudioAssetsManager,
+            "_ensure_directories",
+            side_effect=lambda: Event().wait(0.02),
+        ) as initialize:
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                managers = list(executor.map(lambda _: create(), range(8)))
+
+        self.assertTrue(all(manager is managers[0] for manager in managers))
+        initialize.assert_called_once_with()
+
+    def test_retries_initialization_after_failure(self) -> None:
+        with patch.object(
+            AudioAssetsManager,
+            "_ensure_directories",
+            side_effect=[RuntimeError("not writable"), None],
+        ) as initialize:
+            with self.assertRaises(RuntimeError):
+                AudioAssetsManager()
+            manager = AudioAssetsManager()
+            self.assertIs(manager, AudioAssetsManager())
+
+        self.assertEqual(initialize.call_count, 2)
+
+    async def test_downloads_only_the_catalog_url_and_installs_wav(self) -> None:
+        manager = self.create_manager()
+        requests: list[httpx.Request] = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200, content=wav_bytes(), headers={"content-type": "audio/wav"}
+            )
+
+        with patch.object(
+            speech_client,
+            "create_sample_audio_client",
+            side_effect=lambda: httpx.AsyncClient(
+                transport=httpx.MockTransport(respond)
+            ),
+        ):
+            recording = await manager.download_sample_recording(FIRST)
+
+        self.assertEqual(recording["filename"], FIRST)
+        self.assertEqual(requests[0].url, recording["url"])
+        self.assertEqual((self.auto_dir / FIRST).read_bytes(), wav_bytes())
+
+    async def test_skips_downloading_an_existing_valid_sample(self) -> None:
+        manager = self.create_manager()
+        manager.save_sample_recording(FIRST, wav_bytes())
+        with patch.object(speech_client, "create_sample_audio_client") as factory:
+            recording = await manager.download_sample_recording(FIRST)
+
+        self.assertEqual(recording["filename"], FIRST)
+        factory.assert_not_called()
+
+    async def test_rejects_unknown_samples_before_network_access(self) -> None:
+        manager = self.create_manager()
+        with patch.object(speech_client, "create_sample_audio_client") as factory:
+            for filename in (
+                "other.wav",
+                "../" + FIRST,
+                "https://example.com/audio.wav",
+            ):
+                with (
+                    self.subTest(filename=filename),
+                    self.assertRaises(AudioRecordingNotFoundError),
+                ):
+                    await manager.download_sample_recording(filename)
+        factory.assert_not_called()
+
+    async def test_rejects_invalid_sample_responses_before_writing(self) -> None:
+        manager = self.create_manager()
+        responses = [
+            httpx.Response(302, headers={"location": "https://example.com"}),
+            httpx.Response(500),
+            httpx.Response(
+                200, content=wav_bytes(), headers={"content-type": "text/html"}
+            ),
+            httpx.Response(
+                200, content=b"not a WAV", headers={"content-type": "audio/wav"}
+            ),
+            httpx.Response(
+                200,
+                content=wav_bytes(),
+                headers={"content-type": "audio/wav", "content-length": "invalid"},
+            ),
+            httpx.Response(
+                200,
+                content=wav_bytes(),
+                headers={"content-type": "audio/wav", "content-length": "-1"},
+            ),
+            httpx.Response(
+                200,
+                content=wav_bytes(),
+                headers={
+                    "content-type": "audio/wav",
+                    "content-length": str(speech_client.MAX_SAMPLE_AUDIO_BYTES + 1),
+                },
+            ),
+            httpx.Response(
+                200,
+                stream=httpx.ByteStream(
+                    b"x" * (speech_client.MAX_SAMPLE_AUDIO_BYTES + 1)
+                ),
+                headers={"content-type": "audio/wav"},
+            ),
+        ]
+        for response in responses:
+            with self.subTest(status=response.status_code, headers=response.headers):
+
+                def respond(request: httpx.Request) -> httpx.Response:
+                    return response
+
+                with patch.object(
+                    speech_client,
+                    "create_sample_audio_client",
+                    side_effect=lambda: httpx.AsyncClient(
+                        transport=httpx.MockTransport(respond)
+                    ),
+                ):
+                    with self.assertRaises(SampleAudioDownloadError):
+                        await manager.download_sample_recording(FIRST)
+                self.assertEqual(list(self.auto_dir.iterdir()), [])
+
+    async def test_timeout_and_network_errors_are_sanitized(self) -> None:
+        manager = self.create_manager()
+        for failure, expected in (
+            (httpx.ReadTimeout, SampleAudioDownloadTimeoutError),
+            (httpx.ConnectError, SampleAudioDownloadError),
+        ):
+            with self.subTest(failure=failure):
+
+                def respond(request: httpx.Request) -> httpx.Response:
+                    raise failure("private upstream detail", request=request)
+
+                with patch.object(
+                    speech_client,
+                    "create_sample_audio_client",
+                    side_effect=lambda: httpx.AsyncClient(
+                        transport=httpx.MockTransport(respond)
+                    ),
+                ):
+                    with self.assertRaises(expected) as raised:
+                        await manager.download_sample_recording(FIRST)
+                self.assertNotIn("private", str(raised.exception))
+                self.assertEqual(list(self.auto_dir.iterdir()), [])
+
+    async def test_storage_errors_are_sanitized(self) -> None:
+        manager = self.create_manager()
+        with (
+            patch("audio_assets.fetch_sample_audio", return_value=wav_bytes()),
+            patch.object(
+                manager, "save_sample_recording", side_effect=OSError("private path")
+            ),
+        ):
+            with self.assertRaisesRegex(
+                SampleAudioStorageError, "^Unable to store audio sample\\.$"
+            ):
+                await manager.download_sample_recording(FIRST)
 
     def test_saves_and_lists_downloaded_sample(self) -> None:
         manager = self.create_manager()
