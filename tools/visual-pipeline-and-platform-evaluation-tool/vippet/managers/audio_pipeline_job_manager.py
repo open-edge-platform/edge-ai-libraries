@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import tempfile
+import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -78,12 +79,24 @@ class AudioPipelineJobManager:
     temporary inputs are cleaned up independently of request lifetimes.
     """
 
+    _instance: "AudioPipelineJobManager | None" = None
+    _instance_lock = threading.Lock()
+
+    def __new__(
+        cls,
+        transcribe: Transcribe | None = None,
+        synthesize: Synthesize | None = None,
+        max_terminal_jobs: int = DEFAULT_MAX_TERMINAL_JOBS,
+    ) -> "AudioPipelineJobManager":
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+            return cls._instance
+
     def __init__(
         self,
-        pipelines: AudioPipelineManager,
-        assets: AudioAssetsManager,
-        transcribe: Transcribe,
-        synthesize: Synthesize,
+        transcribe: Transcribe | None = None,
+        synthesize: Synthesize | None = None,
         max_terminal_jobs: int = DEFAULT_MAX_TERMINAL_JOBS,
     ) -> None:
         """Bind catalog, assets, and conversion callbacks and create staging storage.
@@ -94,22 +107,28 @@ class AudioPipelineJobManager:
         Raises:
             ValueError: The terminal-job retention limit is negative.
         """
-        if max_terminal_jobs < 0:
-            raise ValueError("max_terminal_jobs must not be negative")
-        self.pipelines = pipelines
-        self.assets = assets
-        self.transcribe = transcribe
-        self.synthesize = synthesize
-        self._jobs: dict[str, InternalAudioPipelineJob] = {}
-        self._tasks: dict[str, asyncio.Task[None]] = {}
-        self._cleanup_tasks: set[asyncio.Task[None]] = set()
-        self._started_job_ids: set[str] = set()
-        self._lock = asyncio.Lock()
-        self._max_terminal_jobs = max_terminal_jobs
-        self._input_directory_owner = tempfile.TemporaryDirectory(
-            prefix="vippet-audio-job-inputs-"
-        )
-        self._input_directory = Path(self._input_directory_owner.name).resolve()
+        with self._instance_lock:
+            if getattr(self, "_initialized", False):
+                return
+            if max_terminal_jobs < 0:
+                raise ValueError("max_terminal_jobs must not be negative")
+            if transcribe is None or synthesize is None:
+                raise RuntimeError("Audio pipeline job manager is not configured")
+            self.pipelines = AudioPipelineManager()
+            self.assets = AudioAssetsManager()
+            self.transcribe = transcribe
+            self.synthesize = synthesize
+            self._jobs: dict[str, InternalAudioPipelineJob] = {}
+            self._tasks: dict[str, asyncio.Task[None]] = {}
+            self._cleanup_tasks: set[asyncio.Task[None]] = set()
+            self._started_job_ids: set[str] = set()
+            self._lock = asyncio.Lock()
+            self._max_terminal_jobs = max_terminal_jobs
+            self._input_directory_owner = tempfile.TemporaryDirectory(
+                prefix="vippet-audio-job-inputs-"
+            )
+            self._input_directory = Path(self._input_directory_owner.name).resolve()
+            self._initialized = True
 
     async def start_job(
         self,

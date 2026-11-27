@@ -8,7 +8,9 @@ import json
 import tempfile
 import unittest
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier, Event
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -25,6 +27,7 @@ from api.dependencies.audio_jobs import (
     shutdown_audio_pipeline_job_manager,
 )
 from api.routes import voice
+from audio_assets import SAMPLE_AUDIO_RECORDINGS
 import audio_service_client as speech_client
 from audio_errors import (
     AudioInputTooLargeError,
@@ -36,6 +39,9 @@ from audio_errors import (
     AudioSTTInputNotAcceptedError,
     AudioTTSInputNotAcceptedError,
     SpeechServiceError,
+    SampleAudioDownloadError,
+    SampleAudioDownloadTimeoutError,
+    SampleAudioStorageError,
 )
 from internal_types import (
     InternalAudioJobState,
@@ -55,6 +61,24 @@ def wav_bytes(seconds: int = 1, channels: int = 1) -> bytes:
 
 
 class AudioSchemaTests(unittest.TestCase):
+    def test_audio_schema_fields_have_descriptions(self) -> None:
+        for model in (
+            schemas.TranscriptionResponse,
+            schemas.AudioPipelineDefaultsResponse,
+            schemas.AudioPipelineVariantResponse,
+            schemas.AudioPipelineResponse,
+            schemas.AudioPipelineJobStartResponse,
+            schemas.AudioRecordingResponse,
+            schemas.SampleAudioRecordingResponse,
+            schemas.AudioRecordingRunRequest,
+            schemas.AudioPipelineRunRequest,
+            schemas.AudioJobSummary,
+            schemas.AudioJobStatus,
+        ):
+            for name, field in model.model_fields.items():
+                with self.subTest(model=model.__name__, field=name):
+                    self.assertTrue(field.description)
+
     def test_api_and_internal_speech_voices_match(self) -> None:
         self.assertEqual(
             {voice.value for voice in schemas.SpeechVoice},
@@ -106,6 +130,10 @@ class AudioSchemaTests(unittest.TestCase):
         self.assertNotIn("$ref", voice_schema)
         self.assertNotIn("$defs", request_schema)
         self.assertEqual(
+            voice_schema["description"],
+            schemas.AudioPipelineRunRequest.model_fields["voice"].description,
+        )
+        self.assertEqual(
             voice_schema["enum"],
             [voice.value for voice in schemas.SpeechVoice],
         )
@@ -142,6 +170,36 @@ class AudioJobManagerDependencyTests(unittest.IsolatedAsyncioTestCase):
         await shutdown_audio_pipeline_job_manager()
 
         manager.shutdown.assert_awaited_once_with()
+
+    async def test_audio_job_manager_dependency_is_shared_across_threads(self) -> None:
+        manager = MagicMock()
+        start = Barrier(8)
+
+        def create() -> MagicMock:
+            Event().wait(0.02)
+            return manager
+
+        def get() -> object:
+            start.wait(timeout=5)
+            return get_audio_pipeline_job_manager()
+
+        factory = MagicMock(side_effect=create)
+        configure_audio_pipeline_job_manager_factory(factory)
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            managers = list(executor.map(lambda _: get(), range(8)))
+        self.assertTrue(all(result is manager for result in managers))
+        factory.assert_called_once_with()
+
+    async def test_audio_job_manager_dependency_retries_failed_factory(self) -> None:
+        manager = MagicMock()
+        factory = MagicMock(
+            side_effect=[RuntimeError("initialization failed"), manager]
+        )
+        configure_audio_pipeline_job_manager_factory(factory)
+        with self.assertRaises(RuntimeError):
+            get_audio_pipeline_job_manager()
+        self.assertIs(get_audio_pipeline_job_manager(), manager)
+        self.assertEqual(factory.call_count, 2)
 
 
 class VoiceServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -747,28 +805,12 @@ class VoiceRoutesTests(unittest.TestCase):
         )
 
     def test_downloads_allowlisted_sample_audio_to_server(self) -> None:
-        requests: list[httpx.Request] = []
-
-        def respond(request: httpx.Request) -> httpx.Response:
-            requests.append(request)
-            return httpx.Response(
-                200,
-                content=wav_bytes(),
-                headers={"content-type": "audio/x-wav"},
-            )
-
         assets = SimpleNamespace(
-            get_asset=MagicMock(return_value=None),
-            save_sample_recording=MagicMock(),
-        )
-        with (
-            patch.object(voice, "AudioAssetsManager", return_value=assets),
-            patch.object(
-                voice,
-                "create_sample_audio_client",
-                lambda: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+            download_sample_recording=AsyncMock(
+                return_value=SAMPLE_AUDIO_RECORDINGS[0]
             ),
-        ):
+        )
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
             response = self.client.post(
                 "/voice/sample-recordings/OSR_us_000_0010_8k.wav/download"
             )
@@ -776,62 +818,72 @@ class VoiceRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["filename"], "OSR_us_000_0010_8k.wav")
         self.assertTrue(response.json()["downloaded"])
-        self.assertEqual(requests[0].url.host, "www.voiptroubleshooter.com")
-        assets.save_sample_recording.assert_called_once_with(
-            "OSR_us_000_0010_8k.wav", wav_bytes()
+        assets.download_sample_recording.assert_awaited_once_with(
+            "OSR_us_000_0010_8k.wav"
         )
 
     def test_skips_fetch_for_already_downloaded_sample_audio(self) -> None:
         assets = SimpleNamespace(
-            get_asset=MagicMock(return_value=SimpleNamespace()),
-            save_sample_recording=MagicMock(),
+            download_sample_recording=AsyncMock(
+                return_value=SAMPLE_AUDIO_RECORDINGS[0]
+            ),
         )
-        with (
-            patch.object(voice, "AudioAssetsManager", return_value=assets),
-            patch.object(voice, "create_sample_audio_client") as create_client,
-        ):
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
             response = self.client.post(
                 "/voice/sample-recordings/OSR_us_000_0010_8k.wav/download"
             )
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["downloaded"])
-        create_client.assert_not_called()
-        assets.save_sample_recording.assert_not_called()
+        assets.download_sample_recording.assert_awaited_once()
 
     def test_rejects_unknown_sample_audio_filename(self) -> None:
-        with patch.object(voice, "create_sample_audio_client") as create_client:
+        assets = SimpleNamespace(
+            download_sample_recording=AsyncMock(
+                side_effect=AudioRecordingNotFoundError(
+                    "Sample audio recording not found."
+                )
+            )
+        )
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
             response = self.client.post("/voice/sample-recordings/other.wav/download")
 
         self.assertEqual(response.status_code, 404)
-        create_client.assert_not_called()
+        assets.download_sample_recording.assert_awaited_once_with("other.wav")
 
     def test_rejects_oversized_sample_audio(self) -> None:
-        def respond(_request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                200,
-                content=b"x" * (voice.MAX_SAMPLE_AUDIO_BYTES + 1),
-                headers={"content-type": "audio/x-wav"},
-            )
-
         assets = SimpleNamespace(
-            get_asset=MagicMock(return_value=None),
-            save_sample_recording=MagicMock(),
-        )
-        with (
-            patch.object(voice, "AudioAssetsManager", return_value=assets),
-            patch.object(
-                voice,
-                "create_sample_audio_client",
-                lambda: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+            download_sample_recording=AsyncMock(
+                side_effect=SampleAudioDownloadError(
+                    "Audio sample exceeds the size limit."
+                )
             ),
-        ):
+        )
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
             response = self.client.post(
                 "/voice/sample-recordings/OSR_us_000_0010_8k.wav/download"
             )
 
         self.assertEqual(response.status_code, 502)
-        assets.save_sample_recording.assert_not_called()
+        self.assertEqual(
+            response.json()["detail"], "Audio sample exceeds the size limit."
+        )
+
+    def test_maps_sample_timeout_and_storage_errors(self) -> None:
+        for error, status in (
+            (SampleAudioDownloadTimeoutError("Audio sample download timed out."), 504),
+            (SampleAudioStorageError("Unable to store audio sample."), 500),
+        ):
+            with self.subTest(status=status):
+                assets = SimpleNamespace(
+                    download_sample_recording=AsyncMock(side_effect=error)
+                )
+                with patch.object(voice, "AudioAssetsManager", return_value=assets):
+                    response = self.client.post(
+                        "/voice/sample-recordings/OSR_us_000_0010_8k.wav/download"
+                    )
+                self.assertEqual(response.status_code, status)
+                self.assertEqual(response.json(), {"detail": str(error)})
 
     def test_lists_empty_audio_recordings(self) -> None:
         assets = SimpleNamespace(list_assets=MagicMock(return_value=[]))

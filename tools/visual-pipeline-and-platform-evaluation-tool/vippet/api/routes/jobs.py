@@ -187,6 +187,7 @@ def stop_benchmark_job_handler(job_id: str):
     "/audio/status",
     operation_id="get_audio_statuses",
     response_model=list[schemas.AudioJobSummary],
+    responses={200: {"content": {"application/json": {"example": []}}}},
 )
 async def get_audio_statuses(
     manager: AudioJobManagerDependency,
@@ -196,6 +197,9 @@ async def get_audio_statuses(
 
     ## Operation
     Return job summaries without transcripts or internal artifact paths.
+
+    ## Example
+    `GET /api/v1/jobs/audio/status` returns `[]` when no audio jobs have been started.
 
     ## Response Codes
     | Code | Description |
@@ -210,6 +214,31 @@ async def get_audio_statuses(
     "/audio/{job_id}/status",
     operation_id="get_audio_job_status",
     response_model=schemas.AudioJobStatus,
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "audio-job-123",
+                        "pipeline_id": "speech-to-text",
+                        "pipeline_name": "Speech to Text",
+                        "operation": "speech_to_text",
+                        "variant_id": "cpu",
+                        "variant_name": "CPU",
+                        "device": "CPU",
+                        "state": "COMPLETED",
+                        "created_at": "2026-11-27T12:00:00Z",
+                        "modified_at": "2026-11-27T12:00:01Z",
+                        "service_round_trip_ms": 125.0,
+                        "artifact_available": False,
+                        "error": None,
+                        "transcript": "Hello world",
+                        "artifact_url": None,
+                    }
+                }
+            }
+        }
+    },
 )
 async def get_audio_job_status(
     job_id: str,
@@ -220,6 +249,9 @@ async def get_audio_job_status(
 
     ## Parameters
     - `job_id`: ID returned when starting an audio pipeline run.
+
+    ## Example
+    `GET /api/v1/jobs/audio/audio-job-123/status` returns the job state and, on successful transcription, `transcript: "Hello world"`.
 
     ## Response Codes
     | Code | Description |
@@ -243,6 +275,11 @@ async def get_audio_job_status(
         200: {
             "description": "Successful Response",
             "model": schemas.MessageResponse,
+            "content": {
+                "application/json": {
+                    "example": {"message": "Job audio-job-123 stopped"}
+                }
+            },
         },
         404: {
             "description": "Audio job not found",
@@ -264,6 +301,12 @@ async def stop_audio_job(
     ## Operation
     Request cancellation of a running speech-to-text or text-to-speech job.
     A cancelled job completes without a transcript or audio artifact.
+
+    ## Example
+    `DELETE /api/v1/jobs/audio/audio-job-123` returns:
+    ```json
+    {"message": "Job audio-job-123 stopped"}
+    ```
 
     ## Response Codes
     | Code | Description |

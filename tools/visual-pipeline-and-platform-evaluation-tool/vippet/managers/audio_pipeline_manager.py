@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
+import threading
 from pathlib import Path
 from typing import Any, cast
 
@@ -41,8 +42,23 @@ SUPPORTED_DEVICES = {
 
 
 class AudioPipelineManager:
+    _instance: "AudioPipelineManager | None" = None
+    _instance_lock = threading.Lock()
+
+    def __new__(
+        cls, pipeline_dir: Path = AUDIO_PIPELINES_DIR
+    ) -> "AudioPipelineManager":
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+            return cls._instance
+
     def __init__(self, pipeline_dir: Path = AUDIO_PIPELINES_DIR) -> None:
-        self._pipelines = self._load_pipelines(pipeline_dir)
+        with self._instance_lock:
+            if getattr(self, "_initialized", False):
+                return
+            self._pipelines = self._load_pipelines(pipeline_dir)
+            self._initialized = True
 
     def _load_pipelines(self, pipeline_dir: Path) -> dict[str, InternalAudioPipeline]:
         if not pipeline_dir.is_dir():
@@ -269,11 +285,5 @@ class AudioPipelineManager:
         return self._pipelines.get(pipeline_id)
 
 
-_default_manager: AudioPipelineManager | None = None
-
-
 def get_audio_pipeline_manager() -> AudioPipelineManager:
-    global _default_manager
-    if _default_manager is None:
-        _default_manager = AudioPipelineManager()
-    return _default_manager
+    return AudioPipelineManager()

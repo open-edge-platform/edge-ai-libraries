@@ -6,6 +6,18 @@ class SpeechServiceError(RuntimeError):
     """A speech service failed with a sanitized, safe-to-log message."""
 
 
+class SampleAudioDownloadError(RuntimeError):
+    """An allowlisted sample could not be downloaded or validated."""
+
+
+class SampleAudioDownloadTimeoutError(SampleAudioDownloadError):
+    """An allowlisted sample download exceeded its deadline."""
+
+
+class SampleAudioStorageError(RuntimeError):
+    """A downloaded sample could not be installed locally."""
+
+
 class AudioPipelineError(ValueError):
     """An audio pipeline operation cannot be performed."""
 

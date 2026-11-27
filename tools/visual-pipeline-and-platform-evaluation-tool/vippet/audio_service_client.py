@@ -2,16 +2,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import io
 import logging
 import os
 import re
+import wave
 from time import perf_counter
 from typing import BinaryIO
 
 import httpx
 
 from api.api_schemas import TranscriptionResponse
-from audio_errors import SpeechServiceError
+from audio_errors import (
+    SampleAudioDownloadError,
+    SampleAudioDownloadTimeoutError,
+    SpeechServiceError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +25,7 @@ MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 MAX_ERROR_RESPONSE_BYTES = 8 * 1024
 TIMEOUT_SECONDS = 20 * 60
 SAMPLE_AUDIO_TIMEOUT_SECONDS = 30
+MAX_SAMPLE_AUDIO_BYTES = 2 * 1024 * 1024
 AUDIO_ANALYZER_URL = os.getenv("AUDIO_ANALYZER_URL", "http://audio-analyzer:8010")
 TEXT_TO_SPEECH_URL = os.getenv("TEXT_TO_SPEECH_URL", "http://text-to-speech:8011")
 MEDIA_TYPE_PATTERN = re.compile(
@@ -111,6 +118,72 @@ def create_sample_audio_client() -> httpx.AsyncClient:
         trust_env=True,
         follow_redirects=False,
     )
+
+
+async def fetch_sample_audio(url: str) -> bytes:
+    """Download a trusted catalog URL with bounded buffering and WAV validation.
+
+    Args:
+        url: Allowlisted URL selected by the audio assets manager.
+
+    Raises:
+        SampleAudioDownloadError: The response is unsuccessful or invalid.
+        SampleAudioDownloadTimeoutError: The download deadline expires.
+    """
+    try:
+        async with asyncio.timeout(SAMPLE_AUDIO_TIMEOUT_SECONDS):
+            async with create_sample_audio_client() as client:
+                async with client.stream("GET", url) as upstream:
+                    if upstream.status_code != 200:
+                        raise SampleAudioDownloadError(
+                            "Unable to download audio sample."
+                        )
+                    content_type = upstream.headers.get("content-type", "")
+                    content_type = content_type.split(";", maxsplit=1)[0].lower()
+                    if content_type not in {"audio/wav", "audio/x-wav"}:
+                        raise SampleAudioDownloadError("Invalid audio sample response.")
+                    content_length = upstream.headers.get("content-length")
+                    if content_length is not None:
+                        try:
+                            length = int(content_length)
+                        except ValueError as exc:
+                            raise SampleAudioDownloadError(
+                                "Invalid audio sample response."
+                            ) from exc
+                        if length < 0:
+                            raise SampleAudioDownloadError(
+                                "Invalid audio sample response."
+                            )
+                        if length > MAX_SAMPLE_AUDIO_BYTES:
+                            raise SampleAudioDownloadError(
+                                "Audio sample exceeds the size limit."
+                            )
+                    audio_bytes = bytearray()
+                    async for chunk in upstream.aiter_bytes():
+                        if len(audio_bytes) + len(chunk) > MAX_SAMPLE_AUDIO_BYTES:
+                            raise SampleAudioDownloadError(
+                                "Audio sample exceeds the size limit."
+                            )
+                        audio_bytes.extend(chunk)
+    except (TimeoutError, httpx.TimeoutException) as exc:
+        raise SampleAudioDownloadTimeoutError(
+            "Audio sample download timed out."
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise SampleAudioDownloadError("Unable to download audio sample.") from exc
+
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as audio:
+            is_valid_wav = (
+                audio.getnchannels() > 0
+                and audio.getframerate() > 0
+                and audio.getnframes() > 0
+            )
+    except (EOFError, OSError, wave.Error) as exc:
+        raise SampleAudioDownloadError("Invalid audio sample response.") from exc
+    if not is_valid_wav:
+        raise SampleAudioDownloadError("Invalid audio sample response.")
+    return bytes(audio_bytes)
 
 
 async def call_service(

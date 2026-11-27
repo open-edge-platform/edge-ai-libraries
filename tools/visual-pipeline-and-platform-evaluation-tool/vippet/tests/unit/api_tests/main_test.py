@@ -84,7 +84,7 @@ class VoiceInitializationTests(unittest.TestCase):
             patch("managers.pipeline_manager.is_variant_supported", return_value=True)
         )
         self.enterContext(
-            patch.object(audio_pipeline_manager, "_default_manager", None)
+            patch.object(audio_pipeline_manager.AudioPipelineManager, "_instance", None)
         )
         self.enterContext(patch("audio_assets.AUTO_AUDIO_DIR", str(root / "input")))
         self.enterContext(patch("audio_assets.OUTPUT_AUDIO_DIR", str(root / "output")))
@@ -114,9 +114,7 @@ class VoiceInitializationTests(unittest.TestCase):
         self.addCleanup(self.client.close)
 
     def _load_audio_manager(self) -> audio_pipeline_manager.AudioPipelineManager:
-        manager = audio_pipeline_manager.AudioPipelineManager(self.pipeline_dir)
-        audio_pipeline_manager._default_manager = manager
-        return manager
+        return audio_pipeline_manager.AudioPipelineManager(self.pipeline_dir)
 
     def assert_backend_ready(self) -> None:
         self.assertEqual(AppStateManager().status, InternalAppStatus.READY)
@@ -175,8 +173,6 @@ class VoiceInitializationTests(unittest.TestCase):
             manager = get_audio_pipeline_job_manager()
             self.assertIs(manager, get_audio_pipeline_job_manager())
             manager_type.assert_called_once_with(
-                audio_pipeline_manager._default_manager,
-                AudioAssetsManager(),
                 main.execute_transcription,
                 main.execute_synthesis,
             )

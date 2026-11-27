@@ -38,6 +38,8 @@ vippet/
 │   ├── pipeline_manager.py
 │   ├── pipeline_template_manager.py
 │   ├── camera_manager.py # Client of the sensor-manager microservice
+│   ├── audio_pipeline_manager.py # Read-only Audio catalog singleton
+│   ├── audio_pipeline_job_manager.py # Audio jobs, callbacks, and cleanup
 │   ├── model_manager.py
 │   ├── metadata_manager.py
 │   ├── optimization_manager.py
@@ -56,7 +58,8 @@ vippet/
 ├── video_encoder.py      # Encoding / live-streaming sub-pipelines
 ├── video_decoder.py      # Decoder selection / caps building
 ├── device.py             # Device list (CPU/GPU/NPU) from DLSPS 2.0
-├── audio_service_client.py # Bounded HTTP calls to speech services
+├── audio_assets.py        # Audio storage and allowlisted sample installation
+├── audio_service_client.py # Bounded HTTP calls to speech services and sample downloads
 ├── audio_errors.py        # Audio domain exceptions, independent of FastAPI
 ├── cpu_topology.py       # CPU core types (P/E/LPE) from Linux sysfs
 ├── videos.py             # Input/output video management
@@ -78,6 +81,15 @@ A few invariants worth knowing:
 
 - Managers (`PipelineManager`, `CameraManager`, etc.) are thread-safe singletons.
   Create them with `Manager()`, do not pass instances around.
+- Audio manager construction and initialization are synchronized;
+  initialization is marked complete only after success, so failures can be retried.
+  Application startup registers the lazy Audio job-manager factory and speech
+  callbacks. The job manager obtains its catalog and assets through their
+  singleton constructors. Jobs and async locks belong to the serving event loop.
+- Audio sample downloads are coordinated by `AudioAssetsManager`. The HTTP client
+  enforces the deadline, size limit, and WAV validation; the manager selects an
+  allowlisted URL and installs the file atomically. Routes only serialize results
+  and map domain exceptions to HTTP responses.
 - The `vippet/` package uses **relative imports** and is meant to be run from
   the container context (`PYTHONPATH=/app`). Tests run inside the same image.
 - GStreamer pipelines are **not** executed in-process. `dlsps2_runner.py`

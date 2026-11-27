@@ -86,8 +86,6 @@ def _create_audio_pipeline_job_manager() -> AudioPipelineJobManager:
     creates the shared manager lazily, without router-import side effects.
     """
     return AudioPipelineJobManager(
-        get_audio_pipeline_manager(),
-        AudioAssetsManager(),
         execute_transcription,
         execute_synthesis,
     )

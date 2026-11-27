@@ -1066,7 +1066,7 @@ export type StartDefaultVideoDownloadApiArg = {
   defaultVideoDownloadRequest: DefaultVideoDownloadRequest;
 };
 export type StartDefaultVideoHevcConversionApiResponse =
-  /** status 200 The video is already converted or a conversion is running. */
+  /** status 200 The video is already converted, a conversion is running, or no HEVC encoder is available. */
     | DefaultVideoConversionResponse
     | /** status 202 Successful Response */ DefaultVideoConversionResponse;
 export type StartDefaultVideoHevcConversionApiArg = {
@@ -1127,7 +1127,7 @@ export type ListAudioRecordingsVoiceRecordingsGetApiResponse =
   /** status 200 Successful Response */ AudioRecordingResponse[];
 export type ListAudioRecordingsVoiceRecordingsGetApiArg = void;
 export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse =
-  unknown;
+  /** status 200 Registered WAV recording */ Blob;
 export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg = {
   filename: string;
 };
@@ -1148,7 +1148,9 @@ export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRuns
     variantId: string;
     body:
       | {
+          /** Text to synthesize, from 1 to 200 characters. */
           input: string;
+          /** Supported voice selected for speech synthesis. */
           voice:
             | "Ryan"
             | "Miles"
@@ -1159,12 +1161,14 @@ export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRuns
             | "Angus";
         }
       | {
+          /** Registered recording filename. */
           recording: string;
+          /** Two-letter lowercase transcription language code. */
           language: string;
         };
   };
 export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse =
-  unknown;
+  /** status 200 Generated speech WAV */ Blob;
 export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg = {
   jobId: string;
 };
@@ -1397,35 +1401,63 @@ export type Device = {
 };
 export type AudioJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type AudioJobSummary = {
+  /** Audio job identifier. */
   id: string;
+  /** Identifier of the executed audio pipeline. */
   pipeline_id: string;
+  /** Human-readable pipeline name. */
   pipeline_name: string;
+  /** Speech conversion operation. */
   operation: "speech_to_text" | "text_to_speech";
+  /** Identifier of the selected execution variant. */
   variant_id: string;
+  /** Human-readable execution variant name. */
   variant_name: string;
+  /** Inference device selected for the run. */
   device: "CPU" | "GPU" | "NPU";
+  /** Current audio job state. */
   state: AudioJobState;
+  /** Job creation timestamp in UTC. */
   created_at: string;
+  /** Last state transition timestamp in UTC. */
   modified_at: string;
+  /** Speech-service round-trip time in milliseconds, when available. */
   service_round_trip_ms?: number | null;
+  /** Whether an audio artifact is associated with the job. */
   artifact_available: boolean;
+  /** Sanitized execution failure message, if any. */
   error?: string | null;
 };
 export type AudioJobStatus = {
+  /** Audio job identifier. */
   id: string;
+  /** Identifier of the executed audio pipeline. */
   pipeline_id: string;
+  /** Human-readable pipeline name. */
   pipeline_name: string;
+  /** Speech conversion operation. */
   operation: "speech_to_text" | "text_to_speech";
+  /** Identifier of the selected execution variant. */
   variant_id: string;
+  /** Human-readable execution variant name. */
   variant_name: string;
+  /** Inference device selected for the run. */
   device: "CPU" | "GPU" | "NPU";
+  /** Current audio job state. */
   state: AudioJobState;
+  /** Job creation timestamp in UTC. */
   created_at: string;
+  /** Last state transition timestamp in UTC. */
   modified_at: string;
+  /** Speech-service round-trip time in milliseconds, when available. */
   service_round_trip_ms?: number | null;
+  /** Whether an audio artifact is associated with the job. */
   artifact_available: boolean;
+  /** Sanitized execution failure message, if any. */
   error?: string | null;
+  /** Recognized text for a successful speech-to-text run, otherwise null. */
   transcript?: string | null;
+  /** Public URL of generated speech audio, otherwise null. */
   artifact_url?: string | null;
 };
 export type TestJobState = "RUNNING" | "COMPLETED" | "FAILED";
@@ -2098,44 +2130,72 @@ export type CameraProfilesRequest = {
   password: string;
 };
 export type AudioPipelineVariantResponse = {
+  /** Variant identifier used when starting a run. */
   id: string;
+  /** Human-readable variant name. */
   name: string;
+  /** Target inference device. */
   device: "CPU" | "GPU" | "NPU";
 };
 export type AudioPipelineDefaultsResponse = {
+  /** Default registered recording filename for transcription. */
   audio?: string | null;
+  /** Default two-letter transcription language code. */
   language?: string | null;
+  /** Default text for speech synthesis. */
   text?: string | null;
+  /** Default speech synthesis voice. */
   voice?: string | null;
 };
 export type AudioPipelineResponse = {
+  /** Pipeline identifier used when starting a run. */
   id: string;
+  /** Human-readable pipeline name. */
   name: string;
+  /** Description of the speech conversion operation. */
   description: string;
+  /** Pipeline category, always audio. */
   type: "audio";
+  /** Speech conversion operation. */
   operation: "speech_to_text" | "text_to_speech";
+  /** Tags used to categorize the pipeline. */
   tags: string[];
+  /** Optional Base64-encoded pipeline thumbnail. */
   thumbnail?: string | null;
+  /** Names of models required by the pipeline. */
   required_models: string[];
+  /** Available device-specific execution variants. */
   variants: AudioPipelineVariantResponse[];
+  /** Default inputs supplied by the pipeline. */
   defaults: AudioPipelineDefaultsResponse;
 };
 export type AudioRecordingResponse = {
+  /** Registered WAV recording filename. */
   filename: string;
+  /** Recording duration in seconds. */
   duration_seconds: number;
+  /** Public API URL for playing or downloading the recording. */
   audio_url: string;
 };
 export type SampleAudioRecordingResponse = {
+  /** Allowlisted sample WAV filename. */
   filename: string;
+  /** Speaker gender reported by the sample catalog. */
   gender: "F" | "M";
+  /** Audio encoding description. */
   format: string;
+  /** Sample rate description. */
   sample_rate: string;
+  /** Description of the recorded speech. */
   description: string;
+  /** Whether the sample is available locally. */
   downloaded: boolean;
 };
 export type AudioPipelineJobStartResponse = {
+  /** Job identifier used to poll status and retrieve results. */
   job_id: string;
-  status: "RUNNING" | "COMPLETED" | "FAILED";
+  /** Job state when the run was accepted. */
+  status: AudioJobState;
 };
 export const {
   useGetHealthQuery,

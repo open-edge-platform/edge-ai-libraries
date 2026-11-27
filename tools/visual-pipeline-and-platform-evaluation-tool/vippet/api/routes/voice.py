@@ -1,16 +1,12 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
-import io
 import logging
 import os
 import re
-import wave
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
@@ -18,8 +14,6 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from audio_assets import SAMPLE_AUDIO_RECORDINGS, AudioAssetsManager
 from audio_service_client import (
-    SAMPLE_AUDIO_TIMEOUT_SECONDS,
-    create_sample_audio_client,
     normalize_media_type,
     normalize_upload_filename,
 )
@@ -32,6 +26,9 @@ from audio_errors import (
     AudioRecordingNotFoundError,
     AudioSTTInputNotAcceptedError,
     AudioTTSInputNotAcceptedError,
+    SampleAudioDownloadError,
+    SampleAudioDownloadTimeoutError,
+    SampleAudioStorageError,
 )
 from api import api_schemas as schemas
 from api.dependencies.audio_jobs import (
@@ -48,15 +45,16 @@ from managers.audio_pipeline_manager import get_audio_pipeline_manager
 
 router = APIRouter(dependencies=[Depends(require_voice_available)])
 logger = logging.getLogger("api.routes.voice")
-MAX_SAMPLE_AUDIO_BYTES = 2 * 1024 * 1024
 
 
 _AUDIO_PIPELINE_RUN_REQUEST_SCHEMA = schemas.AudioPipelineRunRequest.model_json_schema()
 # Inline the voice enum because openapi_extra embeds this schema without its own
 # document root, leaving Pydantic's #/$defs/SpeechVoice reference unresolved.
-_AUDIO_PIPELINE_RUN_REQUEST_SCHEMA["properties"]["voice"] = (
-    _AUDIO_PIPELINE_RUN_REQUEST_SCHEMA.pop("$defs")["SpeechVoice"]
-)
+_AUDIO_PIPELINE_RUN_REQUEST_SCHEMA["properties"]["voice"] = {
+    **_AUDIO_PIPELINE_RUN_REQUEST_SCHEMA.pop("$defs")["SpeechVoice"],
+    **_AUDIO_PIPELINE_RUN_REQUEST_SCHEMA["properties"]["voice"],
+}
+_AUDIO_PIPELINE_RUN_REQUEST_SCHEMA["properties"]["voice"].pop("$ref")
 
 
 AUDIO_PIPELINE_RUN_OPENAPI = {
@@ -64,14 +62,33 @@ AUDIO_PIPELINE_RUN_OPENAPI = {
         "required": True,
         "content": {
             "application/json": {
+                "examples": {
+                    "synthesis": {
+                        "summary": "Synthesize speech",
+                        "value": {"input": "Hello world", "voice": "Ryan"},
+                    },
+                    "recording": {
+                        "summary": "Transcribe a downloaded sample",
+                        "value": {
+                            "recording": "OSR_us_000_0010_8k.wav",
+                            "language": "en",
+                        },
+                    },
+                },
                 "schema": {
                     "oneOf": [
                         _AUDIO_PIPELINE_RUN_REQUEST_SCHEMA,
                         schemas.AudioRecordingRunRequest.model_json_schema(),
                     ]
-                }
+                },
             },
             "multipart/form-data": {
+                "examples": {
+                    "upload": {
+                        "summary": "Transcribe an uploaded WAV",
+                        "value": {"file": "(binary WAV audio)", "language": "en"},
+                    }
+                },
                 "schema": {
                     "type": "object",
                     "required": ["file", "language"],
@@ -82,7 +99,7 @@ AUDIO_PIPELINE_RUN_OPENAPI = {
                             "pattern": "^[a-z]{2}$",
                         },
                     },
-                }
+                },
             },
         },
     }
@@ -95,13 +112,41 @@ AudioJobManagerDependency = Annotated[
 ]
 
 
-@router.get("/pipelines", response_model=list[schemas.AudioPipelineResponse])
+@router.get(
+    "/pipelines",
+    response_model=list[schemas.AudioPipelineResponse],
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": "text-to-speech",
+                            "name": "Text to Speech",
+                            "description": "Generate speech from text.",
+                            "type": "audio",
+                            "operation": "text_to_speech",
+                            "tags": ["Audio"],
+                            "thumbnail": None,
+                            "required_models": ["SpeechT5"],
+                            "variants": [{"id": "cpu", "name": "CPU", "device": "CPU"}],
+                            "defaults": {"text": "Hello world", "voice": "Ryan"},
+                        }
+                    ]
+                }
+            }
+        }
+    },
+)
 async def list_audio_pipelines() -> list[schemas.AudioPipelineResponse]:
     """
     # List Audio Pipelines
 
     ## Operation
     Return the read-only audio catalog, including variants and default inputs.
+
+    ## Example
+    `GET /api/v1/voice/pipelines` returns pipeline definitions, or `[]` for an empty catalog.
 
     ## Response Codes
     | Code | Description |
@@ -115,13 +160,34 @@ async def list_audio_pipelines() -> list[schemas.AudioPipelineResponse]:
     ]
 
 
-@router.get("/recordings", response_model=list[schemas.AudioRecordingResponse])
+@router.get(
+    "/recordings",
+    response_model=list[schemas.AudioRecordingResponse],
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "filename": "OSR_us_000_0010_8k.wav",
+                            "duration_seconds": 33.65,
+                            "audio_url": "/api/v1/voice/recordings/OSR_us_000_0010_8k.wav/audio",
+                        }
+                    ]
+                }
+            }
+        }
+    },
+)
 async def list_audio_recordings() -> list[schemas.AudioRecordingResponse]:
     """
     # List Audio Recordings
 
     ## Operation
     Return bundled recordings with their durations and public playback URLs.
+
+    ## Example
+    `GET /api/v1/voice/recordings` returns `[]` before any samples have been downloaded.
 
     ## Response Codes
     | Code | Description |
@@ -139,13 +205,35 @@ async def list_audio_recordings() -> list[schemas.AudioRecordingResponse]:
     ]
 
 
-@router.get("/recordings/{filename}/audio", response_class=FileResponse)
+@router.get(
+    "/recordings/{filename}/audio",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "description": "Registered WAV recording",
+            "content": {
+                "audio/wav": {
+                    "schema": {"type": "string", "format": "binary"},
+                    "examples": {
+                        "sample": {
+                            "summary": "Downloaded Harvard sentences",
+                            "externalValue": "/api/v1/voice/recordings/OSR_us_000_0010_8k.wav/audio",
+                        }
+                    },
+                }
+            },
+        }
+    },
+)
 async def get_audio_recording(filename: str) -> FileResponse:
     """
     # Get Audio Recording
 
     ## Parameters
     - `filename`: Name of a registered recording, not an arbitrary file path.
+
+    ## Example
+    `GET /api/v1/voice/recordings/OSR_us_000_0010_8k.wav/audio` returns the WAV bytes with `Content-Type: audio/wav`.
 
     ## Response Codes
     | Code | Description |
@@ -164,65 +252,6 @@ async def get_audio_recording(filename: str) -> FileResponse:
     )
 
 
-def _get_sample_audio_recording(filename: str) -> dict[str, str]:
-    recording = next(
-        (item for item in SAMPLE_AUDIO_RECORDINGS if item["filename"] == filename),
-        None,
-    )
-    if recording is None:
-        raise HTTPException(404, "Sample audio recording not found.")
-    return recording
-
-
-async def _fetch_sample_audio(recording: dict[str, str]) -> bytes:
-    try:
-        async with asyncio.timeout(SAMPLE_AUDIO_TIMEOUT_SECONDS):
-            async with create_sample_audio_client() as client:
-                async with client.stream("GET", recording["url"]) as upstream:
-                    if upstream.status_code != 200:
-                        raise HTTPException(502, "Unable to download audio sample.")
-                    content_type = upstream.headers.get("content-type", "")
-                    content_type = content_type.split(";", maxsplit=1)[0].lower()
-                    if content_type not in {"audio/wav", "audio/x-wav"}:
-                        raise HTTPException(502, "Invalid audio sample response.")
-                    content_length = upstream.headers.get("content-length")
-                    if content_length is not None:
-                        try:
-                            if int(content_length) > MAX_SAMPLE_AUDIO_BYTES:
-                                raise HTTPException(
-                                    502, "Audio sample exceeds the size limit."
-                                )
-                        except ValueError as exc:
-                            raise HTTPException(
-                                502, "Invalid audio sample response."
-                            ) from exc
-
-                    audio_bytes = bytearray()
-                    async for chunk in upstream.aiter_bytes():
-                        if len(audio_bytes) + len(chunk) > MAX_SAMPLE_AUDIO_BYTES:
-                            raise HTTPException(
-                                502, "Audio sample exceeds the size limit."
-                            )
-                        audio_bytes.extend(chunk)
-    except (TimeoutError, httpx.TimeoutException) as exc:
-        raise HTTPException(504, "Audio sample download timed out.") from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, "Unable to download audio sample.") from exc
-
-    try:
-        with wave.open(io.BytesIO(audio_bytes), "rb") as audio:
-            is_valid_wav = (
-                audio.getnchannels() > 0
-                and audio.getframerate() > 0
-                and audio.getnframes() > 0
-            )
-    except (EOFError, OSError, wave.Error) as exc:
-        raise HTTPException(502, "Invalid audio sample response.") from exc
-    if not is_valid_wav:
-        raise HTTPException(502, "Invalid audio sample response.")
-    return bytes(audio_bytes)
-
-
 def _sample_audio_recording_response(
     recording: dict[str, str], downloaded: bool
 ) -> schemas.SampleAudioRecordingResponse:
@@ -239,6 +268,24 @@ def _sample_audio_recording_response(
 @router.get(
     "/sample-recordings",
     response_model=list[schemas.SampleAudioRecordingResponse],
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "filename": "OSR_us_000_0010_8k.wav",
+                            "gender": "F",
+                            "format": "16b PCM",
+                            "sample_rate": "8 kHz",
+                            "description": "Harvard sentences",
+                            "downloaded": False,
+                        }
+                    ]
+                }
+            }
+        }
+    },
 )
 async def list_sample_audio_recordings() -> list[schemas.SampleAudioRecordingResponse]:
     """
@@ -247,6 +294,9 @@ async def list_sample_audio_recordings() -> list[schemas.SampleAudioRecordingRes
     ## Operation
     Return the allowlisted sample catalog, including audio metadata and whether
     each recording is already available locally. No files are downloaded.
+
+    ## Example
+    `GET /api/v1/voice/sample-recordings` returns catalog entries with `downloaded: false` until installed.
 
     ## Response Codes
     | Code | Description |
@@ -267,6 +317,20 @@ async def list_sample_audio_recordings() -> list[schemas.SampleAudioRecordingRes
     "/sample-recordings/{filename}/download",
     response_model=schemas.SampleAudioRecordingResponse,
     responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example": {
+                        "filename": "OSR_us_000_0010_8k.wav",
+                        "gender": "F",
+                        "format": "16b PCM",
+                        "sample_rate": "8 kHz",
+                        "description": "Harvard sentences",
+                        "downloaded": True,
+                    }
+                }
+            }
+        },
         404: {"description": "The filename is not in the sample catalog."},
         502: {"description": "The upstream sample could not be downloaded."},
         504: {"description": "The upstream sample download timed out."},
@@ -285,6 +349,9 @@ async def download_sample_audio_recording(
     ## Parameters
     - `filename`: Sample filename from the catalog, not a URL or arbitrary path.
 
+    ## Example
+    `POST /api/v1/voice/sample-recordings/OSR_us_000_0010_8k.wav/download` returns the sample metadata with `downloaded: true`.
+
     ## Response Codes
     | Code | Description |
     |------|-------------|
@@ -295,17 +362,16 @@ async def download_sample_audio_recording(
     | 503 | Voice initialization failed |
     | 504 | Upstream download timed out |
     """
-    recording = _get_sample_audio_recording(filename)
-    assets = AudioAssetsManager()
-    if assets.get_asset(filename) is None:
-        audio_bytes = await _fetch_sample_audio(recording)
-        try:
-            await asyncio.to_thread(assets.save_sample_recording, filename, audio_bytes)
-        except (OSError, ValueError) as exc:
-            logger.error(
-                "Unable to store sample audio recording: %s", type(exc).__name__
-            )
-            raise HTTPException(500, "Unable to store audio sample.") from exc
+    try:
+        recording = await AudioAssetsManager().download_sample_recording(filename)
+    except AudioRecordingNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except SampleAudioDownloadTimeoutError as exc:
+        raise HTTPException(504, str(exc)) from exc
+    except SampleAudioDownloadError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    except SampleAudioStorageError as exc:
+        raise HTTPException(500, str(exc)) from exc
     return _sample_audio_recording_response(recording, True)
 
 
@@ -314,6 +380,15 @@ async def download_sample_audio_recording(
     response_model=schemas.AudioPipelineJobStartResponse,
     status_code=202,
     openapi_extra=AUDIO_PIPELINE_RUN_OPENAPI,
+    responses={
+        202: {
+            "content": {
+                "application/json": {
+                    "example": {"job_id": "audio-job-123", "status": "RUNNING"}
+                }
+            }
+        }
+    },
 )
 async def run_audio_pipeline_variant(
     pipeline_id: str,
@@ -332,6 +407,24 @@ async def run_audio_pipeline_variant(
     - JSON: `input` and `voice` for synthesis, or `recording` and `language`
       for transcription of a registered recording.
     - Multipart: `file` and a two-letter `language` for uploaded audio.
+
+    ## Examples
+    Synthesis: `POST /api/v1/voice/pipelines/text-to-speech/variants/cpu/runs`
+    ```json
+    {"input": "Hello world", "voice": "Ryan"}
+    ```
+    Registered recording: `POST /api/v1/voice/pipelines/speech-to-text/variants/cpu/runs`
+    ```json
+    {"recording": "OSR_us_000_0010_8k.wav", "language": "en"}
+    ```
+    Uploaded audio:
+    ```bash
+    curl -X POST http://localhost:7860/api/v1/voice/pipelines/speech-to-text/variants/cpu/runs -F file=@sample.wav -F language=en
+    ```
+    Accepted response:
+    ```json
+    {"job_id": "audio-job-123", "status": "RUNNING"}
+    ```
 
     ## Response Codes
     | Code | Description |
@@ -471,7 +564,26 @@ async def _start_audio_pipeline_job(
     )
 
 
-@router.get("/jobs/{job_id}/artifact", response_class=FileResponse)
+@router.get(
+    "/jobs/{job_id}/artifact",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "description": "Generated speech WAV",
+            "content": {
+                "audio/wav": {
+                    "schema": {"type": "string", "format": "binary"},
+                    "examples": {
+                        "speech": {
+                            "summary": "Completed synthesis artifact",
+                            "externalValue": "/api/v1/voice/jobs/audio-job-123/artifact",
+                        }
+                    },
+                }
+            },
+        }
+    },
+)
 async def get_audio_pipeline_artifact(
     job_id: str,
     manager: AudioJobManagerDependency,
@@ -481,6 +593,9 @@ async def get_audio_pipeline_artifact(
 
     ## Parameters
     - `job_id`: ID of a completed text-to-speech job.
+
+    ## Example
+    `GET /api/v1/voice/jobs/audio-job-123/artifact` returns `speech.wav` with `Content-Type: audio/wav` after synthesis completes.
 
     ## Response Codes
     | Code | Description |

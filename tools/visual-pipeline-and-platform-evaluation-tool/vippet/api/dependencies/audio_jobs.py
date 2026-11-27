@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Callable
+from threading import Lock
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
@@ -12,6 +13,7 @@ AudioJobManagerFactory = Callable[[], AudioPipelineJobManager]
 
 _factory: AudioJobManagerFactory | None = None
 _manager: AudioPipelineJobManager | None = None
+_manager_lock = Lock()
 
 
 def configure_audio_pipeline_job_manager_factory(
@@ -33,11 +35,12 @@ def get_audio_pipeline_job_manager(
     _available: Annotated[None, Depends(require_voice_available)] = None,
 ) -> AudioPipelineJobManager:
     global _manager
-    if _manager is None:
-        if _factory is None:
-            raise RuntimeError("Audio pipeline job manager is not configured")
-        _manager = _factory()
-    return _manager
+    with _manager_lock:
+        if _manager is None:
+            if _factory is None:
+                raise RuntimeError("Audio pipeline job manager is not configured")
+            _manager = _factory()
+        return _manager
 
 
 async def shutdown_audio_pipeline_job_manager() -> None:

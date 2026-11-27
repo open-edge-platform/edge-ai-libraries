@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """Internal dataclass types for pipeline test execution.
 
 This module contains internal representations of API request types used by

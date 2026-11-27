@@ -3,7 +3,10 @@
 
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier, Event
+from unittest.mock import patch
 
 import yaml
 
@@ -26,6 +29,8 @@ DEFAULT_TEXT = (
 
 class AudioPipelineManagerTests(unittest.TestCase):
     def setUp(self) -> None:
+        AudioPipelineManager._instance = None
+        self.addCleanup(setattr, AudioPipelineManager, "_instance", None)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
         root = Path(self.temp_dir.name)
@@ -33,6 +38,39 @@ class AudioPipelineManagerTests(unittest.TestCase):
         images_dir = root / "images"
         images_dir.mkdir()
         (images_dir / "audio.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    def test_initializes_once_across_threads(self) -> None:
+        start = Barrier(8)
+
+        def load(pipeline_dir: Path) -> dict[str, InternalAudioPipeline]:
+            Event().wait(0.02)
+            return {}
+
+        def create() -> AudioPipelineManager:
+            start.wait(timeout=5)
+            return AudioPipelineManager(self.pipeline_dir)
+
+        with patch.object(
+            AudioPipelineManager, "_load_pipelines", side_effect=load
+        ) as initialize:
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                managers = list(executor.map(lambda _: create(), range(8)))
+
+        self.assertTrue(all(manager is managers[0] for manager in managers))
+        initialize.assert_called_once_with(self.pipeline_dir)
+
+    def test_retries_initialization_after_failure(self) -> None:
+        with patch.object(
+            AudioPipelineManager,
+            "_load_pipelines",
+            side_effect=[RuntimeError("invalid catalog"), {}],
+        ) as initialize:
+            with self.assertRaises(RuntimeError):
+                AudioPipelineManager(self.pipeline_dir)
+            manager = AudioPipelineManager(self.pipeline_dir)
+            self.assertIs(manager, AudioPipelineManager())
+
+        self.assertEqual(initialize.call_count, 2)
 
     def write_pipeline(self, filename: str, config: dict) -> None:
         (self.pipeline_dir / filename).write_text(
@@ -158,6 +196,7 @@ class AudioPipelineManagerTests(unittest.TestCase):
     def test_loads_each_supported_speech_voice(self) -> None:
         for voice in InternalSpeechVoice:
             with self.subTest(voice=voice.value):
+                AudioPipelineManager._instance = None
                 config = self.tts_config()
                 config["defaults"]["voice"] = voice.value
                 self.write_pipeline("text-to-speech.yaml", config)

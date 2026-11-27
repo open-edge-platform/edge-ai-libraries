@@ -6,7 +6,9 @@ import io
 import tempfile
 import unittest
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier, Event
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from audio_errors import (
@@ -79,6 +81,8 @@ def pipeline(
 
 class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
+        AudioPipelineJobManager._instance = None
+        self.addCleanup(setattr, AudioPipelineJobManager, "_instance", None)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
         self.audio_file = Path(self.temp_dir.name) / "sample.wav"
@@ -91,13 +95,59 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         self.transcribe = AsyncMock(return_value=("Managed transcript", 12.5))
         self.synthesize = AsyncMock(return_value=(wav_bytes(), 18.75))
 
+        self.catalog_type = self.enterContext(
+            patch(
+                "managers.audio_pipeline_job_manager.AudioPipelineManager",
+                return_value=self.pipeline_manager,
+            )
+        )
+        self.enterContext(
+            patch(
+                "managers.audio_pipeline_job_manager.AudioAssetsManager",
+                return_value=self.assets,
+            )
+        )
         self.manager = AudioPipelineJobManager(
-            self.pipeline_manager,
-            self.assets,
             self.transcribe,
             self.synthesize,
         )
         self.addAsyncCleanup(self.manager.shutdown)
+
+    async def test_initializes_once_across_threads(self) -> None:
+        await self.manager.shutdown()
+        AudioPipelineJobManager._instance = None
+        start = Barrier(8)
+
+        def load_catalog() -> MagicMock:
+            Event().wait(0.02)
+            return self.pipeline_manager
+
+        def create() -> AudioPipelineJobManager:
+            start.wait(timeout=5)
+            return AudioPipelineJobManager(self.transcribe, self.synthesize)
+
+        self.catalog_type.reset_mock()
+        self.catalog_type.side_effect = load_catalog
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            managers = list(executor.map(lambda _: create(), range(8)))
+        self.addAsyncCleanup(managers[0].shutdown)
+
+        self.assertTrue(all(manager is managers[0] for manager in managers))
+        self.assertIs(AudioPipelineJobManager(), managers[0])
+        self.catalog_type.assert_called_once_with()
+
+    async def test_retries_initialization_after_failure(self) -> None:
+        await self.manager.shutdown()
+        AudioPipelineJobManager._instance = None
+        with patch(
+            "managers.audio_pipeline_job_manager.tempfile.TemporaryDirectory",
+            side_effect=OSError("staging unavailable"),
+        ):
+            with self.assertRaises(OSError):
+                AudioPipelineJobManager(self.transcribe, self.synthesize)
+        manager = AudioPipelineJobManager(self.transcribe, self.synthesize)
+        self.addAsyncCleanup(manager.shutdown)
+        self.assertIs(AudioPipelineJobManager(), manager)
 
     async def test_completes_stt_job_with_transcript(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -732,9 +782,8 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_prunes_oldest_terminal_job_and_its_artifact(self) -> None:
+        AudioPipelineJobManager._instance = None
         self.manager = AudioPipelineJobManager(
-            self.pipeline_manager,
-            self.assets,
             self.transcribe,
             self.synthesize,
             max_terminal_jobs=2,
@@ -771,9 +820,8 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             return "Managed transcript", 12.5
 
+        AudioPipelineJobManager._instance = None
         self.manager = AudioPipelineJobManager(
-            self.pipeline_manager,
-            self.assets,
             blocked_transcription,
             self.synthesize,
             max_terminal_jobs=1,
