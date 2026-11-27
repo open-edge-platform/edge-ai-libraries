@@ -1,10 +1,10 @@
-# GenAI Applications Sizing Tool
+# GenAI Applications Profiling Tool
 
-The GenAI Applications Sizing Tool is a performance profiling utility for benchmarking Intel's Edge AI library applications. This guide will walk you through the initial setup, configuration, and usage of the tool.
+The GenAI Applications Profiling Tool is a performance profiling utility for benchmarking Intel's Edge AI library applications. This guide will walk you through the initial setup, configuration, and usage of the tool.
 
 ## Overview
 
-The GenAI Applications Sizing Tool key features:
+The GenAI Applications Profiling Tool key features:
 
 - **Mutli application supports** ChatQnA (Modular & Core), Video Summary and Search, live captioning
 - **Resource Monitoring** including CPU, GPU, and memory consumption
@@ -31,7 +31,7 @@ The GenAI Applications Sizing Tool key features:
 
 ### Target Application Deployment
 
-Before running the sizing tool, ensure the target application is deployed and accessible. Refer to the deployment guides for each application:
+Before running the profiling tool, ensure the target application is deployed and accessible. Refer to the deployment guides for each application:
 
 **Video Search and Summarization:**
 - [Get Started](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
@@ -51,7 +51,7 @@ Before running the sizing tool, ensure the target application is deployed and ac
 
    ```bash
    git clone <repository-url>
-   cd edge-ai-libraries/tools/genai-applications-sizing
+   cd edge-ai-libraries/tools/genai-applications-profiling
    ```
 
 2. **Create a virtual environment**:
@@ -72,7 +72,7 @@ Before running the sizing tool, ensure the target application is deployed and ac
 1. **Build the Docker image**:
 
    ```bash
-   docker build -t genai-sizing-tool .
+   docker build -t genai-profiling-tool .
    ```
 
 2. **Run with Docker** (see [Running with Docker](#running-with-docker) section below).
@@ -132,7 +132,7 @@ Update the profile in `profiles/profiles.yaml` to reference your video file.
 
 ### Basic Usage
 
-Run the Video Summary sizing profile:
+Run the Video Summary profiling:
 
 ```bash
 python profile-runner.py \
@@ -176,7 +176,7 @@ python profile-runner.py \
 docker run --rm \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/reports:/app/reports \
-  genai-sizing-tool \
+  genai-profiling-tool \
   --app=video_summary_search \
   --input=profiles/video-summary-config.yaml \
   --host_ip=192.168.1.100 \
