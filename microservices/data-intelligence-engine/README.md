@@ -55,7 +55,7 @@ If you are cloning from the larger monorepo and only need this service, you
 can use sparse checkout:
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --branch release-2026.3.0 --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries
 git sparse-checkout set microservices/data-intelligence-engine
 cd microservices/data-intelligence-engine

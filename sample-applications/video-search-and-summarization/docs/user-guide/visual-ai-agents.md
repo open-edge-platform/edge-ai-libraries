@@ -15,7 +15,7 @@ The tutorial uses these parts:
 
 - **VSS** indexes and searches the video. Its **MCP server** gives the agent
   tools to call.
-- **[agent-harness-install](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/frameworks/agent-harness-install)**
+- **[Agent Harness Installer](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/agent-harness-install/index.html)**
   is an installer. It serves the agent model with **OpenVINO™ Model Server**
   (OVMS) behind an **Inference Router**, and it installs the **Hermes** agent.
 - **Hermes** is the agent. It talks to you, uses the model to decide what to
@@ -31,7 +31,7 @@ for more use cases, see the reference page
 When you finish, these parts run on the host:
 
 | Part | Runs as | Address |
-|---|---|---|
+| --- | --- | --- |
 | VSS (search mode) and its MCP server | Docker containers that `setup.sh` starts | `http://<HOST_IP>:12345/` and `http://<HOST_IP>:12345/mcp` |
 | OVMS with the agent model | Docker container that the installer starts | `127.0.0.1:8450` |
 | Inference Router | Docker container that the installer starts | `http://127.0.0.1:8010/v1` |
@@ -158,7 +158,7 @@ The installer asks two questions:
 
 On the first run, the installer downloads the model. This can take a long
 time. For all installer options, see the installer's
-[Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/frameworks/agent-harness-install/docs/user-guide/get-started.md)
+[Get Started](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/agent-harness-install/get-started.html)
 guide.
 
 ### Connect Hermes to the model
@@ -267,13 +267,13 @@ The installer can also install OpenClaw. Make these two changes:
 For the OpenClaw request timeout, see
 [OpenClaw](./agentic-video-analytics.md#openclaw) in the reference page. For
 other agents, see the installer's
-[Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/frameworks/agent-harness-install/docs/user-guide/get-started.md)
+[Get Started](https://docs.openedgeplatform.intel.com/2026.3/edge-ai-libraries/agent-harness-install/get-started.html)
 guide.
 
 ## Troubleshooting
 
 | Symptom | What to do |
-|---|---|
+| --- | --- |
 | Hermes answers with a model error or a `404` error | The `model.default` value does not match the served model name. Compare it with the output of `curl -s http://127.0.0.1:8010/v1/models`. Then set the correct name with `hermes config set model.default <name>`. |
 | `hermes mcp test vss` fails | Run `curl -s http://<HOST_IP>:12345/manager/health`. Behind a proxy, add `<HOST_IP>` to `NO_PROXY` and `no_proxy`. Read the server log with `docker logs vss-mcp-server`. |
 | The agent does not use the VSS tools | The bundled skills are back in `~/.hermes/skills/`, for example after `hermes update`. Do [Step 4](#step-4-move-the-bundled-hermes-skills-aside) again. |

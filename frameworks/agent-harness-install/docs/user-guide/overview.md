@@ -13,15 +13,16 @@ hide_directive-->
 
 # Agent Harness Installer, Explained Simply
 
+> [!NOTE]
 > This page is for readers who want to understand what the Agent Harness
-> Installer (AHI) does and why it matters -- no coding background required.
+> Installer (AHI) does and why it matters — no coding background required.
 > For the technical install steps, see [Get Started](./get-started.md); for
 > architecture detail, see [How It Works](./how-it-works.md).
 
 ## The one-sentence version
 
-AHI is a single command that takes an AI "agent" -- software that can read,
-reason, and take action on its own -- and sets it up to run safely and
+AHI is a single command that takes an AI "agent" — software that can read,
+reason, and take action on its own — and sets it up to run safely and
 efficiently on Intel-powered PCs and servers, instead of depending on a
 third-party cloud service.
 
@@ -51,7 +52,7 @@ If you are familiar with NVIDIA's **NemoClaw**, AHI occupies the same role
 in Intel's stack: it is the trusted on-ramp that takes an open-source agent
 (OpenClaw, Hermes, or Deep Agents Code) and makes it production-ready on the
 underlying hardware. Where NemoClaw does this for NVIDIA GPUs, AHI does it
-for Intel® Core™ Ultra and Intel® Arc™ hardware -- and for Intel's own CPUs
+for Intel® Core™ Ultra and Intel® Arc™ hardware — and for Intel's own CPUs
 when no GPU is present. The two projects install the same family of
 open-source agents, so the skills, habits, and vocabulary a team builds on
 one transfer directly to the other.
@@ -84,7 +85,7 @@ machine, not in someone else's cloud. That matters for organizations with
 privacy, compliance, or cost concerns: camera footage, customer
 conversations, or factory telemetry never has to leave the premises to get
 an AI response. AHI can also be pointed at an external AI service if an
-organization prefers that instead -- the choice stays with the user.
+organization prefers that instead — the choice stays with the user.
 
 ### 3. A safety net around the agent
 
@@ -103,14 +104,14 @@ it took, rather than treating it as a black box.
 
 ### 5. Proven in reference blueprints
 
-AHI isn't an experiment -- it already powers shipping Intel edge-AI
+AHI isn't an experiment — it already powers shipping Intel edge-AI
 blueprints, including:
 
-- **Virtual Security Guard Agent** (Metro Suite) -- monitors video feeds for
+- **Virtual Security Guard Agent** (Metro Suite) — monitors video feeds for
   safety and security events
-- **QSR Store Agent** (Retail Suite) -- helps run quick-service restaurant
+- **QSR Store Agent** (Retail Suite) — helps run quick-service restaurant
   operations
-- **Factory Defects Inspector Agent** (Manufacturing Suite) -- inspects
+- **Factory Defects Inspector Agent** (Manufacturing Suite) — inspects
   products on a production line for defects
 
 Each of these is a different industry, but all of them rely on AHI to turn
@@ -135,8 +136,8 @@ uses) is a separate, more technical step typically owned by a development
 team.
 
 **Does this replace the AI model itself?**
-No. AHI sets up the surrounding environment -- the agent software, the
-traffic router, and (optionally) the local model server -- so a chosen AI
+No. AHI sets up the surrounding environment — the agent software, the
+traffic router, and (optionally) the local model server — so a chosen AI
 model can be used safely and efficiently. It does not create or train
 models.
 
