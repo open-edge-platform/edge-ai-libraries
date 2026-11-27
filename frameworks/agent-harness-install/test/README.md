@@ -73,7 +73,7 @@ and JavaScript files throughout this component, excluding `test/`, `tests/`,
   validate runtime behavior, dependency availability or logic, nor JavaScript
   embedded in shell strings or heredocs. Regression tests remain necessary.
 
-To reproduce the static gate on Ubuntu 24.04 with Node.js 24.21.0:
+To reproduce the static gate on Ubuntu 26.04 with Node.js 24.21.0:
 
 ```bash
 # Install ShellCheck v0.11.0 using the checksum-verified workflow step.
