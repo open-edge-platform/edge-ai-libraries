@@ -5,12 +5,12 @@
     "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
   },
   "modules": [
-    { "label": "Smart Classroom", "value": "smart_classroom", "startStop": true, "remove": true, "options": ["--gpu"] },
-    { "label": "Teacher Assistant Claw Demo", "value": "teacher_assistant_claw_demo", "startStop": false, "remove": true, "options": ["--gpu"] }
+    { "label": "Smart Classroom", "value": "smart_classroom", "startStop": true, "remove": true },
+    { "label": "Teacher Assistant Claw Demo", "value": "teacher_assistant_claw_demo", "startStop": false, "remove": true }
   ],
   "getStarted": {
     "text": "Get Started",
-    "link": "https://docs.openedgeplatform.intel.com/2026.3/education-suite-metro.html"
+    "link": "https://docs.openedgeplatform.intel.com/2026.3/ai-suite-education.html"
   },
   "resources": [
     { "text": "Smart Classroom", "url": "https://docs.openedgeplatform.intel.com/2026.3/edge-ai-suites/smart-classroom/index.html" },

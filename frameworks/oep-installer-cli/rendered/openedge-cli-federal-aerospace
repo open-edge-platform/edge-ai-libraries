@@ -2482,7 +2482,7 @@ configure_linux_tools ()
 }
 configure_npu_accel () 
 { 
-    version="$(ensure_parse_value_option version --version=1.38.0 "$@")";
+    version="$(ensure_parse_value_option version --version=1.39.1 "$@")";
     repository=https://api.github.com/repos/intel/linux-npu-driver;
     releases=https://github.com/intel/linux-npu-driver/releases;
     workspace="$(ensure_project_path)/npu"
@@ -7059,13 +7059,18 @@ subcommand_list ()
             return 3;
         fi;
         ensure_sbom_format schema-version 1;
-        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
-            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+        local script_dir script_name script_path;
+        script_dir="$(cd "$(dirname "$0")" && pwd -P)";
+        script_name="${0##*/}";
+        script_path="$script_dir/$script_name";
+        if git -C "$script_dir" rev-parse --is-inside-work-tree &> /dev/null && git -C "$script_dir" remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git -C "$script_dir" rev-parse HEAD);
             ensure_sbom_format cli-version "$cli_version";
             if [[ "/$0" = *"/rendered/"* ]]; then
-                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
-                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
-                ensure_sbom_format cli-sha256 "$(sha256sum "$0" | cut -f1 -d' ')";
+                local remote="$(git -C "$script_dir" remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                local rel_path="$(git -C "$script_dir" rev-parse --show-prefix)$script_name";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/$rel_path";
+                ensure_sbom_format cli-sha256 "$(sha256sum "$script_path" | cut -f1 -d' ')";
             fi;
         fi;
         ensure_sbom_format install-cmdline $installer_name install "${args[@]}";

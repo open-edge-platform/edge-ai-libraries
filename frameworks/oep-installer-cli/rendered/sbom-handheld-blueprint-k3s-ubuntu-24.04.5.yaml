@@ -1,7 +1,7 @@
 "schema-version": "1"
-"cli-version": "736fafb022ce110597c524deeef255df08db26dc"
-"cli-url": "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/736fafb022ce110597c524deeef255df08db26dc/rendered/openedge-cli-federal-aerospace"
-"cli-sha256": "2b37775947ec177d29f744a5daca26c2394bdab2db940c833dce03e75c2bf9fb"
+"cli-version": "f34952a64565f396c7f29b010be08eb7b6c1f30c"
+"cli-url": "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/f34952a64565f396c7f29b010be08eb7b6c1f30c/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace"
+"cli-sha256": "4506634c61c05c4c30d6e47528555f04a9a4daff0b7bc948ddbe63ea56a4d73a"
 "install-cmdline": ["openedge-cli","install","handheld_blueprint","--edgepack","--k3s"]
 "module-list": ["handheld_blueprint"]
 ---
