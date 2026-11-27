@@ -42,7 +42,7 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 ```
 
 Camera discovery (USB and ONVIF) is provided by the
-[Sensor Manager](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/sensor-manager) microservice
+[Sensor Manager](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/sensor-manager/index.html) microservice
 (`microservices/sensor-manager`), which is built together with ViPPET by `make build`.
 
 For the architecture of each layer see the

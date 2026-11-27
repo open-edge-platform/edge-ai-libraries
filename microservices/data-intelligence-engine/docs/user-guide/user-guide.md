@@ -233,7 +233,7 @@ always live in vector sources, where concepts cite them.
 The extractor settings must be nested under `operator_options.external_extractor`,
 not pasted directly into `operator_options`. The latter is rejected with a
 configuration error rather than silently creating an OKF-bundle-only source.
-Use [the complete source example](../../scripts/example/graph-source-with-extractor.json)
+Use [the complete source example](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/data-intelligence-engine/scripts/example/graph-source-with-extractor.json)
 when creating a document-extracting graph source.
 
 The engine stages persisted content blocks/captions in `ENGINE_UPLOAD_DIR` and

@@ -111,7 +111,7 @@ curl -s -XPOST localhost:8000/v1/providers/local -H 'Content-Type: application/j
 
 ## The Plugin Contract
 
-The plugin subclass `PluginBaseNode` in [src/plugins/base.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/plugins/base.py)
+The plugin subclass `PluginBaseNode` in [src/plugins/base.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/base.py)
 implements the plugin contract in Inference Router. Only the following two methods are
 required; everything else has a safe default, so you override only what you need.
 
@@ -156,10 +156,10 @@ required; everything else has a safe default, so you override only what you need
 
 ### `compressor` Plugin
 
-Source: [src/plugins/compressor.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/plugins/compressor.py).
+Source: [src/plugins/compressor.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/compressor.py).
 
 Reduces prompt tokens before the request reaches the backend, using the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
+[Adaptive Token Compressor](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/adaptive-token-compressor/index.html)
 library (bundled in the router image). One `compressor` node covers every
 compressor type; the type is chosen per instance through `settings.type`:
 
@@ -262,17 +262,17 @@ plugins:
 The two configurations trade off differently: the small model is faster but
 saves fewer tool tokens. `top_k` should be sized to the number of tools per
 request. See the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
+[Adaptive Token Compressor](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/adaptive-token-compressor/get-started.html#toolcompressor-configuration)
 ToolCompressor configuration guide for measured results and how to choose K.
 
 The backing services, which are the compress server and tool predictor, are **not**
 part of the router — deploy them separately. See the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.3.0/libraries/adaptive-token-compressor)
-repository for deployment and per-compressor behavior.
+[Adaptive Token Compressor](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/adaptive-token-compressor/index.html)
+documentation for deployment and per-compressor behavior.
 
 ### `provider_management` Plugin
 
-Source: [src/plugins/provider_management.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/plugins/provider_management.py).
+Source: [src/plugins/provider_management.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/provider_management.py).
 
 This plugin lets the router drive an external **Local Provider Manager** — a
 service that starts and stops serving backends (containers) on demand and exposes
@@ -414,7 +414,7 @@ point the router at another host.
 
 ### `dummy_logger` Plugin
 
-Source: [src/plugins/dummy.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.3.0/microservices/inference-router/src/plugins/dummy.py).
+Source: [src/plugins/dummy.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/inference-router/src/plugins/dummy.py).
 
 A plugin example that prints the stage that invoked it, and passes the
 request or response through, unchanged. It also serves as a reference implementation

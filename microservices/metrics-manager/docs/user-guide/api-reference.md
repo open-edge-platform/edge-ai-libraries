@@ -283,7 +283,7 @@ curl -X POST http://localhost:9090/api/v1/metrics/otlp \
 How data points are stored:
 
 | OTLP type | Stored fields | `temporality` tag |
-|-----------|---------------|-------------------|
+| --------- | ------------- | ----------------- |
 | `gauge` | `value` (from `asDouble`, or `asInt` stored as an integer) | none |
 | `sum` | `value` (from `asDouble`, or `asInt` stored as an integer) | `delta` or `cumulative` |
 | `histogram` | `count`; `sum`, `min` and `max` when the point carries them and they are finite; `avg` (= `sum / count`) when it has a `sum` and `count` is above 0. Bucket counts are not stored. | `delta` or `cumulative` |

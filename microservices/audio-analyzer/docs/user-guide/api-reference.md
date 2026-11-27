@@ -70,8 +70,8 @@ official OpenAI SDKs can consume it directly.
 | Event | Meaning |
 | ----- | ------- |
 | `transcript.text.delta` | Incremental text for a transcribed chunk (`delta` field). |
-| `transcript.text.done`  | Final event with the complete `text`, plus `language`, `duration`, and `sentiment_summary` when available. |
-| `[DONE]`                | Stream terminator sentinel. |
+| `transcript.text.done` | Final event with the complete `text`, plus `language`, `duration`, and `sentiment_summary` when available. |
+| `[DONE]` | Stream terminator sentinel. |
 
 ```bash
 curl --noproxy '*' -N \
@@ -153,8 +153,8 @@ resampling is done in the socket layer — downstream ffmpeg/Whisper handle it.
 | `input_audio_buffer.append` | `{"audio": "<base64 pcm16>"}` |
 | `input_audio_buffer.commit` | Force-close the current utterance and transcribe it. |
 | `input_audio_buffer.preview` | Transcribe the trailing ~2 s of buffered audio **without** clearing the buffer or persisting anything. Best-effort progress signal only. |
-| `input_audio_buffer.clear`  | Discard buffered audio. |
-| `session.close`             | Flush the buffer and close the socket. |
+| `input_audio_buffer.clear` | Discard buffered audio. |
+| `session.close` | Flush the buffer and close the socket. |
 
 ### Server → client events
 
@@ -194,28 +194,28 @@ at 120 seconds.
 `input_audio_buffer.preview` gives a low-latency progress snapshot while the
 speaker is still talking. It is deliberately cheap and deliberately lossy:
 
-* Only the trailing ~2 s of the buffer is decoded, so the cost of a preview
+- Only the trailing ~2 s of the buffer is decoded, so the cost of a preview
   does not grow with utterance length.
-* The cut is a plain time boundary, not a VAD boundary — a preview can begin
+- The cut is a plain time boundary, not a VAD boundary — a preview can begin
   mid-word.
-* Nothing is persisted: previews never write `session_state.json` and never
+- Nothing is persisted: previews never write `session_state.json` and never
   affect the transcript produced by a real commit.
-* A preview never delays a real commit. The preview decode runs as a
+- A preview never delays a real commit. The preview decode runs as a
   background task, so the server keeps reading from the socket while it is in
   progress, and it holds the session lock only long enough to copy the
   trailing audio out of the buffer. A `input_audio_buffer.commit` sent during
   a preview is therefore processed immediately rather than queued behind it.
   A preview is additionally skipped outright if a commit is already decoding,
   or if an earlier preview has not finished.
-* Because previews are concurrent, a preview event may arrive interleaved with
+- Because previews are concurrent, a preview event may arrive interleaved with
   commit events. Match events by `type`, and use `sequence` for preview
   ordering, rather than assuming a fixed arrival order.
-* A pending preview is cancelled when the socket closes, so no preview event
+- A pending preview is cancelled when the socket closes, so no preview event
   arrives after `session.close`.
-* A preview whose decode finishes after a commit landed is discarded rather
+- A preview whose decode finishes after a commit landed is discarded rather
   than sent, so a stale snapshot never arrives after the final transcript for
   the same audio. Preview `sequence` numbers may therefore have gaps.
-* Previews can be routed to a different ASR model/device via
+- Previews can be routed to a different ASR model/device via
   `models.asr.preview` in `config.yaml` (by default they reuse the main ASR
   configuration).
 
@@ -231,26 +231,26 @@ default. A client turns it on per session:
 
 With the mode on:
 
-* `input_audio_buffer.preview` with `"full": true` decodes the whole buffer
+- `input_audio_buffer.preview` with `"full": true` decodes the whole buffer
   since the last commit, not the trailing ~2 s. Send it when your VAD sees
   speech stop. The preview event carries `"full": true`.
-* `input_audio_buffer.commit` reuses the last full preview when it covers
+- `input_audio_buffer.commit` reuses the last full preview when it covers
   the commit's clip (see below). A commit that arrives while that preview is
   still decoding waits for it. Otherwise the commit decodes as usual.
-* Both events accept `"trailing_silence_ms"`: how much of the end of the
+- Both events accept `"trailing_silence_ms"`: how much of the end of the
   buffer your VAD judged to be silence. Trailing silence is trimmed only when
   you send it. The clip then ends `trailing_silence_keep_ms` after the end of
   speech. Without it, the whole buffer is decoded.
-* `low_latency.trailing_silence_keep_ms` (default 150, range 0 to 2000) sets
+- `low_latency.trailing_silence_keep_ms` (default 150, range 0 to 2000) sets
   how much silence after the end of speech is kept.
-* A commit whose `trailing_silence_ms` covers the whole buffer is not decoded.
-* A preview is reused only for audio since the same commit or clear, and
+- A commit whose `trailing_silence_ms` covers the whole buffer is not decoded.
+- A preview is reused only for audio since the same commit or clear, and
   only when it covers the commit's clip. That means the same clip end, or,
   when both events carry `trailing_silence_ms`, the same end of speech with
   some silence kept in the preview. In the second case the commit adds only
   audio its own hint calls silence. This covers a preview sent on the first
   silent frame, before `trailing_silence_keep_ms` of silence exists.
-* The commit appends to the persisted session transcript as with the mode
+- The commit appends to the persisted session transcript as with the mode
   off. The session duration advances by the full buffer length, so later
   segment offsets match the mode-off path.
 
@@ -266,6 +266,7 @@ A complete, runnable client example is in the
 [Get Started guide](./get-started.md#verify-continuous-audio-streaming-websocket).
 
 ## Sessions
+
 A session is identified by `session_id` and corresponds to the directory
 `storage/<session_id>/`. The same id can be reused across multiple uploads to
 append transcript state and (when sentiment is enabled) update the

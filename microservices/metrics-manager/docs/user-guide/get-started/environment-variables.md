@@ -10,7 +10,7 @@ Configuration is managed via environment variables. All variables map directly t
 ## Core Settings
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `HOST` | `0.0.0.0` | API server bind address |
 | `METRICS_PORT` | `9090` | Metrics Manager API port |
 | `SERVICE_NAME` | `metrics-manager` | Service name used in logs and health checks |
@@ -26,7 +26,7 @@ Configuration is managed via environment variables. All variables map directly t
 ## Metrics Storage
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `METRICS_RETENTION_SECONDS` | `300` | How long to keep metrics in memory (seconds). After this duration, metrics are expired and removed on next store access |
 | `MAX_METRICS_BATCH_SIZE` | `1000` | Maximum metrics per single batch request (`POST /api/v1/metrics`) |
 | `MAX_METRICS_IN_MEMORY` | `100000` | Maximum metrics in memory. When exceeded, oldest entries are evicted automatically |
@@ -36,7 +36,7 @@ Configuration is managed via environment variables. All variables map directly t
 ## Rate Limiting
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting by client IP |
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | `1000` | Maximum requests per minute per client IP |
 | `RATE_LIMIT_BURST` | `100` | Burst allowance (tokens available before rate limit kicks in) |
@@ -46,23 +46,25 @@ Configuration is managed via environment variables. All variables map directly t
 ## Performance
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `ENABLE_GZIP_COMPRESSION` | `true` | Enable gzip compression for HTTP responses >1 KB. Reduces bandwidth but increases CPU usage |
 
 ## Security
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `TRUST_FORWARDED_HEADERS` | `false` | Honor `X-Forwarded-For` / `X-Real-IP` headers for client IP detection. Set to `true` ONLY when running behind a trusted reverse proxy (Nginx, Traefik, etc.) |
 
-> **Warning:** Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass rate limiting.
+> [!WARNING]
+> Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass
+> rate limiting.
 
 ## Telegraf Settings (Application Configuration)
 
 These variables configure the Telegraf locations for the application to use:
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `TELEGRAF_CONFIG_PATH` | `/etc/telegraf/telegraf.conf` | Main Telegraf config inside the container, read by the entrypoint and passed to Telegraf |
 | `TELEGRAF_PORT` | `9273` | Telegraf Prometheus endpoint port (where SSE poller fetches system metrics) |
 | `TELEGRAF_HTTP_PORT` | `8186` | Docker-only Telegraf HTTP listener port; used by the shipped configuration |
@@ -73,7 +75,7 @@ These variables configure the Telegraf locations for the application to use:
 The SSE endpoint (`/metrics/stream`) polls the Telegraf Prometheus endpoint for each connected client independently. There is no shared queue.
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `PROMETHEUS_POLLER_INTERVAL_MS` | `500` | Polling interval in milliseconds (100–5000). Lower values = more frequent SSE events but higher CPU usage per client. Recommended: 500 ms |
 | `PROMETHEUS_TELEGRAF_ENDPOINT` | `http://localhost:9273` | Telegraf Prometheus endpoint polled by SSE clients. Must be accessible from the app container |
 
@@ -82,7 +84,7 @@ The SSE endpoint (`/metrics/stream`) polls the Telegraf Prometheus endpoint for 
 These variables are used ONLY by `compose.yaml` and are NOT read by the application:
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `TELEGRAF_CONFIG` | `./telegraf.conf` | Host path to Telegraf config file (mounted into container) |
 | `TELEGRAF_CONFIG_DIR` | `./telegraf.d` | Host directory mounted at `/etc/telegraf/telegraf.d`; `.conf` files are snapshotted and loaded at startup |
 | `HOST_METRICS_PORT` | `9090` | API host mapping in bridge mode; actual API listener in host-NIC mode |
@@ -112,7 +114,7 @@ only lowercase `true`/`false` (including rejecting empty values and `auto`).
 They control bundled additions, not the baseline or user-supplied inputs.
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| -------- | ------- | ----------- |
 | `ENABLE_RAPL` | `false` | Native package/platform RAPL power |
 | `ENABLE_POWERSTAT_EXTRA` | `false` | Per-CPU frequency/temperature, without duplicating base package/C-state inputs |
 | `ENABLE_TURBOSTAT` | `false` | Turbostat diagnostics with a bounded executable/MSR preflight |

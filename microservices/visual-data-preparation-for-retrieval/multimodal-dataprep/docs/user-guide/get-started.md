@@ -61,7 +61,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` | Optional | `2` | Camera-to-host drift, in seconds, above which the clock check warns. |
 | `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles object-detection crop extraction. |
 | `MM_DATAPREP_DETECTION_MODEL_NAME` | ✅ (when detection is enabled) | _(none)_ | Hugging Face OpenVINO detection model repo, for example `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU (see [Device selection](#device-selection-mm_dataprep_embedding_device-mm_dataprep_detection_device) and <https://huggingface.co/OpenVINO>). Only the `OpenVINO/` namespace is accepted, and the model must be an object-detection model supported by OpenVINO Model API. The image ships no detection models: only the selected one is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>` and reused from the volume afterwards. Each model keeps its own license (for example YOLOX is Apache-2.0, YOLO11 is AGPL-3.0); review the model card. |
-| `MM_DATAPREP_DETECTION_CLASSES` | Optional | _(empty)_ | Comma-separated class filter, for example `person,car`. Case-insensitive; spaces and hyphens are normalized to `_` (Hugging Face OpenVINO models use labels such as `traffic_light`, `cell_phone`). The tested OpenVINO detection models use the 80 [COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml); the model's own labels are authoritative. Classes the model does not have make detector initialization fail, and the error lists the available classes. __Empty keeps all classes__. |
+| `MM_DATAPREP_DETECTION_CLASSES` | Optional | _(empty)_ | Comma-separated class filter, for example `person,car`. Case-insensitive; spaces and hyphens are normalized to `_` (Hugging Face OpenVINO models use labels such as `traffic_light`, `cell_phone`). The tested OpenVINO detection models use the 80 [COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml); the model's own labels are authoritative. Classes the model does not have make detector initialization fail, and the error lists the available classes. **Empty keeps all classes**. |
 | `MM_DATAPREP_DETECTION_MODEL_DIR` | Optional | `/app/models/object-detection` | Download/cache directory for detection models (backed by the `dataprep-detection-models` volume). |
 | `MM_DATAPREP_DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
 | `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED` | Optional | `false` | Enables ROI consolidation (merging overlapping detections). |
@@ -120,7 +120,7 @@ When targeting `NPU`, confirm the selected model supports NPU inference via the
 For detection, these models have been verified on CPU, GPU and NPU:
 
 | Model | License | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `OpenVINO/yolox_s-int8-ov` | Apache-2.0 | Recommended default; balanced accuracy and speed, fastest on CPU and NPU |
 | `OpenVINO/yolox_tiny-fp16-ov` | Apache-2.0 | Lightest; fastest on GPU |
 | `OpenVINO/yolox_l-int8-ov` | Apache-2.0 | Higher accuracy (more and smaller objects) at a higher compute cost; best on GPU or NPU |
