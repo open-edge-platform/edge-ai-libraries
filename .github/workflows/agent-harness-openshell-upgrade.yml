@@ -1,0 +1,100 @@
+name: "[Agent Harness] OpenShell upgrade automation"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/agent-harness-openshell-upgrade.yml'
+      - '.github/workflows/agent-harness-openshell-hosted.yml'
+      - 'frameworks/agent-harness-install/test/hosted-openshell-report*.mjs'
+  schedule:
+    - cron: '41 3 * * 2'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Discover the latest release or run the five-release reliability test
+        type: choice
+        options: [latest, reliability]
+        default: latest
+
+permissions: {}
+
+concurrency:
+  group: agent-harness-openshell-upgrade-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  discovery:
+    name: Discover OpenShell candidates
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      available: ${{ steps.releases.outputs.available }}
+      matrix: ${{ steps.releases.outputs.matrix }}
+      version: ${{ steps.releases.outputs.version }}
+      checksum: ${{ steps.releases.outputs.checksum }}
+      releaseCommit: ${{ steps.releases.outputs.releaseCommit }}
+      mode: ${{ steps.releases.outputs.mode }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Discover and hash release installers
+        id: releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCOVERY_MODE: ${{ github.event_name == 'pull_request' && 'reliability' || inputs.mode || 'latest' }}
+        run: |
+          set -euo pipefail
+          printf 'mode=%s\n' "$DISCOVERY_MODE" >>"$GITHUB_OUTPUT"
+          node frameworks/agent-harness-install/test/hosted-openshell-report.mjs discover \
+            frameworks/agent-harness-install/scripts/lib/openshell.sh
+
+  acceptance:
+    name: Candidate OpenShell ${{ matrix.version }}
+    needs: discovery
+    if: needs.discovery.outputs.available == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discovery.outputs.matrix) }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/agent-harness-openshell-hosted.yml
+    with:
+      candidate_version: ${{ matrix.version }}
+      candidate_installer_sha256: ${{ matrix.checksum }}
+
+  upgrade:
+    name: Create OpenShell upgrade PR
+    needs: [discovery, acceptance]
+    if: >-
+      github.event_name != 'pull_request' && github.ref == 'refs/heads/main' &&
+      github.repository == 'open-edge-platform/edge-ai-libraries' &&
+      needs.discovery.outputs.mode == 'latest' && needs.discovery.outputs.available == 'true' &&
+      needs.acceptance.result == 'success'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Commit verified pins and open upgrade PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_VERSION: ${{ needs.discovery.outputs.version }}
+          CANDIDATE_CHECKSUM: ${{ needs.discovery.outputs.checksum }}
+          CANDIDATE_RELEASE_COMMIT: ${{ needs.discovery.outputs.releaseCommit }}
+        run: |
+          set -euo pipefail
+          node frameworks/agent-harness-install/test/hosted-openshell-report.mjs open-pr \
+            frameworks/agent-harness-install/scripts/lib/openshell.sh

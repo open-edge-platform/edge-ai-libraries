@@ -376,6 +376,23 @@ dcode_connect_args() {
     HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 DEEPAGENTS_CODE_ONBOARDING=0 \
     /home/node/.local/bin/dcode --no-interpreter)
 }
+dcode_onboard_failure_output() {
+  HARNESS_AGENT=deepagents-code
+  OPENSHELL_MODEL=test-model
+  openshell_load_profile() { :; }
+  openshell_assert_owned() { :; }
+  openshell_wait_phase() { :; }
+  openshell_wait_agent_config() { :; }
+  openshell_agent_exec() {
+    [[ "$1" != /usr/bin/curl ]] || return 0
+    printf 'fixture inference diagnostic\n'
+    return 23
+  }
+  local result rc=0
+  result="$(onboard_openshell_agent 2>&1)" || rc=$?
+  [[ "$rc" != 0 && "$result" == *'fixture inference diagnostic'* &&
+     "$result" == *'Deep Agents Code inference failed (exit 23)'* ]]
+}
 write_profile() {
   local dir
   dir="$(openshell_profile_dir)"
@@ -401,7 +418,7 @@ profile_workspace() {
   if openshell_resource_exists sandbox; then return 1; fi
 }
 profile_creation_persists_workspace() {
-  HARNESS_AGENT=openclaw
+  HARNESS_AGENT="${1:-openclaw}"
   HARNESS_LLM_MODEL=test-model
   OPENSHELL_WORKSPACE=team-a
   ensure_openshell_cli() { :; }
@@ -412,7 +429,8 @@ profile_creation_persists_workspace() {
   openshell_assert_owned() { :; }
   openshell() {
     case "$1" in
-      status | profile | provider | sandbox) return 0 ;;
+      sandbox) printf '%s\n' "$@" >"$TEST_ROOT/sandbox-create-args" ;;
+      status | profile | provider) return 0 ;;
       *) return 1 ;;
     esac
   }
@@ -423,6 +441,13 @@ const profile = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf
 assert.equal(profile.workspace, "team-a");
 JS
   [[ "$OPENSHELL_WORKSPACE" == team-a ]]
+  if [[ "$HARNESS_AGENT" == deepagents-code ]]; then
+    grep -Fxq 'FF_INMEM_CORE=false' "$TEST_ROOT/sandbox-create-args"
+    grep -Fxq 'PYTHON_GRPC_BIND_HOST=::1' "$TEST_ROOT/sandbox-create-args"
+  else
+    ! grep -Fq 'FF_INMEM_CORE=' "$TEST_ROOT/sandbox-create-args"
+    ! grep -Fq 'PYTHON_GRPC_BIND_HOST=' "$TEST_ROOT/sandbox-create-args"
+  fi
 }
 profile_invalid() {
   write_profile "$1"
@@ -469,7 +494,7 @@ resource_unavailable() {
 version_case() {
   local version="$1"
   openshell() { printf 'openshell %s' "$version"; }
-  if [[ "$version" == 0.1.5 ]]; then
+  if [[ "$version" == "$HARNESS_OPENSHELL_VERSION" ]]; then
     ensure_openshell_cli
   else
     expect_failure 'refusing to replace' ensure_openshell_cli
@@ -660,6 +685,7 @@ run_case 'host runtime remains supported' runtime_supported host openclaw
 run_case 'OpenClaw supports OpenShell' runtime_supported openshell openclaw
 run_case 'Deep Agents Code supports OpenShell' runtime_supported openshell deepagents-code
 run_case 'Deep Agents Code connect supplies placeholder key without storing it' dcode_connect_args
+run_case 'Deep Agents Code inference failure retains diagnostic output and exit status' dcode_onboard_failure_output
 run_case 'Hermes supports OpenShell' runtime_supported openshell hermes
 run_case 'unsupported agent rejected' expect_failure 'supports openclaw, deepagents-code and hermes only' runtime_supported openshell invalid-agent
 run_case 'invalid runtime rejected' expect_failure 'Unknown runtime' runtime_supported invalid openclaw
@@ -668,6 +694,7 @@ run_case 'valid persisted profile loads' profile_valid
 run_case 'saved workspace overrides caller defaults for OpenShell commands' profile_workspace
 rm -rf -- "$HOME/$HARNESS_STATE_DIRNAME"
 run_case 'new ownership profiles persist the selected workspace' profile_creation_persists_workspace
+run_case 'Deep Agents Code sandbox uses Python in-memory runtime and native loopback' profile_creation_persists_workspace deepagents-code
 # Each test gets a subshell, but fixtures on disk must also be reset between cases.
 rm -rf -- "$HOME/$HARNESS_STATE_DIRNAME"
 run_case 'missing profile rejected' profile_missing
@@ -687,8 +714,8 @@ run_case 'paginated response rejected' resource_case sandbox '{"sandboxes":[],"n
 run_case 'malformed resource JSON rejected' resource_case sandbox '{' invalid
 run_case 'unexpected resource schema rejected' resource_case sandbox '{"providers":[]}' invalid
 run_case 'list failure is not treated as absence' resource_unavailable
-run_case 'pinned CLI version accepted' version_case 0.1.5
-run_case 'different CLI version rejected' version_case 0.1.4
+run_case 'pinned CLI version accepted' version_case "$HARNESS_OPENSHELL_VERSION"
+run_case 'different CLI version rejected' version_case "${HARNESS_OPENSHELL_VERSION}-different"
 run_case 'LAN bind rejected' invalid_bind
 for port in invalid 0 65536; do
   run_case "invalid IR port $port rejected" invalid_port "$port"

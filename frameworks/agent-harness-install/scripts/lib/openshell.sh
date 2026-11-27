@@ -613,7 +613,8 @@ _install_openshell_agent() {
     --env "HERMES_HOME=/home/node/.hermes"
     --env "HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:${HARNESS_IR_PORT}/v1")
   if [[ "$agent" == deepagents-code ]]; then
-    agent_env+=(--env "DEEPAGENTS_CODE_NO_UPDATE_CHECK=1")
+    agent_env+=(--env "DEEPAGENTS_CODE_NO_UPDATE_CHECK=1"
+      --env "FF_INMEM_CORE=false" --env "PYTHON_GRPC_BIND_HOST=::1")
   else
     agent_env+=(--env "OPENAI_API_KEY=not-needed")
   fi
@@ -808,13 +809,17 @@ onboard_openshell_agent() {
       printf '%s\n' "$hermes_response"
       ok "Sandboxed Hermes inference returned output; verify task effects separately."
     else
-      local dcode_response
+      local dcode_response dcode_rc=0
       dcode_response="$(openshell_agent_exec /usr/bin/env \
         -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
         HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 \
         /home/node/.local/bin/dcode -n "Say hello briefly. Do not use any tools." \
         --model "openai:${OPENSHELL_MODEL}" --no-interpreter)" \
-        || error "Sandboxed Deep Agents Code inference failed."
+        || dcode_rc=$?
+      if ((dcode_rc != 0)); then
+        printf '%s\n' "$dcode_response" >&2
+        error "Sandboxed Deep Agents Code inference failed (exit ${dcode_rc})."
+      fi
       if [[ -z "${dcode_response//[[:space:]]/}" ]] || grep -q '^\[ERROR\]' <<<"$dcode_response"; then
         error "Sandboxed Deep Agents Code returned no successful inference output."
       fi

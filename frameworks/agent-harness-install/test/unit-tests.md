@@ -31,7 +31,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 bash test/installer-runtime-test.sh | tee installer-runtime.tap
 ```
 
-The outer suite currently reports 77 cases. Three are wrapper cases that run
+The outer suite currently reports 80 cases. Three are wrapper cases that run
 the managed-inference, lifecycle and model-default suites below. Their case
 counts must not be added to the outer count as independent top-level results.
 
@@ -40,7 +40,7 @@ counts must not be added to the outer count as independent top-level results.
 | Scope | Command | Current cases |
 |---|---|---|
 | Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 38; see [runtime behavior coverage](README.md#installer-runtime-regression) |
-| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
+| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 80, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
 | Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 63 |
@@ -65,11 +65,17 @@ Both relevant PRs and relevant pushes to `main` run the same offline coverage in
 the [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml).
 CI separates the suites into named steps and TAP artifacts rather than invoking
 the nested wrappers: `HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh`
-runs the 74 direct cases; the other five suites run once in their own steps.
-The all-in-one local command still runs 77 outer registrations as documented
+runs the 77 direct cases; the other five suites run once in their own steps.
+The all-in-one local command still runs 80 outer registrations as documented
 above. CI additionally runs the reporting-helper tests described below.
 CI triggers, syntax checks and prepared-runner instructions are described in
 the [test README](README.md).
+
+The Deep Agents Code onboarding regression injects a failed native inference
+command and checks that its captured diagnostic and original exit status are
+reported without turning the failure into a pass.
+The sandbox-creation fixture also verifies dcode's Python in-memory/native
+loopback compatibility settings and their absence from OpenClaw sandboxes.
 
 ### Reporting-helper regression tests
 
@@ -93,6 +99,19 @@ validation wrapper. Their objectives and execution command are documented with
 the [developer entrypoint](integration-tests.md#developer-entrypoint-validate-local-changes).
 They exercise mocked preparation and failure paths; they do not provision a
 machine or execute live integration.
+
+Run `node --test test/hosted-openshell-report-test.mjs` for the automatic hosted
+workflow's reporting checks. These cover successful evidence, missing/failed
+stages, skipped outcomes, invalid TAP, receipt identity, unavailable measurements,
+public-runner cost assumptions and real subprocess failure propagation.
+Five cleanup regressions also cover retrying leftover acceptance profiles with
+the recorded root, preserving the default deployment, failed retries, absent
+or archived profiles, invalid roots and symlink rejection. They invoke command
+doubles, not real sandbox deletion; ownership verification remains in the
+production uninstaller.
+They use disposable local files and do not install OpenShell or certify a
+GitHub-hosted deployment. See the [hosted workflow](README.md#automatic-github-hosted-live-validation)
+for acceptance and cost-evidence requirements.
 
 ## Startup, runtime, profiles and boundaries
 
@@ -143,7 +162,7 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | `resource_case` (malformed JSON) | Invalid discovery syntax | Reject malformed resource JSON. |
 | `resource_case` (unexpected schema) | Invalid discovery structure | Reject a response without the expected resource list. |
 | `resource_unavailable` | List command fails | Distinguish discovery failure from absence. |
-| `version_case 0.1.5` | Supported CLI version | Accept the pinned OpenShell version. |
+| `version_case "$HARNESS_OPENSHELL_VERSION"` | Supported CLI version | Accept the pinned OpenShell version. |
 | `version_case 0.1.4` | Unsupported CLI version | Reject a different installed version. |
 | `invalid_bind` | LAN bind requested | Reject non-loopback publication in OpenShell mode. |
 | `invalid_port invalid` | Non-numeric IR port | Reject invalid port text. |

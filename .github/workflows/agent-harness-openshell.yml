@@ -65,7 +65,7 @@ jobs:
     name: Agent Harness static analysis
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -191,7 +191,7 @@ jobs:
         working-directory: frameworks/agent-harness-install
         run: |
           set -euo pipefail
-          node --test --test-reporter=tap test/tap-summary-test.mjs test/validate-local-openshell-test.mjs | tee "$RUNNER_TEMP/openshell-offline/reporting.tap"
+          node --test --test-reporter=tap test/tap-summary-test.mjs test/validate-local-openshell-test.mjs test/hosted-openshell-report-test.mjs | tee "$RUNNER_TEMP/openshell-offline/reporting.tap"
       - name: Publish offline test summary
         if: always()
         working-directory: frameworks/agent-harness-install

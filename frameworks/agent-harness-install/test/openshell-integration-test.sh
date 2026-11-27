@@ -13,9 +13,12 @@ for command in node docker openshell curl timeout; do
   command -v "$command" >/dev/null || { printf 'Missing prerequisite: %s\n' "$command" >&2; exit 2; }
 done
 [[ "$(uname -s)" == Linux ]] || { printf 'Linux is required.\n' >&2; exit 2; }
-[[ "$(openshell --version)" == 'openshell 0.1.5' ]] || { printf 'OpenShell 0.1.5 is required.\n' >&2; exit 2; }
 
-export HARNESS_STATE_DIRNAME=".agent-harness-ci-$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')"
+export HARNESS_STATE_DIRNAME="${HARNESS_ACCEPTANCE_STATE_DIRNAME-.agent-harness-ci-$(node -e 'console.log(require("node:crypto").randomBytes(8).toString("hex"))')}"
+[[ "$HARNESS_STATE_DIRNAME" =~ ^\.agent-harness-ci-[a-f0-9]{16}$ ]] \
+  || { printf 'Invalid acceptance ownership root.\n' >&2; exit 2; }
+[[ ! -e "$HOME/$HARNESS_STATE_DIRNAME" && ! -L "$HOME/$HARNESS_STATE_DIRNAME" ]] \
+  || { printf 'Acceptance ownership root must be fresh.\n' >&2; exit 2; }
 export HARNESS_BIND_HOST=127.0.0.1
 export HARNESS_ADVERTISED_HOST=127.0.0.1
 export NO_COLOR=1
@@ -23,6 +26,8 @@ for lib in colors verify state sudo shim gpu-intel docker-setup nodejs openvino 
   # shellcheck disable=SC1090
   . "$SCRIPT_DIR/scripts/lib/$lib.sh"
 done
+[[ "$(openshell --version)" == "openshell $HARNESS_OPENSHELL_VERSION" ]] \
+  || { printf 'OpenShell %s is required.\n' "$HARNESS_OPENSHELL_VERSION" >&2; exit 2; }
 . "$SCRIPT_DIR/test/openshell-test-lib.sh"
 TEST_ROOT="$(mktemp -d)"
 export HARNESS_OPENSHELL_GATEWAY="${HARNESS_OPENSHELL_GATEWAY:-openshell}"
@@ -111,9 +116,29 @@ preflight() {
   snapshot_inference >"$TEST_ROOT/inference-before"
 }
 install_agent() {
-  local agent="$1"
+  local agent="$1" install_rc=0
   timeout 1800 bash "$SCRIPT_DIR/install.sh" --runtime openshell --harness "$agent" \
-    --non-interactive < /dev/null
+    --non-interactive < /dev/null || install_rc=$?
+  if ((install_rc != 0)); then
+    if [[ "$agent" == deepagents-code && -f "$HOME/$HARNESS_STATE_DIRNAME/openshell/$agent/profile.json" ]]; then
+      exec_in "$agent" /usr/bin/env \
+        -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
+        HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 DEEPAGENTS_CODE_DEBUG=1 \
+        /home/node/.local/bin/dcode -n 'Say hello briefly. Do not use any tools.' \
+        --model "openai:${HARNESS_LLM_MODEL}" --no-interpreter || true
+      exec_in "$agent" /usr/local/bin/node -e '
+        const fs = require("node:fs"), path = require("node:path");
+        const files = fs.readdirSync("/tmp").filter(name => /^deepagents_server_log_.*\.txt$/.test(name));
+        for (const name of files.slice(-3)) {
+          const file = path.join("/tmp", name);
+          if (!fs.lstatSync(file).isFile()) continue;
+          console.log(`Server startup log: ${name}`);
+          console.log(fs.readFileSync(file, "utf8").slice(0, 131072));
+        }
+      ' || true
+    fi
+    return "$install_rc"
+  fi
   wait_phase "$(profile_name "$agent")" Ready
   if [[ "$agent" == deepagents-code ]]; then
     grep -Fq '/home/node/.local/share/uv/python/cpython-*/bin/python*' \
