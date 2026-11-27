@@ -50,7 +50,7 @@ dependencies = [
 # not needed). Also runs on CPU (`--device cpu`), but CPU-only users should prefer
 # the lighter `compress-server-pytorch-cpu`.
 compress-server-pytorch-xpu = [
-    "torch==2.10.0",
+    "torch==2.13.0",
     "llmlingua==0.2.2",
     "transformers==5.16.1",
     "tokenizers==0.23.2",
@@ -68,7 +68,7 @@ compress-server-pytorch-xpu = [
 #               --extra-index-url https://pypi.org/simple \
 #               ".[compress-server-pytorch-cpu]"
 compress-server-pytorch-cpu = [
-    "torch==2.10.0",
+    "torch==2.13.0",
     "llmlingua==0.2.2",
     "transformers==5.16.1",
     "tokenizers==0.23.2",
@@ -85,20 +85,17 @@ compress-server-pytorch-cpu = [
 #   pip install --index-url https://download.pytorch.org/whl/cpu \
 #               --extra-index-url https://pypi.org/simple \
 #               ".[compress-server-ov]"
-# optimum-intel 2.1.0 declares transformers<5.6 / huggingface-hub<1.22, so this
-# extra pins transformers 5.5.4 (newest <5.6, still >=5.5.0 for trivy). The
-# Docker image (Dockerfile.ov) overrides transformers to 5.16.1 in a separate
-# pip step, which a single extras resolve cannot express.
+# This extra requires Python >=3.11 and Git for the pinned Optimum Intel source.
 compress-server-ov = [
-    "torch==2.10.0",
+    "torch==2.13.0",
     "llmlingua==0.2.2",
-    "transformers==5.5.4",
+    "transformers==5.15.1",
     "tokenizers==0.22.2",
     "huggingface-hub==1.21.0",
     "openvino==2026.3.1",
     "openvino-tokenizers==2026.3.1.0",
     "optimum[openvino]==2.3.0",
-    "optimum-intel==2.1.0",
+    "optimum-intel @ git+https://github.com/huggingface/optimum-intel.git@f09a56ace88149cd341233ddfa2bc018bff7c079",
     "nncf==3.3.0",
     "fastapi==0.141.1",
     "uvicorn[standard]==0.52.4",
