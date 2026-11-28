@@ -36,7 +36,7 @@ _SUMMARY_CSV = "metrics_summary.csv"
 
 # Metrics Manager container settings.
 _CONTAINER_NAME = "metrics-manager-sizing"
-_DEFAULT_IMAGE = "intel/metrics-manager:2026.3.0-rc2"
+_DEFAULT_IMAGE = "intel/metrics-manager:latest"
 _HEALTH_URL = "http://localhost:9091/health"
 
 # Prometheus endpoint exposed by the Metrics Manager container (host side).
