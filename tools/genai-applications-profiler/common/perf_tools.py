@@ -36,7 +36,7 @@ _SUMMARY_CSV = "metrics_summary.csv"
 
 # Metrics Manager container settings.
 _CONTAINER_NAME = "metrics-manager-sizing"
-_DEFAULT_IMAGE = "intel/metrics-manager:2026.1.0"
+_DEFAULT_IMAGE = "intel/metrics-manager:latest"
 _HEALTH_URL = "http://localhost:9091/health"
 
 # Prometheus endpoint exposed by the Metrics Manager container (host side).
@@ -162,7 +162,7 @@ def start_perf_tool(repo_url, report_dir):
 
     Args:
         repo_url: Metrics Manager image reference (e.g.
-            ``intel/metrics-manager:2026.1.0``). Ignored if it points at a git
+            ``intel/metrics-manager``). Ignored if it points at a git
             repository; the default published image is used instead.
         report_dir: Path to the report directory where performance logs
             will be stored.

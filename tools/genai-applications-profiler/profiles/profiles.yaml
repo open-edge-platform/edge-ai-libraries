@@ -253,7 +253,7 @@ profiles:
     input_type: "rtsp stream"
     input_size: "2 parallel runs" 
     payloads:
-      - run: '{ "rtspUrl": "rtsp://10.223.22.202:8554/video",
+      - run: '{ "rtspUrl": "<RTSP URL>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,
@@ -268,7 +268,7 @@ profiles:
                 "chunkSize": 1,
                 "runName": "GPU_Run"
               }'
-      - run: '{ "rtspUrl": "rtsp://10.223.22.202:8554/video",
+      - run: '{ "rtspUrl": "<RTSP URL>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,
@@ -288,7 +288,7 @@ profiles:
     input_type: "rtsp stream"
     input_size: "single run" 
     payloads:
-      - run: '{ "rtspUrl": "rtsp://10.223.22.202:8554/video",
+      - run: '{ "rtspUrl": "<RTSP URL>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,
@@ -308,7 +308,7 @@ profiles:
     input_type: "rtsp stream"
     input_size: "single run" 
     payloads:
-      - run: '{ "rtspUrl": "rtsp://10.223.22.202:8554/video",
+      - run: '{ "rtspUrl": "<RTSP URL>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,
@@ -330,7 +330,7 @@ profiles:
     input_type: "rtsp stream"
     input_size: "single run" 
     payloads:
-      - run: '{ "rtspUrl": "rtsp://10.223.22.202:8554/video",
+      - run: '{ "rtspUrl": "<RTSP URL>",
                 "prompt": "Describe what you see in one sentence.",
                 "detectionModelName": null,
                 "detectionThreshold": null,

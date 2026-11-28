@@ -1,10 +1,10 @@
-# GenAI Applications Sizing Tool
+# GenAI Applications Profiler
 
-The GenAI Applications Sizing Tool is a performance profiling utility for benchmarking Intel's Edge AI library applications. This guide will walk you through the initial setup, configuration, and usage of the tool.
+The GenAI Applications Profiler is a performance profiling utility for benchmarking Intel's Edge AI library applications. This guide will walk you through the initial setup, configuration, and usage of the tool.
 
 ## Overview
 
-The GenAI Applications Sizing Tool key features:
+The GenAI Applications Profiler key features:
 
 - **Mutli application supports** ChatQnA (Modular & Core), Video Summary and Search, live captioning
 - **Resource Monitoring** including CPU, GPU, and memory consumption
@@ -31,11 +31,10 @@ The GenAI Applications Sizing Tool key features:
 
 ### Target Application Deployment
 
-Before running the sizing tool, ensure the target application is deployed and accessible. Refer to the deployment guides for each application:
+Before running the profiler, ensure the target application is deployed and accessible. Refer to the deployment guides for each application:
 
 **Video Search and Summarization:**
-- [Get Started](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
-- [System Requirements](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md)
+- [Sample Application README](../../sample-applications/video-search-and-summarization/README.md)
 
 **Chat Question and Answer Core:**
 - [Sample Application README](../../sample-applications/chat-question-and-answer-core/README.md)
@@ -50,8 +49,11 @@ Before running the sizing tool, ensure the target application is deployed and ac
 1. **Clone the repository** (if not already done):
 
    ```bash
-   git clone <repository-url>
-   cd edge-ai-libraries/tools/genai-applications-sizing
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   cd edge-ai-libraries/tools/genai-applications-profiler
    ```
 
 2. **Create a virtual environment**:
@@ -72,7 +74,7 @@ Before running the sizing tool, ensure the target application is deployed and ac
 1. **Build the Docker image**:
 
    ```bash
-   docker build -t genai-sizing-tool .
+   docker build -t genai-applications-profiler .
    ```
 
 2. **Run with Docker** (see [Running with Docker](#running-with-docker) section below).
@@ -132,7 +134,7 @@ Update the profile in `profiles/profiles.yaml` to reference your video file.
 
 ### Basic Usage
 
-Run the Video Summary sizing profile:
+Run the Video Summary profiling:
 
 ```bash
 python profile-runner.py \
@@ -176,7 +178,7 @@ python profile-runner.py \
 docker run --rm \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/reports:/app/reports \
-  genai-sizing-tool \
+  genai-applications-profiler \
   --app=video_summary_search \
   --input=profiles/video-summary-config.yaml \
   --host_ip=192.168.1.100 \
