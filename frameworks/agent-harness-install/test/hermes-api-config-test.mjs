@@ -79,6 +79,16 @@ test("API server settings outside the managed block are refused", (t) => {
   assert.equal(run("enabled").status, 2);
 });
 
+test("any other API_SERVER_* setting outside the managed block is refused", (t) => {
+  for (const line of ["API_SERVER_MODEL_NAME=x", "export API_SERVER_CORS_ORIGINS=*"]) {
+    const {file, run} = fixture(t, `${line}\n`);
+    const result = run("enable");
+    assert.equal(result.status, 2, line);
+    assert.match(result.stderr, /outside the installer-managed block/);
+    assert.equal(fs.readFileSync(file, "utf8"), `${line}\n`);
+  }
+});
+
 test("a commented-out API server key is left alone", (t) => {
   const {run} = fixture(t, "# API_SERVER_KEY=example\n");
   assert.equal(run("enable").status, 0);

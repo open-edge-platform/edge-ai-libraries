@@ -726,7 +726,7 @@ run_case 'Docker build context ships the Hermes API server helper and the sandbo
   grep -Fq "hermes gateway run" "$1/openshell/agent-start.sh"
 ' _ "$SCRIPT_DIR"
 run_case 'Hermes API server helper regression suite' node --test "$SCRIPT_DIR/test/hermes-api-config-test.mjs"
-run_case 'uninstall stops the Hermes API gateway and removes only its own default systemd unit' bash "$SCRIPT_DIR/test/hermes-api-uninstall-test.sh"
+run_case 'uninstall stops the Hermes API gateway and removes only the systemd unit it started' bash "$SCRIPT_DIR/test/hermes-api-uninstall-test.sh"
 run_case 'hermes-api is documented in the installer help' bash -c '
   bash "$1/install.sh" --help | grep -q -- --api-port
   bash "$1/install.sh" --help | grep -q "hermes-api <enable"

@@ -231,8 +231,8 @@ Hermes/OpenShell hardware and are not covered offline.
 `bash test/hermes-api-uninstall-test.sh` (also run by `openshell-test.sh`) drives
 `remove_hermes_api_gateway` and `remove_hermes_package` with stub `hermes` and
 `systemctl` binaries and a throwaway `HOME`: it stops the gateway and removes
-only the default unit it started, and leaves symlinked, foreign or custom-
-`HERMES_HOME` units alone.
+only the unit it started for the Hermes home (also after `disable`), and leaves
+symlinked, foreign or other-home units alone.
 
 ## Opt-in prepared-runner gate
 

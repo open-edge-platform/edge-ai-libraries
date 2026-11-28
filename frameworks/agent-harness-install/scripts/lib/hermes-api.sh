@@ -67,8 +67,10 @@ hermes_api_enable_host() {
   hermes_api_config enable "${port_args[@]}" >/dev/null \
     || error "Could not write the API server settings."
   port="$(hermes_api_config port)" || error "Could not read back the API server port."
+  : > "$(hermes_gateway_marker)" || error "Could not record the gateway for uninstall."
   # The gateway reads .env only at start-up, so install the user service when missing and (re)start it.
-  if ! hermes gateway status >/dev/null 2>&1; then
+  # 'hermes gateway status' exits 0 without a service, so look for the unit itself.
+  if ! hermes_gateway_unit >/dev/null; then
     hermes gateway install \
       || error "'hermes gateway install' failed. Fix the error above, or run 'hermes gateway run' yourself; the settings are already written."
   fi
@@ -82,9 +84,18 @@ hermes_api_enable_host() {
 }
 
 hermes_api_disable_host() {
+  local unit state
   hermes_api_config disable >/dev/null || error "Could not remove the API server settings."
-  if command_exists hermes && hermes gateway status >/dev/null 2>&1; then
-    hermes gateway restart || warn "Could not restart the Hermes gateway; run 'hermes gateway restart' so the API server stops."
+  if command_exists hermes && unit="$(hermes_gateway_unit)"; then
+    # Skip the restart only when systemd says the service is down; an unreachable user bus prints nothing.
+    state="$(systemctl --user is-active "$(basename "$unit" .service)" 2>/dev/null || true)"
+    case "$state" in
+      inactive | failed | unknown) ;;
+      *)
+        hermes gateway restart \
+          || error "Could not restart the Hermes gateway, so the API server may still be answering with its old settings. Run 'hermes gateway restart', then check './install.sh hermes-api status'."
+        ;;
+    esac
   fi
   ok "Hermes API server disabled."
   info "The Hermes gateway service itself is left installed; manage it with 'hermes gateway stop' if you no longer need it."

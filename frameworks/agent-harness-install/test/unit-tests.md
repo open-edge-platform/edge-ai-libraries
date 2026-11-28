@@ -45,7 +45,7 @@ counts must not be added to the outer count as independent top-level results.
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
 | Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 63 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
-| Hermes API server settings (`hermes-api enable\|disable`) | `node --test test/hermes-api-config-test.mjs` | 11 (the symlink case skips where symlinks are unavailable) |
+| Hermes API server settings (`hermes-api enable\|disable`) | `node --test test/hermes-api-config-test.mjs` | 12 (the symlink case skips where symlinks are unavailable) |
 
 The Bash runners execute their registered cases in order; they do not currently
 accept a case-name filter. Use the focused suite to reproduce a Bash failure.

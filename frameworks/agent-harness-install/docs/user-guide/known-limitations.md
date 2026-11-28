@@ -58,8 +58,9 @@ For sandbox setup, architecture and lifecycle guidance, see
     readiness check fails; choose a free port with `--api-port`. A non-root user
     cannot bind ports below 1024. A `.env` with CRLF line endings is not
     recognized and must be converted to LF first.
-  - Uninstall stops the gateway and removes the default `hermes-gateway` user unit.
-    The unit of a custom `HERMES_HOME` (`hermes-gateway-*`) must be removed by hand.
+  - Uninstall stops the gateway and removes the `hermes-gateway*` user unit that
+    pins the Hermes home being removed, including after `hermes-api disable`.
+    Units it did not start for that home are left alone.
   - OpenShell: `enable` and `disable` restart the sandbox and end open sessions.
     A sandbox built before this feature must be recreated.
 - Automatic agent replacement, legacy-image migration, and backup/restore

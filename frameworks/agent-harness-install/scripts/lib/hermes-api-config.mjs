@@ -23,7 +23,7 @@ const HOST = "127.0.0.1";
 const DEFAULT_PORT = 8642;
 const hermesHome = process.env.HERMES_HOME || path.join(process.env.HOME ?? "", ".hermes");
 const envFile = path.join(hermesHome, ".env");
-const OWNED = /^\s*(?:export\s+)?API_SERVER_(?:ENABLED|HOST|PORT|KEY)\s*=/;
+const OWNED = /^\s*(?:export\s+)?API_SERVER_[A-Z0-9_]+\s*=/;
 
 class Fail extends Error {}
 

@@ -473,31 +473,49 @@ from \$HOME and its parents) -- remove it manually if intended."
   fi
 }
 
-# Stops the gateway that 'hermes-api enable' started and drops its default systemd user unit,
-# so nothing keeps restarting a removed Hermes. Acts only when the installer's API block exists.
+# Left in the Hermes home by 'hermes-api enable' so the gateway service stays attributable after 'disable'.
+hermes_gateway_marker() {
+  printf '%s/.agent-harness-install-gateway' "${HERMES_HOME:-$HOME/.hermes}"
+}
+
+# Prints the systemd user unit that runs this Hermes home's gateway: a regular file that pins HERMES_HOME
+# to it and whose ExecStart is Hermes's gateway. The unit name (hermes-gateway[-suffix]) varies per home.
+hermes_gateway_unit() {
+  local home="${HERMES_HOME:-$HOME/.hermes}" real unit
+  real="$(cd "$home" 2>/dev/null && pwd -P)" || real="$home"
+  for unit in "${XDG_CONFIG_HOME:-$HOME/.config}"/systemd/user/hermes-gateway*.service; do
+    [[ -f "$unit" && ! -L "$unit" ]] || continue
+    grep -Eq '^ExecStart=.*hermes.*gateway.*run' "$unit" || continue
+    if grep -Fxq "Environment=\"HERMES_HOME=${home}\"" "$unit" \
+      || grep -Fxq "Environment=\"HERMES_HOME=${real}\"" "$unit"; then
+      printf '%s\n' "$unit"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Stops the gateway that 'hermes-api enable' started and drops its systemd user unit, so nothing keeps
+# restarting a removed Hermes. Acts when the installer's API block or gateway marker exists.
 remove_hermes_api_gateway() {
-  local hermes_home="${HERMES_HOME:-$HOME/.hermes}" unit
+  local hermes_home="${HERMES_HOME:-$HOME/.hermes}" unit name
   grep -Fxq '# BEGIN agent-harness-install hermes-api -- do not edit between markers' "${hermes_home}/.env" 2>/dev/null \
+    || [[ -f "$(hermes_gateway_marker)" ]] \
     || return 0
   if command_exists hermes && ! hermes gateway stop >/dev/null 2>&1; then
     warn "Could not stop the Hermes gateway; stop it yourself with 'hermes gateway stop'."
   fi
   [[ -z "${KEEP_AGENT_DATA:-}" ]] || return 0
-  if [[ -n "${HERMES_HOME:-}" ]]; then
-    warn "HERMES_HOME is set, so its systemd unit name is not known here; remove the hermes-gateway-* user unit yourself."
-    return 0
+  unit="$(hermes_gateway_unit)" || return 0
+  name="$(basename "$unit" .service)"
+  if command_exists systemctl; then
+    systemctl --user disable --now "$name" >/dev/null 2>&1 || true
   fi
-  unit="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/hermes-gateway.service"
-  if [[ -f "$unit" && ! -L "$unit" ]] && grep -Eq '^ExecStart=.*gateway' "$unit"; then
-    if command_exists systemctl; then
-      systemctl --user disable --now hermes-gateway >/dev/null 2>&1 || true
-    fi
-    rm -f -- "$unit"
-    if command_exists systemctl; then
-      systemctl --user daemon-reload >/dev/null 2>&1 || true
-    fi
-    info "Removed the Hermes gateway systemd user unit."
+  rm -f -- "$unit"
+  if command_exists systemctl; then
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
   fi
+  info "Removed the Hermes gateway systemd user unit."
 }
 
 # Removes Hermes's own command links and, unless KEEP_AGENT_DATA=1, its
