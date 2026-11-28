@@ -92,7 +92,7 @@ def main():
     """
     Main function to parse arguments and run the appropriate application performance profiling.
     
-    This function serves as the entry point for the GenAI applications profiling tool.
+    This function serves as the entry point for the GenAI Applications Profiler.
     It parses command-line arguments, validates inputs, and dispatches to the
     appropriate performance profiling module based on the selected application.
     
