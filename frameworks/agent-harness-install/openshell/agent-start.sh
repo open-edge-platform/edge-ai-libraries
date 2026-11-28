@@ -119,7 +119,25 @@ JS
     # OpenShell sets HOME independently; Hermes must still find its image-installed environment.
     export HERMES_HOME="${HERMES_HOME:-/home/node/.hermes}"
     configure_hermes_config "$HERMES_HOME"
-    # Hermes is launched interactively by the connect command; no messaging service is enabled.
+    # './install.sh hermes-api enable' stages the API server settings in .env; serve them through the gateway.
+    hermes_api_script="${HARNESS_HERMES_API_SCRIPT:-/opt/harness/hermes-api-config.mjs}"
+    hermes_api_state=1
+    if [[ -f "$hermes_api_script" ]]; then
+      hermes_api_state=0
+      node "$hermes_api_script" enabled || hermes_api_state=$?
+    fi
+    case "$hermes_api_state" in
+      0)
+        # Supervised so 'hermes gateway stop' (used by 'observability') restarts the gateway instead of ending the sandbox.
+        while true; do
+          hermes gateway run || true
+          sleep 3
+        done
+        ;;
+      1) ;;
+      *) echo "Warning: the Hermes API server settings are invalid; the gateway is not started." >&2 ;;
+    esac
+    # Otherwise Hermes is launched interactively by the connect command; no messaging service is enabled.
     exec sleep infinity
     ;;
   deepagents-code)

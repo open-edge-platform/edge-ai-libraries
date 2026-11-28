@@ -167,6 +167,55 @@ auto-detection and returns tool calls as plain text. Passing `--tool_parser`
 through `HARNESS_OVMS_EXTRA_ARGS` is rejected: OVMS does not accept it when
 started from `--config_path`, and the container would crash-loop.
 
+## Hermes API server
+
+Hermes can serve an OpenAI-compatible API for editors and other clients. The
+server runs inside the Hermes gateway, listens on `127.0.0.1` only, and requires a
+generated API key.
+
+| Command | Purpose |
+| --- | --- |
+| `./install.sh hermes-api enable [--api-port <port>]` | Turn the server on (default port `8642`). |
+| `./install.sh hermes-api status` | Show the settings and check that the server answers. |
+| `./install.sh hermes-api key` | Print the API key. |
+| `./install.sh hermes-api disable` | Turn the server off. |
+| `./install.sh hermes-api forward --runtime openshell [--forward-port <port>]` | Forward the sandbox server to the host (default `127.0.0.1:18642`) until Ctrl-C. |
+
+Add `--runtime openshell` to any command to act on the sandbox instead of the host.
+
+### Host
+
+`enable` writes the `API_SERVER_*` settings to `~/.hermes/.env` (mode `0600`)
+between installer markers, installs the Hermes gateway as a systemd user service
+if it is missing, restarts it, and waits until an authenticated `/v1/models`
+request succeeds. Running it again keeps the existing key. It stops without
+changes if `API_SERVER_*` settings already exist outside the installer block.
+
+A user service stops when you log out. To keep it running, run
+`sudo loginctl enable-linger "$USER"`; the installer never runs `sudo`.
+
+### OpenShell sandbox
+
+`enable` writes the same settings inside the sandbox and restarts it. The
+sandbox's startup script then runs the gateway only while the server is enabled.
+Sessions open in the sandbox end during the restart. Sandboxes created before this
+feature must be recreated with `./install.sh --runtime openshell --harness hermes`
+(back up any data you need first).
+
+### Connect a client
+
+| Setting | Value |
+| --- | --- |
+| Base URL | `http://127.0.0.1:<port>/v1` |
+| Model | `hermes-agent` |
+| API key | Output of `./install.sh hermes-api key` |
+
+`GET /health` needs no key. The API gives full Hermes tool access, so it is never
+bound to a LAN interface. For another machine, use an SSH tunnel.
+
+`disable` removes the settings and restarts the gateway (host) or the sandbox, and
+leaves the systemd service installed.
+
 ## Observability
 
 `observability` turns telemetry on or off for the Inference Router and the

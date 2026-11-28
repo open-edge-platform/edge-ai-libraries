@@ -38,6 +38,7 @@ USER root
 COPY openshell/agent-start.sh /usr/local/bin/harness-agent-start
 COPY openshell/model-config.mjs /opt/harness/model-config.mjs
 COPY openshell/observability-config.mjs /opt/harness/observability-config.mjs
+COPY scripts/lib/hermes-api-config.mjs /opt/harness/hermes-api-config.mjs
 RUN chmod 755 /usr/local/bin/harness-agent-start
 USER node
 RUN if [ "$HARNESS_AGENT" = hermes ]; then HERMES_HOME=/home/node/.hermes node /opt/harness/observability-config.mjs hermes-disable no-restart; fi

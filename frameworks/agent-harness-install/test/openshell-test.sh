@@ -720,6 +720,17 @@ run_case 'Docker build context ships the sandbox telemetry helper and the OpenCl
   grep -Fxq "COPY openshell/observability-config.mjs /opt/harness/observability-config.mjs" "$1/openshell/Dockerfile"
   grep -Fq "diagnostics-otel@" "$1/openshell/Dockerfile"
 ' _ "$SCRIPT_DIR"
+run_case 'Docker build context ships the Hermes API server helper and the sandbox starts the gateway only when it is enabled' bash -c '
+  grep -Fxq "!scripts/lib/hermes-api-config.mjs" "$1/.dockerignore"
+  grep -Fxq "COPY scripts/lib/hermes-api-config.mjs /opt/harness/hermes-api-config.mjs" "$1/openshell/Dockerfile"
+  grep -Fq "hermes gateway run" "$1/openshell/agent-start.sh"
+' _ "$SCRIPT_DIR"
+run_case 'Hermes API server helper regression suite' node --test "$SCRIPT_DIR/test/hermes-api-config-test.mjs"
+run_case 'uninstall stops the Hermes API gateway and removes only its own default systemd unit' bash "$SCRIPT_DIR/test/hermes-api-uninstall-test.sh"
+run_case 'hermes-api is documented in the installer help' bash -c '
+  bash "$1/install.sh" --help | grep -q -- --api-port
+  bash "$1/install.sh" --help | grep -q "hermes-api <enable"
+' _ "$SCRIPT_DIR"
 run_case 'Dcode provider policy allows its pinned Python and avoids nested interpreter' bash -c '
   grep -Fq "/home/node/.local/share/uv/python/cpython-*/bin/python*" "$1/scripts/lib/openshell.sh"
   grep -Fq "HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1" "$1/scripts/lib/openshell.sh"

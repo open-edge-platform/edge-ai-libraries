@@ -41,6 +41,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 . "${SCRIPT_DIR}/scripts/lib/metrics.sh"
 # shellcheck source=lib/openshell.sh
 . "${SCRIPT_DIR}/scripts/lib/openshell.sh"
+# shellcheck source=lib/hermes-api.sh
+. "${SCRIPT_DIR}/scripts/lib/hermes-api.sh"
 
 TOTAL_STEPS=3
 NON_INTERACTIVE="${NON_INTERACTIVE:-}"
@@ -57,6 +59,7 @@ usage() {
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
     ./install.sh observability <enable|disable|show> [options]  Manage telemetry for the harness and the Inference Router
+    ./install.sh hermes-api <enable|disable|status|key|forward> [options]  Manage Hermes's OpenAI-compatible API server (gateway)
     ./install.sh status                          Show agent-harness-install/OVMS/agent health
     ./install.sh onboard                         Re-run onboarding only
     ./install.sh inference --model <model>        Provision shared inference without installing an agent
@@ -101,8 +104,17 @@ usage() {
     (--runtime openshell) supports OpenClaw and Hermes and --endpoint (a collector the sandbox can reach by hostname or IPv4;
     not loopback; https unless it is host.openshell.internal). Sandbox egress is limited to POST on the traces path.
 
+  Hermes API server options (./install.sh hermes-api ...; add --runtime openshell for the sandbox):
+    --api-port <port>                  enable only; API server port (default: 8642, or the port already configured)
+    --forward-port <port>              forward only; local port on 127.0.0.1 (default: 18642)
+    enable writes a generated key and 127.0.0.1-only settings to Hermes's .env and (re)starts the gateway (host: systemd
+    user service via 'hermes gateway install'; sandbox: the sandbox is restarted and supervises the gateway). status shows
+    the state, key prints the API key, forward exposes the sandbox API server on the host until Ctrl-C.
+    A sandbox built before this option existed must be recreated.
+
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
+    HARNESS_HERMES_API_PORT, HARNESS_HERMES_API_LOCAL_PORT  Same as --api-port / --forward-port
     HARNESS_RUNTIME             host (default) | openshell
     HARNESS_OPENSHELL_GATEWAY   OpenShell gateway name (default: openshell); profile records it
     HERMES_INSTALL_URL            Custom Hermes installer URL (default: scripts/install.sh at a pinned hermes-agent commit, checksum built in)
@@ -499,6 +511,12 @@ main() {
       --model-device)
         [[ -n "${2:-}" ]] || { usage; error "--model-device requires a value (CPU, GPU, NPU or HETERO:…)."; }
         HARNESS_MODEL_DEVICE="$2"; HARNESS_MODEL_OPTS_GIVEN+=" device"; shift ;;
+      --api-port)
+        [[ -n "${2:-}" ]] || { usage; error "--api-port requires a port number."; }
+        HARNESS_HERMES_API_PORT="$2"; shift ;;
+      --forward-port)
+        [[ -n "${2:-}" ]] || { usage; error "--forward-port requires a port number."; }
+        HARNESS_HERMES_API_LOCAL_PORT="$2"; shift ;;
       --agent) usage; error "--agent was renamed to --harness." ;;
       --hf-model) usage; error "--hf-model was renamed to --model." ;;
       --help | -h) usage; exit 0 ;;
@@ -533,6 +551,11 @@ main() {
       else
         with_deployment_lock run_installer_command "${positional[@]}"
       fi ;;
+    # Read-only verbs must not wait on the lock; forward runs until Ctrl-C and must never hold it.
+    hermes-api) case "${positional[1]:-}" in
+        status | key | forward) run_installer_command "${positional[@]}" ;;
+        *) with_deployment_lock run_installer_command "${positional[@]}" ;;
+      esac ;;
     *) with_deployment_lock run_installer_command "${positional[@]}" ;;
   esac
 }
@@ -543,6 +566,10 @@ run_installer_command() {
   # and the harness check reports why a sandbox cannot be instrumented.
   if [[ "${positional[0]:-}" == "observability" ]]; then
     run_metrics_command "${positional[@]:1}"
+    exit 0
+  fi
+  if [[ "${positional[0]:-}" == "hermes-api" ]]; then
+    run_hermes_api_command "${positional[@]:1}"
     exit 0
   fi
   if [[ "${HARNESS_RUNTIME:-host}" == "openshell" ]]; then

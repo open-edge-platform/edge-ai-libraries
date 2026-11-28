@@ -473,12 +473,40 @@ from \$HOME and its parents) -- remove it manually if intended."
   fi
 }
 
+# Stops the gateway that 'hermes-api enable' started and drops its default systemd user unit,
+# so nothing keeps restarting a removed Hermes. Acts only when the installer's API block exists.
+remove_hermes_api_gateway() {
+  local hermes_home="${HERMES_HOME:-$HOME/.hermes}" unit
+  grep -Fxq '# BEGIN agent-harness-install hermes-api -- do not edit between markers' "${hermes_home}/.env" 2>/dev/null \
+    || return 0
+  if command_exists hermes && ! hermes gateway stop >/dev/null 2>&1; then
+    warn "Could not stop the Hermes gateway; stop it yourself with 'hermes gateway stop'."
+  fi
+  [[ -z "${KEEP_AGENT_DATA:-}" ]] || return 0
+  if [[ -n "${HERMES_HOME:-}" ]]; then
+    warn "HERMES_HOME is set, so its systemd unit name is not known here; remove the hermes-gateway-* user unit yourself."
+    return 0
+  fi
+  unit="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/hermes-gateway.service"
+  if [[ -f "$unit" && ! -L "$unit" ]] && grep -Eq '^ExecStart=.*gateway' "$unit"; then
+    if command_exists systemctl; then
+      systemctl --user disable --now hermes-gateway >/dev/null 2>&1 || true
+    fi
+    rm -f -- "$unit"
+    if command_exists systemctl; then
+      systemctl --user daemon-reload >/dev/null 2>&1 || true
+    fi
+    info "Removed the Hermes gateway systemd user unit."
+  fi
+}
+
 # Removes Hermes's own command links and, unless KEEP_AGENT_DATA=1, its
 # entire data directory (config, sessions, memories, skills) — matching the
 # default behavior of Hermes-based reference projects' own uninstallers,
 # which also wipe this dir unless told to keep it.
 remove_hermes_package() {
   local link_dir="${HARNESS_SHIM_DIR}" bin hermes_home
+  remove_hermes_api_gateway
   for bin in hermes hermes-agent hermes-acp; do
     if [[ -f "${link_dir}/${bin}" && ! -L "${link_dir}/${bin}" ]]; then
       rm -f -- "${link_dir}/${bin}"
