@@ -478,7 +478,9 @@ openshell_context_and_hash_guard() {
   grep -Fq '"defaults": "none"' "$ctx/manifest.json" || grep -Fq '"defaults":"none"' "$ctx/manifest.json"
   [[ -f "$ctx/nn/skills/nn-one/SKILL.md" ]]
   skills_openshell_clean_context
-  [[ ! -e "$ctx" ]]
+  # Cleaning restores the tracked empty manifest so a plain `docker build` still finds the directory.
+  grep -Fq '"packs":[]' "$ctx/manifest.json"
+  [[ ! -e "$ctx/nn" ]]
   skills_openshell_stage_context openclaw
   grep -Fq '"packs":[]' "$ctx/manifest.json"
   skills_openshell_clean_context
@@ -531,7 +533,8 @@ openshell_install_bakes_packs() {
   }
   install_openshell_agent
   grep -Fq 'HARNESS_SKILLS_DEFAULTS=none' "$ACTIONS"
-  [[ ! -e "$(skills_openshell_context_dir)" ]]
+  [[ ! -e "$(skills_openshell_context_dir)/nn" ]]
+  grep -Fq '"packs":[]' "$(skills_openshell_context_dir)/manifest.json"
   skills_openshell_prepare
   [[ -n "$SKILLS_OPENSHELL_HASH" && "$(skills_openshell_recorded_hash)" == "$SKILLS_OPENSHELL_HASH" ]]
   # An existing owned sandbox is kept while the pack set is unchanged.
@@ -540,6 +543,119 @@ openshell_install_bakes_packs() {
   make_pack "$HOME/src2" oo keep oo-one
   SKILL_PACK_SPECS+=("oo=$(native_path "$HOME/src2")")
   expect_failure 'changed since sandbox' install_openshell_agent
+}
+
+# A failed sandbox create must leave the hash of the baked image, so a retry is judged against it.
+openshell_hash_is_recorded_before_sandbox_create() {
+  fixture
+  make_pack "$HOME/src" nn none nn-one
+  HARNESS_RUNTIME=openshell
+  HARNESS_LLM_MODEL=test-model
+  SKILL_PACK_SPECS=("nn=$(native_path "$HOME/src")")
+  ensure_openshell_cli() { :; }
+  openshell_validate_shared_inference() { :; }
+  metrics_check_plugin_source() { :; }
+  metrics_hermes_otel_ref() { printf 'ref\n'; }
+  uname() { printf 'Linux\n'; }
+  openshell_resource_exists() { return 1; }
+  openshell_assert_owned() { :; }
+  docker() { return 0; }
+  openshell() { [[ "$1 $2" != 'sandbox create' ]]; }
+  expect_failure 'Sandbox creation failed' install_openshell_agent
+  skills_openshell_prepare
+  [[ -n "$SKILLS_OPENSHELL_HASH" && "$(skills_openshell_recorded_hash)" == "$SKILLS_OPENSHELL_HASH" ]]
+}
+
+# --add takes every directory in one option; repeating it keeps only the last one.
+merge_config_takes_all_dirs_in_one_option() {
+  fixture
+  local py
+  py="$(native_path "$SCRIPT_DIR/scripts/lib")/skill-packs.py"
+  mkdir -p "$HOME/d1" "$HOME/d2"
+  python3 "$py" merge-config --config "$(native_path "$HERMES_HOME")/config.yaml" --no-backup \
+    --add "$(native_path "$HOME/d1")" "$(native_path "$HOME/d2")" >/dev/null
+  config_lists '/d1$'
+  config_lists '/d2$'
+}
+
+restore_defaults_refuses_pack_clashes() {
+  fixture
+  seed_hermes_skills
+  make_pack "$HOME/src" nn none nn-one
+  skills_cmd_add nn "$(native_path "$HOME/src")" >/dev/null 2>&1
+  [[ ! -e "$HERMES_HOME/skills/cat/alpha" ]]
+  # A later pack takes the name of a retired bundled skill.
+  make_pack "$HOME/src2" mm keep alpha
+  skills_cmd_add mm "$(native_path "$HOME/src2")" >/dev/null 2>&1
+  expect_failure "skill 'alpha' is provided by skill pack 'mm'" skills_cmd_restore_defaults
+  # Nothing was restored or recorded, and the opt-out stays in place.
+  [[ ! -e "$HERMES_HOME/skills/cat/alpha" && ! -e "$HERMES_HOME/skills/cat/beta" && -f "$HERMES_HOME/.no-bundled-skills" ]]
+  skills_cmd_remove mm >/dev/null 2>&1
+  skills_cmd_restore_defaults >/dev/null 2>&1
+  [[ -f "$HERMES_HOME/skills/cat/alpha/SKILL.md" && -f "$HERMES_HOME/skills/cat/beta/SKILL.md" ]]
+}
+
+unchanged_pack_shortcut_verifies_content() {
+  fixture
+  make_pack "$HOME/src" vss keep vss-one
+  tar -czf "$HOME/vss.tar.gz" -C "$HOME/src" .
+  local sha file
+  sha="$(sha256_of "$HOME/vss.tar.gz")"
+  skills_cmd_add vss "$HOME/vss.tar.gz" --sha256 "$sha" >/dev/null 2>&1
+  file="$(skills_root)/vss/skills/vss-one/SKILL.md"
+  chmod u+w "$file"
+  printf 'tamper\n' >>"$file"
+  skills_cmd_add vss "$HOME/vss.tar.gz" --sha256 "$sha" >"$HOME/readd.out" 2>&1
+  grep -Fq 'reinstalling' "$HOME/readd.out"
+  ! grep -Fq tamper "$file"
+  skills_cmd_verify
+}
+
+requested_packs_are_checked_together_before_any_change() {
+  fixture
+  seed_hermes_skills
+  make_pack "$HOME/src-a" aa none shared-skill
+  make_pack "$HOME/src-b" bb keep shared-skill
+  SKILL_PACK_SPECS=("aa=$(native_path "$HOME/src-a")" "bb=$(native_path "$HOME/src-b")")
+  expect_failure 'requested in the same install' skills_pre_agent_install
+  [[ ! -e "$HERMES_HOME/.no-bundled-skills" && -d "$HERMES_HOME/skills/cat/alpha" ]]
+  # A local-skill clash in a later pack also aborts before the opt-out marker is created.
+  make_pack "$HOME/src-c" cc keep own-skill
+  SKILL_PACK_SPECS=("aa=$(native_path "$HOME/src-a")" "cc=$(native_path "$HOME/src-c")")
+  expect_failure 'already exists locally' skills_pre_agent_install
+  [[ ! -e "$HERMES_HOME/.no-bundled-skills" && ! -e "$(skills_root)/aa" ]]
+}
+
+openshell_skills_verbs_default_to_hermes() {
+  fixture
+  HARNESS_RUNTIME=openshell
+  unset HARNESS_AGENT
+  run_skills_command list >"$HOME/out" 2>&1
+  [[ "$HARNESS_AGENT" == hermes ]]
+  grep -Fq 'No OpenShell sandbox' "$HOME/out"
+}
+
+uninstall_keeps_skill_state_with_agent_data() {
+  fixture
+  make_pack "$HOME/src" nn keep nn-one
+  skills_cmd_add nn "$(native_path "$HOME/src")" >/dev/null 2>&1
+  mkdir -p "$(harness_state_root)/hermes-skills-backup" "$(harness_state_root)/other"
+  (
+    . "$SCRIPT_DIR/uninstall.sh"
+    KEEP_AGENT_DATA=1
+    DELETE_MODELS=1
+    remove_state_dir
+  ) >/dev/null 2>&1
+  [[ -d "$(skills_root)/nn/skills/nn-one" && -f "$(skills_registry)" && -d "$(harness_state_root)/hermes-skills-backup" ]]
+  [[ ! -e "$(harness_state_root)/other" ]]
+  skills_cmd_verify
+  (
+    . "$SCRIPT_DIR/uninstall.sh"
+    KEEP_AGENT_DATA=
+    DELETE_MODELS=1
+    remove_state_dir
+  ) >/dev/null 2>&1
+  [[ ! -e "$(harness_state_root)" ]]
 }
 
 run_case 'two packs coexist and removing one leaves the other' two_packs_coexist
@@ -570,4 +686,11 @@ run_case 'OpenShell rejects mutating skills verbs' openshell_rejects_mutating_ve
 run_case 'OpenShell build context and pack-set hash guard' openshell_context_and_hash_guard
 run_case 'OpenShell packs never touch the host Hermes' openshell_packs_do_not_touch_host_hermes
 run_case 'OpenShell Hermes install bakes packs and records the hash' openshell_install_bakes_packs
+run_case 'OpenShell records the pack-set hash before the sandbox is created' openshell_hash_is_recorded_before_sandbox_create
+run_case 'merge-config registers every directory passed to one --add' merge_config_takes_all_dirs_in_one_option
+run_case 'restore-defaults refuses names that registered packs now provide' restore_defaults_refuses_pack_clashes
+run_case 're-adding an unchanged URL/archive pack still verifies its content' unchanged_pack_shortcut_verifies_content
+run_case 'all requested packs are checked together before any host change' requested_packs_are_checked_together_before_any_change
+run_case 'OpenShell skills verbs default to the Hermes profile' openshell_skills_verbs_default_to_hermes
+run_case 'uninstall --keep-agent-data keeps the skill pack state' uninstall_keeps_skill_state_with_agent_data
 finish_tests

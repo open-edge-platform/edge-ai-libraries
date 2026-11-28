@@ -44,7 +44,7 @@ counts must not be added to the outer count as independent top-level results.
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
 | Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 63 |
-| Hermes skill packs (formats, safe extraction, collisions, default-skill retirement, drop-ins, OpenShell install and hash guard) | `bash test/skill-packs-test.sh` | 28; `SKILL_TEST_FILTER=<text>` runs matching cases |
+| Hermes skill packs (formats, safe extraction, collisions, default-skill retirement, drop-ins, OpenShell install and hash guard) | `bash test/skill-packs-test.sh` | 35; `SKILL_TEST_FILTER=<text>` runs matching cases |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently

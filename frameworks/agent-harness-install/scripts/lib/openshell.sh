@@ -655,6 +655,9 @@ JS
     openshell provider create --name "$name" --type "$name" -g "$gateway"
   fi
   policy="$(openshell_policy_path "$agent")"
+  # Record the pack set the image was built with before the sandbox exists, so a retry after a
+  # failed or interrupted create is judged against what was actually baked.
+  skills_openshell_record_hash "$skills_hash"
   openshell sandbox create --name "$name" --from "$image" --provider "$name" \
     --policy "$policy" \
     --label "agent-harness.owner=$owner" --label "agent-harness.agent=$agent" \
@@ -662,7 +665,6 @@ JS
     --detach -g "$gateway" -- /usr/local/bin/harness-agent-start \
     || error "Sandbox creation failed. Profile retained at ${dir}; inspect it before retrying."
   openshell_assert_owned
-  skills_openshell_record_hash "$skills_hash"
   ok "$(agent_display_name "$agent") provisioned in OpenShell sandbox ${name}."
 }
 

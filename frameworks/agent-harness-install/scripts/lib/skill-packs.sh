@@ -189,7 +189,8 @@ skills_pack_unchanged() {
   [[ "$(skills_py registry-get --registry "$registry" --field "packs.${id}.source.ref")" == "$ref" ]] || return 1
   local dir
   dir="$(skills_py registry-get --registry "$registry" --field "packs.${id}.dir")"
-  [[ -n "$dir" && -d "$dir" ]]
+  [[ -n "$dir" && -d "$dir" ]] || return 1
+  skills_py verify --registry "$registry" --id "$id" >/dev/null 2>&1
 }
 
 # skills_stage_pack id type ref sha -> SKILLS_STAGED_{DIR,META}
@@ -284,13 +285,15 @@ skills_retire_defaults() {
 # Bundled skills that are about to be retired do not count as clashes.
 skills_precheck_names() {
   local meta="$1" effective="${2:-keep}" local_dir="" retiring=""
+  local -a also=("${@:3}")
   skills_host_apply && local_dir="$(hermes_skills_dir)"
   [[ -z "$local_dir" || -d "$local_dir" ]] || local_dir=""
   if [[ -n "$local_dir" && "$effective" == none ]]; then
     retiring="$(skills_retire_defaults --dry-run)"
   fi
   skills_py collisions --registry "$(skills_registry)" --meta "$meta" \
-    ${local_dir:+--local-skills-dir "$local_dir"} ${retiring:+--retiring-json "$retiring"}
+    ${local_dir:+--local-skills-dir "$local_dir"} ${retiring:+--retiring-json "$retiring"} \
+    ${also[@]+--also-meta "${also[@]}"}
 }
 
 # Applies a `none` policy to an existing Hermes install (marker + retirement).
@@ -508,6 +511,8 @@ run_skills_command() {
     return 0
   fi
   if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
+    # Skill packs are Hermes-only; select the Hermes sandbox profile when --harness is omitted.
+    HARNESS_AGENT=hermes
     case "$verb" in
       list | verify) ;;
       add | remove | sync | restore-defaults)
@@ -590,6 +595,16 @@ skills_pre_agent_install() {
   done
   SKILLS_PRE_EXTRA_NONE="$extra"
   effective="$(skills_effective_policy "$extra")"
+  # Reject name clashes (registry, local skills, other requested packs) before the marker or Hermes install changes anything.
+  local -a staged=()
+  for ((i = 0; i < ${#SKILLS_REQ_ID[@]}; i++)); do
+    [[ -z "${SKILLS_REQ_META[$i]:-}" ]] || staged+=("${SKILLS_REQ_META[$i]}")
+  done
+  for ((i = 0; i < ${#SKILLS_REQ_ID[@]}; i++)); do
+    [[ -n "${SKILLS_REQ_META[$i]:-}" ]] || continue
+    skills_precheck_names "${SKILLS_REQ_META[$i]}" "$effective" "${staged[@]}" \
+      || error "Skill pack '${SKILLS_REQ_ID[$i]}' was not installed."
+  done
   if [[ "$effective" == none ]]; then
     skills_ensure_marker
   fi
@@ -629,7 +644,9 @@ skills_openshell_prepare() {
     skills_add_pack "$SKILLS_SPEC_ID" "$SKILLS_SRC_TYPE" "$SKILLS_SRC_REF" "$SKILLS_SRC_SHA" flag
   done
   skills_process_dropins
+  # shellcheck disable=SC2034  # consumed by scripts/lib/openshell.sh
   SKILLS_OPENSHELL_HASH="$(skills_py pack-set-hash --registry "$registry" --runtime openshell --override "$override")"
+  # shellcheck disable=SC2034
   SKILLS_OPENSHELL_DEFAULTS="$(skills_py policy --registry "$registry" --runtime openshell --override "$override")"
 }
 
@@ -679,6 +696,15 @@ skills_openshell_report() {
   fi
 }
 
+# The directory ships with an empty manifest.json (tracked in git) so that
+# `docker build` of openshell/Dockerfile works without any staged packs.
+skills_openshell_write_empty_context() {
+  local dir="$1"
+  rm -rf -- "$dir"
+  mkdir -p "$dir"
+  printf '{"schema":1,"defaults":"keep","packs":[]}\n' >"${dir}/manifest.json"
+}
+
 # skills_openshell_stage_context agent — fills the docker build context
 # (always creates manifest.json so the directory exists for COPY).
 skills_openshell_stage_context() {
@@ -689,9 +715,7 @@ skills_openshell_stage_context() {
       --override "${HARNESS_HERMES_DEFAULT_SKILLS:-auto}" >/dev/null \
       || error "Could not stage skill packs for the sandbox image."
   else
-    rm -rf -- "$dir"
-    mkdir -p "$dir"
-    printf '{"schema":1,"defaults":"keep","packs":[]}\n' >"${dir}/manifest.json"
+    skills_openshell_write_empty_context "$dir"
   fi
 }
 
@@ -699,5 +723,5 @@ skills_openshell_clean_context() {
   local dir
   dir="$(skills_openshell_context_dir)"
   [[ -d "$dir" && ! -L "$dir" ]] || return 0
-  rm -rf -- "$dir"
+  skills_openshell_write_empty_context "$dir"
 }

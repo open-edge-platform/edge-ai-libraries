@@ -856,6 +856,12 @@ def cmd_collisions(args: argparse.Namespace) -> int:
             continue
         for name in sorted(mine & set(entry.get("names", []))):
             problems.append(f"skill {name!r} is also provided by skill pack {pid!r}")
+    for other_path in args.also_meta:
+        other = load_meta(other_path)
+        if other["id"] == meta["id"]:
+            continue
+        for name in sorted(mine & set(other.get("names", []))):
+            problems.append(f"skill {name!r} is also provided by skill pack {other['id']!r} requested in the same install")
     if args.local_skills_dir:
         local = local_skill_names(Path(args.local_skills_dir))
         retiring: Set[str] = set()
@@ -1176,6 +1182,31 @@ def cmd_restore_defaults(args: argparse.Namespace) -> int:
     defaults = reg["defaults"]
     skills_dir = Path(args.skills_dir)
     restored = 0
+    # Checked before anything is copied: a restored skill must not reuse a registered pack's skill name.
+    registered: Dict[str, str] = {}
+    for pid, entry in reg["packs"].items():
+        if eligible(entry, "host"):
+            for name in entry.get("names", []):
+                registered.setdefault(name, pid)
+    conflicts: List[str] = []
+    for item in defaults.get("backups", []):
+        backup = Path(item.get("dir", "")) / "skills"
+        for rel in item.get("moved", []):
+            if ".." in PurePosixPath(rel).parts or PurePosixPath(rel).is_absolute():
+                continue
+            src = backup / rel
+            if (skills_dir / rel).exists() or not src.is_dir():
+                continue
+            fm = read_frontmatter_name(src / "SKILL.md")
+            for name in sorted({src.name, fm or src.name}):
+                if name in registered:
+                    conflicts.append(f"skill {name!r} is provided by skill pack {registered[name]!r}")
+    if conflicts:
+        raise PackError(
+            "cannot restore Hermes's default skills; they clash with registered skill packs:\n    "
+            + "\n    ".join(sorted(set(conflicts)))
+            + "\n  Remove the conflicting pack (./install.sh skills remove <id>) and run restore-defaults again."
+        )
     for item in defaults.get("backups", []):
         backup = Path(item.get("dir", "")) / "skills"
         for rel in item.get("moved", []):
@@ -1419,6 +1450,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--meta", required=True)
     p.add_argument("--local-skills-dir", default="")
     p.add_argument("--retiring-json", default="")
+    p.add_argument("--also-meta", nargs="*", default=[])
 
     p = add("registry-add", cmd_registry_add)
     p.add_argument("--registry", required=True)

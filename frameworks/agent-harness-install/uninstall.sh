@@ -113,26 +113,32 @@ assert_models_dir_safe() {
 # Clears the state directory's own files/locks, but keeps the models dir (and
 # any entry that contains it) unless --delete-models already removed it.
 remove_state_dir() {
-  local state_root models_dir entry
+  local state_root models_dir entry kept_skills=""
   state_root="$(harness_state_root)"
   [[ -d "$state_root" ]] || return 0
   assert_state_path_safe "$state_root"
   models_dir="$HARNESS_MODELS_DIR"
-  # Installed skill packs are read-only; make them removable.
-  if [[ -d "$state_root/skill-packs" && ! -L "$state_root/skill-packs" ]]; then
+  # Installed skill packs are read-only; make them removable unless they are kept.
+  if [[ -z "$KEEP_AGENT_DATA" && -d "$state_root/skill-packs" && ! -L "$state_root/skill-packs" ]]; then
     chmod -R u+w -- "$state_root/skill-packs" 2>/dev/null || true
   fi
   for entry in "$state_root"/* "$state_root"/.[!.]*; do
     [[ -e "$entry" ]] || continue
+    # The kept Hermes config references the packs, and restore-defaults needs the registry and backup.
+    if [[ -n "$KEEP_AGENT_DATA" && ( "${entry##*/}" == skill-packs || "${entry##*/}" == hermes-skills-backup ) ]]; then
+      kept_skills=1
+      continue
+    fi
     if [[ -z "$DELETE_MODELS" ]]; then
       [[ "$entry" == "$models_dir" || "$models_dir" == "$entry"/* ]] && continue
     fi
     rm -rf -- "$entry"
   done
-  if [[ -n "$DELETE_MODELS" ]]; then
-    rmdir "$state_root" || error "Could not remove installer state; inspect remaining entries."
-  else
+  [[ -z "$kept_skills" ]] || info "Retained the skill pack state next to the kept Hermes data (--keep-agent-data)."
+  if [[ -z "$DELETE_MODELS" ]]; then
     info "Retained model downloads and their parent state directory (--keep-models)."
+  elif [[ -z "$kept_skills" ]]; then
+    rmdir "$state_root" || error "Could not remove installer state; inspect remaining entries."
   fi
 }
 

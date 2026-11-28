@@ -36,7 +36,7 @@ const runtime = JSON.parse(execFileSync(hermesBin, ["--print-runtime-command"], 
 if (!Array.isArray(runtime) || typeof runtime[0] !== "string" || !path.isAbsolute(runtime[0]))
   throw Error("Invalid Hermes Python runtime command");
 
-const addArgs = dirs.flatMap(dir => ["--add", dir]);
+const addArgs = ["--add", ...dirs];
 const output = execFileSync(runtime[0], ["-I", helper, "merge-config", "--config", path.join(hermesHome, "config.yaml"),
   "--create", "--no-backup", ...addArgs], {...runtimeOptions, env: {...runtimeOptions.env, HARNESS_HERMES_AGENT_DIR: path.join(hermesHome, "hermes-agent")}});
 console.log(`Skill packs registered: ${manifest.packs.map(pack => pack.id).join(", ")} (${output.trim()})`);
