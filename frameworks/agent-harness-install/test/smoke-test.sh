@@ -486,6 +486,54 @@ phase_03_libunit() {
     lib_eval 'f="$(mktemp)"; printf "model:\n  default: gpt-x\n  base_url: https://api.example.com/v1\n" >"$f"; out="$(HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 Qwen3-ov)"; [[ -z "$out" ]]'
   check "warn_if_hermes_model_mismatch: silent when the served name is the unresolved 'default' fallback" \
     lib_eval 'f="$(mktemp)"; printf "model:\n  default: Qwen3-ov\n  base_url: http://h:8010/v1\n" >"$f"; out="$(HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 default)"; [[ -z "$out" ]]'
+  check_output_contains "hermes_toolset_policy: defaults to the minimal allow-list" "allowed=clarify,todo,memory,session_search,skills" \
+    lib_eval 'hermes_toolset_policy ""'
+  check_output_contains "hermes_toolset_policy: disables every risky toolset outside the allow-list" "disabled=terminal,file,code_execution,browser,web,vision,image_gen,video_gen,tts,delegation,cronjob,computer_use" \
+    lib_eval 'hermes_toolset_policy minimal'
+  check_output_contains "hermes_toolset_policy: a custom list keeps its own toolsets enabled" "disabled=terminal,code_execution,browser,web,vision,image_gen,video_gen,tts,delegation,cronjob,computer_use" \
+    lib_eval 'hermes_toolset_policy "memory, file"'
+  check "hermes_toolset_policy: all and default leave Hermes unrestricted" \
+    lib_eval 'out="$(hermes_toolset_policy all)$(hermes_toolset_policy default)"; [[ -z "$out" ]]'
+  check_fail_output_contains "hermes_toolset_policy: rejects an unknown toolset" "HARNESS_HERMES_TOOLSETS" \
+    lib_eval 'hermes_toolset_policy "memory,bogus"'
+  check_fail "hermes_toolset_policy: rejects an empty list entry" \
+    lib_eval 'hermes_toolset_policy "memory,,todo"'
+  check_fail "hermes_toolset_policy: rejects a trailing comma" \
+    lib_eval 'hermes_toolset_policy "memory,"'
+  # Stub hermes: logs every call; 'config get' prints $STUB_CLI / $STUB_DENY (fails when empty); 'config set' fails when $STUB_FAIL is set.
+  HERMES_STUB="$(mktemp)"
+  cat >"$HERMES_STUB" <<'STUB'
+#!/usr/bin/env bash
+echo "$@" >>"$STUB_LOG"
+if [[ "$1 $2" == "config get" ]]; then
+  case "$3" in
+    platform_toolsets.cli) v="${STUB_CLI-}" ;;
+    agent.disabled_toolsets) v="${STUB_DENY-}" ;;
+    *) v="" ;;
+  esac
+  [[ -n "$v" ]] || exit 1
+  printf '%s\n' "$v"
+  exit 0
+fi
+[[ -z "${STUB_FAIL-}" ]]
+STUB
+  chmod +x "$HERMES_STUB"; export HERMES_STUB
+  check_output_contains "hermes_apply_tool_restrictions: writes the allow-list and deny-list through hermes config set" "agent.disabled_toolsets [terminal," \
+    lib_eval 'export STUB_LOG="$(mktemp)"; hermes_apply_tool_restrictions "$HERMES_STUB" >/dev/null; cat "$STUB_LOG"'
+  check "hermes_apply_tool_restrictions: leaves an existing platform_toolsets.cli alone" \
+    lib_eval 'export STUB_LOG="$(mktemp)" STUB_CLI="- terminal"; hermes_apply_tool_restrictions "$HERMES_STUB" >/dev/null; ! grep -q "config set" "$STUB_LOG"'
+  check "hermes_apply_tool_restrictions: replaces the seeded default platform_toolsets.cli=[hermes-cli]" \
+    lib_eval 'export STUB_LOG="$(mktemp)" STUB_CLI="  - hermes-cli"; hermes_apply_tool_restrictions "$HERMES_STUB" >/dev/null; grep -q "config set platform_toolsets.cli" "$STUB_LOG"'
+  check "hermes_apply_tool_restrictions: treats an unrecognised 'config get' reply as unset" \
+    lib_eval 'export STUB_LOG="$(mktemp)" STUB_CLI="(not set)"; hermes_apply_tool_restrictions "$HERMES_STUB" >/dev/null; grep -q "config set platform_toolsets.cli" "$STUB_LOG"'
+  check "hermes_apply_tool_restrictions: sees a quoted single-line list as user-set" \
+    lib_eval 'export STUB_LOG="$(mktemp)" STUB_CLI="[\"terminal\", \"file\"]"; hermes_apply_tool_restrictions "$HERMES_STUB" >/dev/null; ! grep -q "config set" "$STUB_LOG"'
+  check "hermes_apply_tool_restrictions: keeps an existing agent.disabled_toolsets" \
+    lib_eval 'export STUB_LOG="$(mktemp)" STUB_DENY="[memory]"; hermes_apply_tool_restrictions "$HERMES_STUB" >/dev/null; grep -q "config set platform_toolsets.cli" "$STUB_LOG" && ! grep -q "config set agent.disabled_toolsets" "$STUB_LOG"'
+  check_fail_output_contains "hermes_apply_tool_restrictions: fails when the config write fails" "Could not restrict Hermes tools" \
+    lib_eval 'export STUB_LOG="$(mktemp)" STUB_FAIL=1; hermes_apply_tool_restrictions "$HERMES_STUB"'
+  check "hermes_apply_tool_restrictions: HARNESS_HERMES_TOOLSETS=all writes nothing" \
+    lib_eval 'export STUB_LOG="$(mktemp)"; HARNESS_HERMES_TOOLSETS=all hermes_apply_tool_restrictions "$HERMES_STUB" >/dev/null; [[ ! -s "$STUB_LOG" ]]'
   check_output_contains "announce_served_model_name: explains the dropped org prefix" "exactly 'Qwen3-ov'" \
     lib_eval 'HARNESS_HF_MODEL=OpenVINO/Qwen3-ov HARNESS_LLM_MODEL=Qwen3-ov; announce_served_model_name'
   check "announce_served_model_name: silent when the names already match" \

@@ -54,6 +54,12 @@ For sandbox setup, architecture and lifecycle guidance, see
 - The pinned Hermes installer optionally downloads a computer-use driver. Its
   availability depends on image libraries and upstream installer behavior;
   this integration does not enable or validate desktop/computer-use workflows.
+- Hermes tool restriction (`HARNESS_HERMES_TOOLSETS`) limits which tools the
+  model can call; it does not replace sandbox policies. In OpenShell mode the
+  value is fixed at sandbox creation, so changing it requires recreating the
+  sandbox. On the host, a custom `platform_toolsets.cli` you set is left
+  unchanged, and uninstall does not revert the setting. The restriction applies
+  to the Hermes CLI; MCP servers are not affected.
 - The Inference Router matches the requested model name exactly against the
   served name, and the served name drops the Hugging Face organization
   (`org/name` is served as `name`). A client configured with `org/name` gets

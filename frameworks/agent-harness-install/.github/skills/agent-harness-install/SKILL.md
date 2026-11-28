@@ -105,7 +105,9 @@ Uninstall deletes the downloaded models unless `--keep-models` is passed. For He
 |---|---|---|
 | `openclaw` | `npm install -g openclaw` | Registers a custom `ovms` provider, sets it as the default model, runs a smoke test |
 | `deepagents-code` | Pinned upstream `dcode` installer | Writes a managed `[models.providers.openai]` block in `~/.deepagents/config.toml` and runs a smoke test |
-| `hermes` | Pinned upstream installer | Prints the endpoint only. The user points a provider at it in `~/.hermes/config.yaml`; no smoke test |
+| `hermes` | Pinned upstream installer | Prints the endpoint only. The user points a provider at it in `~/.hermes/config.yaml`; no smoke test. Restricts Hermes to a minimal tool allow-list (`HARNESS_HERMES_TOOLSETS`) |
+
+Hermes tools default to `clarify,todo,memory,session_search,skills` on host and OpenShell. Set `HARNESS_HERMES_TOOLSETS=all` for no restriction, or a comma-separated toolset list to widen it. Ask the user before widening, since it enables shell, file and web tools. An OpenShell sandbox needs recreating to change it.
 
 Third-party installers are fetched over HTTPS and checked against a built-in SHA-256, so no flags are needed. Override URLs only with a matching digest. Avoid the `*_ALLOW_UNVERIFIED_*` opt-outs unless the user explicitly accepts the risk.
 

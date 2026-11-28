@@ -100,11 +100,31 @@ Notes on what it does with Docker:
      If Hermes already points at this endpoint with a different model name
      than the one served, it warns and prints the
      `hermes config set model.default <name>` fix.
+     It also restricts Hermes to a minimal tool allow-list (see
+     [Restrict Hermes tools](#restrict-hermes-tools)).
 
 Published ports (OVMS and the Router) bind to loopback
 (`127.0.0.1`) by default, so nothing is reachable from other machines unless
 you opt in with `HARNESS_ADVERTISED_HOST` (or the prompt that sets it) or
 `HARNESS_BIND_HOST`.
+
+### Restrict Hermes tools
+
+By default, the installer limits Hermes to the `clarify`, `todo`, `memory`,
+`session_search` and `skills` toolsets. Shell, file, code execution, browser,
+web, delegation, scheduling and media tools are disabled. This applies to both
+the host and the OpenShell runtime. Set `HARNESS_HERMES_TOOLSETS` to change it:
+
+| Value | Result |
+|---|---|
+| unset or `minimal` | Default minimal allow-list. |
+| `all` or `default` | No restriction. |
+| Comma-separated list | Only the listed toolsets, for example `clarify,memory,file`. |
+
+A tool selection you already made in Hermes (`platform_toolsets.cli`) is never
+overwritten; Hermes's untouched default is replaced. See
+[Agent Sandboxing](agentic-ai-security/agent-sandboxing.md#restrict-hermes-tools)
+for the full list of toolsets.
 
 ## Usage
 

@@ -594,6 +594,8 @@ _install_openshell_agent() {
     pin_args=(--build-arg "HERMES_PINNED_COMMIT=$HERMES_PINNED_COMMIT" --build-arg "HERMES_PINNED_SHA256=$HERMES_PINNED_SHA256")
   fi
   if [[ "$agent" == hermes ]]; then
+    # Fail before the image build on a bad tool allow-list; the sandbox applies it at every start.
+    hermes_toolset_policy "${HARNESS_HERMES_TOOLSETS:-}" >/dev/null || return 1
     # The default sandbox policy denies registry egress, so its telemetry plugin is installed into the image.
     local otel_ref="${HARNESS_HERMES_OTEL_REF:-}"
     if declare -F metrics_check_plugin_source >/dev/null; then
@@ -617,6 +619,8 @@ _install_openshell_agent() {
   else
     agent_env+=(--env "OPENAI_API_KEY=not-needed")
   fi
+  # Sandbox environments are fixed at creation: changing this later needs a sandbox recreate.
+  [[ "$agent" != hermes ]] || agent_env+=(--env "HARNESS_HERMES_TOOLSETS=${HARNESS_HERMES_TOOLSETS:-minimal}")
   # OpenShell's host-service alias reaches loopback IR without exposing it on a LAN interface.
   # Allow only the agent clients that need to reach the shared inference endpoint.
   provider="$(node - "$name" "$HARNESS_IR_PORT" <<'JS'

@@ -161,6 +161,48 @@ model fallback. Default policies remain subject to the security limitations
 described above; a working inference connection is not a guarantee of tool-use
 correctness.
 
+### Restrict Hermes Tools
+
+Hermes enables a broad tool set by default (shell, file editing, code execution,
+browser, web, sub-agent delegation, scheduled jobs and media tools). To reduce
+what a prompt-injected or misbehaving model can do, the installer restricts
+Hermes to a minimal allow-list in both runtimes (OpenShell sandbox and host
+install):
+
+| `HARNESS_HERMES_TOOLSETS` | Effect |
+| --- | --- |
+| unset or `minimal` (default) | Only `clarify`, `todo`, `memory`, `session_search` and `skills` stay enabled. |
+| `all` or `default` | No restriction; Hermes keeps its own defaults. |
+| comma-separated list | Only the listed toolsets, chosen from `clarify`, `todo`, `memory`, `session_search`, `skills`, `terminal`, `file`, `code_execution`, `browser`, `web`, `vision`, `image_gen`, `video_gen`, `tts`, `delegation`, `cronjob`, `computer_use`. |
+
+For example, to also allow file tools and web search:
+
+```bash
+HARNESS_HERMES_TOOLSETS=clarify,todo,memory,session_search,skills,file,web \
+  ./install.sh --runtime openshell --harness hermes --non-interactive
+```
+
+The installer sets `platform_toolsets.cli` (allow-list) and
+`agent.disabled_toolsets` (deny-list, applied to every Hermes surface) in
+Hermes's `config.yaml`. Hermes's own default (`platform_toolsets.cli: [hermes-cli]`)
+is replaced. A tool selection you made yourself is never overwritten: on the
+host, an existing custom `platform_toolsets.cli` (for example, written by
+`hermes setup`) leaves the whole selection untouched, and an existing
+`agent.disabled_toolsets` is kept; in the sandbox, a `platform_toolsets.cli` you
+edit is kept (the installer then adds no deny-list, which would override it,
+so cron, gateway and API sessions are not restricted by it either),
+and an unedited installer value is removed when you lift the
+restriction. Registered MCP servers are not affected. An unknown toolset name fails the install
+(in OpenShell mode, before the sandbox image is built). If the installer cannot
+write the host restriction, the install fails; set `HARNESS_HERMES_TOOLSETS=all` to opt out.
+
+The value is fixed when a sandbox is created, so changing it for an existing
+sandbox requires recreating it (see
+[Static customization before installation](#static-customization-before-installation)).
+On the host, change it afterwards with `hermes tools` or `hermes config set`.
+Tool restriction narrows the model's capabilities; it does not replace the
+filesystem and network policies.
+
 ### Customize a Sandbox Policy
 
 Start with the least privilege needed by your agent. The installer selects

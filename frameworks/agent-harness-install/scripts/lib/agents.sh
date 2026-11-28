@@ -623,6 +623,83 @@ so its requests will fail with 'Unknown model'. Fix it with:
   hermes config set model.default ${model}"
 }
 
+# Hermes toolsets. Keep in sync with openshell/model-config.mjs.
+HERMES_MINIMAL_TOOLSETS=(clarify todo memory session_search skills)
+HERMES_RESTRICTABLE_TOOLSETS=(terminal file code_execution browser web vision image_gen video_gen tts delegation cronjob computer_use)
+
+# hermes_toolset_policy [SPEC] -- validates a HARNESS_HERMES_TOOLSETS value
+# (minimal | default | all | comma-separated toolset names; empty means minimal).
+# Prints nothing when Hermes stays unrestricted; otherwise prints
+# 'allowed=<csv>' and 'disabled=<csv>' (the risky toolsets that are not allowed).
+hermes_toolset_policy() {
+  local spec="${1:-}" name allowed=() disabled=()
+  spec="$(printf '%s' "${spec//[[:space:]]/}" | tr '[:upper:]' '[:lower:]')"
+  [[ -n "$spec" ]] || spec=minimal
+  case "$spec" in
+    default|all) return 0 ;;
+    minimal) allowed=("${HERMES_MINIMAL_TOOLSETS[@]}") ;;
+    *) IFS=',' read -r -a allowed <<<"$spec"
+       # read -a drops a trailing empty field; keep it so the loop below rejects it like the sandbox does.
+       [[ "$spec" != *, ]] || allowed+=("") ;;
+  esac
+  local known=" ${HERMES_MINIMAL_TOOLSETS[*]} ${HERMES_RESTRICTABLE_TOOLSETS[*]} " unique=()
+  for name in "${allowed[@]}"; do
+    [[ -n "$name" && "$known" == *" $name "* ]] \
+      || error "Invalid HARNESS_HERMES_TOOLSETS '${spec}': expected minimal, default, all, or a comma-separated list of:${known}"
+    [[ " ${unique[*]-} " == *" $name "* ]] || unique+=("$name")
+  done
+  for name in "${HERMES_RESTRICTABLE_TOOLSETS[@]}"; do
+    [[ " ${unique[*]} " == *" $name "* ]] || disabled+=("$name")
+  done
+  printf 'allowed=%s\ndisabled=%s\n' "$(IFS=,; printf '%s' "${unique[*]}")" "$(IFS=,; printf '%s' "${disabled[*]-}")"
+}
+
+# _hermes_config_value CLI KEY -- prints a Hermes list value as comma-separated names; fails when KEY is unset,
+# empty or not a plain name list (e.g. "(not set)"), so an unrecognised reply never counts as a user choice.
+_hermes_config_value() {
+  local value
+  value="$("$1" config get "$2" 2>/dev/null)" || return 1
+  value="$(sed -E 's/^[[:space:]]*-?[[:space:]]*//; s/^\[//; s/\][[:space:]]*$//; /^$/d' <<<"$value" | tr -d "'\"" | tr '\n' ',')"
+  value="${value%,}"
+  case "$value" in ""|None|none|null) return 1 ;; esac
+  [[ "$value" =~ ^[A-Za-z0-9_-]+(,[[:space:]]*[A-Za-z0-9_-]+)*$ ]] || return 1
+  printf '%s\n' "$value"
+}
+
+# hermes_apply_tool_restrictions CLI -- secure-by-default Hermes tool set. Writes
+# platform_toolsets.cli (allow-list) and agent.disabled_toolsets (deny-list) through
+# Hermes's own config writer. A user-set platform_toolsets.cli leaves everything untouched;
+# a user-set agent.disabled_toolsets is kept.
+hermes_apply_tool_restrictions() {
+  local cli_bin="$1" policy allowed disabled current
+  policy="$(hermes_toolset_policy "${HARNESS_HERMES_TOOLSETS:-}")" || return 1
+  if [[ -z "$policy" ]]; then
+    info "Hermes tool restriction is off (HARNESS_HERMES_TOOLSETS=${HARNESS_HERMES_TOOLSETS:-}); all Hermes tools stay enabled."
+    return 0
+  fi
+  command_exists "$cli_bin" || return 0
+  allowed="${policy#allowed=}"; allowed="${allowed%%$'\n'*}"
+  disabled="${policy##*disabled=}"
+  # Hermes seeds platform_toolsets.cli=[hermes-cli] (its default) into config.yaml; that is not a user choice.
+  if current="$(_hermes_config_value "$cli_bin" platform_toolsets.cli)" && [[ "$current" != hermes-cli ]]; then
+    info "Hermes already defines platform_toolsets.cli; leaving your tool selection unchanged."
+    return 0
+  fi
+  if [[ -n "$disabled" ]] && _hermes_config_value "$cli_bin" agent.disabled_toolsets >/dev/null; then
+    info "Hermes already defines agent.disabled_toolsets; keeping it."
+    disabled=""
+  fi
+  # platform_toolsets.cli is written last: it is the "already configured" marker checked above.
+  if { [[ -z "$disabled" ]] || "$cli_bin" config set agent.disabled_toolsets "[${disabled}]" >/dev/null 2>&1; } \
+    && "$cli_bin" config set platform_toolsets.cli "[${allowed}]" >/dev/null 2>&1; then
+    ok "Hermes tools restricted to: ${allowed//,/, } (widen with HARNESS_HERMES_TOOLSETS=all or 'hermes tools')"
+  else
+    error "Could not restrict Hermes tools. Set them manually, or opt out with HARNESS_HERMES_TOOLSETS=all:
+  hermes config set platform_toolsets.cli '[${allowed}]'${disabled:+
+  hermes config set agent.disabled_toolsets '[${disabled}]'}"
+  fi
+}
+
 # run_agent_onboard — wires the installed agent to HARNESS_LLM_ENDPOINT and
 # verifies it runs.
 run_agent_onboard() {
@@ -708,6 +785,7 @@ Behind a proxy, also run it as: env -u http_proxy -u https_proxy -u HTTP_PROXY -
       ;;
     hermes)
       command_exists "$cli_bin" || warn "'${cli_bin}' was not found on PATH after install."
+      hermes_apply_tool_restrictions "$cli_bin"
       info "Hermes is installed. Its own config lives at $(hermes_config_path).
 Point it at ${endpoint} with:
   hermes config set model.provider custom
