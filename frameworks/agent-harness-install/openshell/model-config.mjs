@@ -34,6 +34,7 @@ const qwen = model === "Qwen3.5-9B-int8-ov";
 const defaultsFile = path.join(home, ".harness-local-defaults.json");
 const installedDefaults = [];
 const createdContainers = [];
+let cliSeedHandled = false;
 
 function parentAt(config, keys, create) {
   let parent = config;
@@ -47,6 +48,13 @@ function parentAt(config, keys, create) {
     if (typeof parent !== "object" || parent === null) return;
   }
   return parent;
+}
+
+function seedHandledBefore() {
+  if (!fs.existsSync(defaultsFile)) return false;
+  const saved = JSON.parse(fs.readFileSync(defaultsFile, "utf8"));
+  return saved.agent === agent && (saved.cliSeedHandled === true || (Array.isArray(saved.entries) &&
+    saved.entries.some(entry => JSON.stringify(entry.keys) === JSON.stringify(["platform_toolsets", "cli"]))));
 }
 
 function removePreviousDefaults(config) {
@@ -173,6 +181,7 @@ if (agent === "hermes" && (mode === "apply" || mode === "stage")) {
     "import json; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))", file], runtimeOptions)) : {};
   if (!config || typeof config !== "object" || Array.isArray(config))
     throw Error("Invalid Hermes configuration");
+  const cliSeedWasHandled = seedHandledBefore();
   removePreviousDefaults(config);
   if (!Object.hasOwn(config, "model")) config.model = {};
   if (!config.model || typeof config.model !== "object" || Array.isArray(config.model))
@@ -185,11 +194,18 @@ if (agent === "hermes" && (mode === "apply" || mode === "stage")) {
   // Both are managed defaults: a value the user already set (or later edits) is never overwritten.
   const policy = hermesToolsetPolicy(process.env.HARNESS_HERMES_TOOLSETS);
   if (policy) {
-    // Hermes seeds this default composite into config.yaml; it is not a user choice.
+    cliSeedHandled = true;
+    // Hermes seeds this default composite into config.yaml; it is not a user choice until we have managed the key.
     const cli = config.platform_toolsets?.cli;
-    if (Array.isArray(cli) && cli.length === 1 && cli[0] === "hermes-cli") delete config.platform_toolsets.cli;
+    if (!cliSeedWasHandled && Array.isArray(cli) && cli.length === 1 && cli[0] === "hermes-cli")
+      delete config.platform_toolsets.cli;
+    // The deny-list wins over the allow-list, so it is only ours to set while the CLI list is ours too.
+    const cliIsUserOwned = config.platform_toolsets?.cli !== undefined;
     defaultAt(config, ["platform_toolsets", "cli"], policy.allowed);
-    if (policy.disabled.length) defaultAt(config, ["agent", "disabled_toolsets"], policy.disabled);
+    if (policy.disabled.length && !cliIsUserOwned) defaultAt(config, ["agent", "disabled_toolsets"], policy.disabled);
+    else if (policy.disabled.length)
+      console.error("Hermes platform_toolsets.cli is user-set: not applying the installer's agent.disabled_toolsets, " +
+        "so other surfaces (cron, gateway, API) are not restricted by it.");
   }
   if (qwen) {
     const provider = "harness-ovms-qwen";
@@ -215,11 +231,11 @@ if (mode === "stage") {
   const stageDir = process.env.HARNESS_MODEL_CONFIG_STAGE_DIR;
   if (!stageDir || !path.isAbsolute(stageDir)) throw Error("Invalid model configuration stage directory");
   writeJson(path.join(stageDir, ".harness-local-defaults.json"),
-    {agent, entries: installedDefaults, containers: createdContainers});
+    {agent, entries: installedDefaults, containers: createdContainers, cliSeedHandled});
   writeJson(path.join(stageDir, ".harness-model.pending.json"), {model, endpoint, applied: false});
   writeJson(path.join(stageDir, ".harness-model.json"), {model, endpoint, applied: true});
 } else {
   if (agent === "hermes" && mode === "apply")
-    writeJson(defaultsFile, {agent, entries: installedDefaults, containers: createdContainers});
+    writeJson(defaultsFile, {agent, entries: installedDefaults, containers: createdContainers, cliSeedHandled});
   writeJson(path.join(home, ".harness-model.json"), {model, endpoint, applied: mode === "apply"});
 }

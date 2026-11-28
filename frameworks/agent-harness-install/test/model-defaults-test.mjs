@@ -241,6 +241,35 @@ test("Hermes user tool selection is never overwritten", hermesOptions, t => {
   assert.deepEqual(result.agent.disabled_toolsets, ["web"]);
 });
 
+test("Hermes user CLI selection gets no installer deny-list, even after a restart", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const config = f.read();
+  config.platform_toolsets = {cli: ["terminal"]};
+  f.write(config);
+  const result = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  assert.deepEqual(result.platform_toolsets.cli, ["terminal"]);
+  assert.equal(result.agent?.disabled_toolsets, undefined);
+  const managed = fixture(t, "hermes");
+  const first = managed.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  first.platform_toolsets.cli = [...minimal, "file"];
+  managed.write(first);
+  const restarted = managed.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  assert.deepEqual(restarted.platform_toolsets.cli, [...minimal, "file"]);
+  assert.equal(restarted.agent?.disabled_toolsets, undefined);
+});
+
+test("Hermes keeps platform_toolsets.cli set back to hermes-cli after the installer managed it", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const first = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  first.platform_toolsets.cli = ["hermes-cli"];
+  f.write(first);
+  const restarted = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  assert.deepEqual(restarted.platform_toolsets.cli, ["hermes-cli"]);
+  const again = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  assert.deepEqual(again.platform_toolsets.cli, ["hermes-cli"]);
+  assert.equal(again.agent?.disabled_toolsets, undefined);
+});
+
 test("Hermes's seeded default platform_toolsets.cli is replaced; other platforms are kept", hermesOptions, t => {
   const f = fixture(t, "hermes");
   const config = f.read();
@@ -254,6 +283,6 @@ test("Hermes's seeded default platform_toolsets.cli is replaced; other platforms
 
 test("Hermes rejects unknown or empty tool allow-lists", hermesOptions, t => {
   const f = fixture(t, "hermes");
-  for (const bad of ["bogus", "memory,,todo", "debugging", "../x"])
+  for (const bad of ["bogus", "memory,,todo", "memory,", "debugging", "../x"])
     assert.throws(() => f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: bad}), /HARNESS_HERMES_TOOLSETS/);
 });

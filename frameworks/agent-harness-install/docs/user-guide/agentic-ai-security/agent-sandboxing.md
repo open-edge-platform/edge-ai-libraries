@@ -187,10 +187,14 @@ The installer sets `platform_toolsets.cli` (allow-list) and
 Hermes's `config.yaml`. Hermes's own default (`platform_toolsets.cli: [hermes-cli]`)
 is replaced. A tool selection you made yourself is never overwritten: on the
 host, an existing custom `platform_toolsets.cli` (for example, written by
-`hermes setup`) leaves the whole selection untouched; in the sandbox, a value you
-edit is kept, and an unedited installer value is removed when you lift the
+`hermes setup`) leaves the whole selection untouched, and an existing
+`agent.disabled_toolsets` is kept; in the sandbox, a `platform_toolsets.cli` you
+edit is kept (the installer then adds no deny-list, which would override it,
+so cron, gateway and API sessions are not restricted by it either),
+and an unedited installer value is removed when you lift the
 restriction. Registered MCP servers are not affected. An unknown toolset name fails the install
-(in OpenShell mode, before the sandbox image is built).
+(in OpenShell mode, before the sandbox image is built). If the installer cannot
+write the host restriction, the install fails; set `HARNESS_HERMES_TOOLSETS=all` to opt out.
 
 The value is fixed when a sandbox is created, so changing it for an existing
 sandbox requires recreating it (see
