@@ -13,6 +13,6 @@ apis:
       summary: '12345/manager/summary'
       states: '12345/manager/states'
       telemetry: '9766/v1/telemetry'
-    input_profile: 'video_summary_injection'  # Reference to input profile
+    input_profile: 'video_summary_wsf'  # Reference to input profile
   
 
