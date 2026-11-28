@@ -92,7 +92,7 @@ def main():
     """
     Main function to parse arguments and run the appropriate application performance profiling.
     
-    This function serves as the entry point for the GenAI application sizing tool.
+    This function serves as the entry point for the GenAI Applications Profiler.
     It parses command-line arguments, validates inputs, and dispatches to the
     appropriate performance profiling module based on the selected application.
     
@@ -108,7 +108,7 @@ def main():
 
     # Create the parser
     parser = argparse.ArgumentParser(
-        description="Hardware sizing tool for Gen-AI applications (ChatQnA and Video Summary/Search)",
+        description="Performance profiling tool for Gen-AI applications (ChatQnA and Video Summary/Search)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
     Examples:
