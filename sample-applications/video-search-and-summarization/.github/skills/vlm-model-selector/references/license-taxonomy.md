@@ -16,9 +16,10 @@ acceptable-use rider.
 Plain OSI-approved permissive licenses with no additional acceptable-use
 policy layered on top:
 
-- **Apache-2.0** (common for Qwen small/mid-size checkpoints, many research
+- **Apache-2.0** (common across many small/mid-size VLM checkpoints from
+  several families, and many research releases)
+- **MIT** (common across several families' checkpoints, including research
   releases)
-- **MIT** (Phi family, many DeepSeek releases)
 - **BSD-style** variants
 
 These are safe to recommend for public and commercial deployment without
@@ -34,16 +35,14 @@ as equivalent to Bucket 1:
 
 - **Gemma Terms of Use** (Google) — broad commercial grant, but incorporates a
   Prohibited Use Policy; redistribution of modified models carries naming/
-  notice requirements.
+  notice requirements. Note this has changed between generations for at
+  least one major vendor — always verify whether the specific generation
+  you're citing still carries this rider rather than assuming it by family
+  name.
 - **Llama Community License** (Meta) — commercial use allowed, but includes a
   monthly-active-users threshold clause and a naming/attribution requirement
   for derivatives; relevant for any LLaVA-NeXT or other model with a Llama
   backbone.
-- **Qwen-specific size licenses** — most small/mid Qwen-VL sizes across its
-  generations are Apache-2.0, but verify each size and generation
-  individually, including whatever the current generation turns out to be —
-  some larger or older checkpoints in the Qwen lineage have used a custom
-  Tongyi Qianwen license with its own use restrictions.
 - **MiniCPM Model License** (OpenBMB) — generally commercial-friendly but has
   historically required registration/notification for certain commercial
   usage scales; confirm current terms on the specific checkpoint.
@@ -51,6 +50,11 @@ as equivalent to Bucket 1:
   "restricted use cases" lists (e.g., no use for unlawful surveillance); the
   restrictions are usually narrow and compatible with typical industrial/
   enterprise vision analytics tasks, but must still be read and disclosed.
+- **Qwen-specific size licenses** — most small/mid Qwen-VL sizes across its
+  generations are Apache-2.0, but verify each size and generation
+  individually, including whatever the current generation turns out to be —
+  some larger or older checkpoints in the Qwen lineage have used a custom
+  Tongyi Qianwen license with its own use restrictions.
 
 For Bucket 2, the skill should still recommend the model if it's otherwise the
 best fit, but must state the condition in the final recommendation so the user
@@ -64,6 +68,16 @@ best fit, but must state the condition in the final recommendation so the user
 - Any license whose acceptable-use terms directly conflict with the user's
   stated deployment (e.g., a no-surveillance clause on a model being
   considered for a surveillance-adjacent use case).
+
+**Determining surveillance-adjacency:** don't rely solely on whether the user
+checked a "surveillance" box in their own deployment-constraints answer —
+infer it from the task description itself (per SKILL.md Step 1's
+data-sensitivity question). Treat a task as surveillance-adjacent by default
+if it involves monitoring, identifying, or tracking people, their vehicles,
+or their behavior in a public or private space, even if the user frames it
+neutrally (e.g., "traffic monitoring," "foot-traffic analytics," "safety
+compliance"). When in doubt, ask the user to confirm rather than silently
+assuming either way.
 
 Do not recommend a Bucket 3 model as the primary choice for a public/
 commercial task. It may still be mentioned as an accuracy reference point
