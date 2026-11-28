@@ -500,6 +500,46 @@ the scope of what was and wasn't searched. Only write the analysis to a file
 if the user asks for it (e.g., "save this analysis"); don't create files
 unprompted.
 
+### Pre-flight checklist — run this before presenting results
+
+A capable model can often reason its way to a reasonable pipeline shape on
+its own; what it cannot do from parametric knowledge alone is guarantee the
+specific checkpoint it names is still the current generation, still carries
+the license it remembers, or actually has the OpenVINO support it assumes —
+that always requires the live verification steps above, regardless of how
+capable the model running this skill is. This checklist exists so that
+guarantee holds consistently, including on a smaller/faster model that may
+not perfectly retain every instruction from a long procedure. Before showing
+the answer to the user, verify each item below; if any is unmet, go back and
+fix it rather than presenting incomplete work — do not treat this as
+optional polish:
+
+- [ ] Stated the task decomposition back to the user (Step 1), and said
+      explicitly whether this is a pipeline recommendation or a single-VLM
+      pick.
+- [ ] Asked (or already had) every Required elicitation item from Step 1,
+      including compute placement, data sensitivity, the consequential-decision
+      check, and alert semantics where applicable.
+- [ ] For every candidate presented: stated its compute-fit tier
+      (Validated/Plausible/Unknown) and how that was determined.
+- [ ] For every candidate presented: resolved its license from the actual
+      text, not just the Hub tag, and classified it per
+      `references/license-taxonomy.md`.
+- [ ] If input modality is video: checked a video-specific benchmark
+      leaderboard for each candidate before falling back to a self-reported
+      or adoption-proxy accuracy signal.
+- [ ] Ran the bias self-check from the Notes section: is the shortlist
+      skewed toward one family, and if so, is that because it genuinely
+      scored best?
+- [ ] The output is a set of options with pros/cons, not a single forced
+      ranking — unless one candidate truly dominates every vector, in which
+      case that's stated as an observed outcome, not an assumed default.
+- [ ] If a consequential-decision context was flagged: named the specific
+      risk categories that apply and included a human-in-the-loop
+      recommendation.
+- [ ] Included deployment notes (export command, device placement) for every
+      viable option, not just one.
+
 ## Examples
 
 ### Example: industrial defect description on an NPU-only edge box
