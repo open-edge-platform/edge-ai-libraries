@@ -17,13 +17,13 @@ function fixture(context) {
   return {directory, write, outcomes: Object.fromEntries(stages.map(stage => [stage, "success"]))};
 }
 
-test("complete acceptance and successful stages produce a public-runner usage summary", context => {
+test("public hosted usage summary states standard compute is free without paid runner estimates", context => {
   const {directory, outcomes} = fixture(context);
   const result = buildSummary(directory, outcomes);
   assert.equal(result.success, true);
-  assert.match(result.markdown, /compute: \$0/);
-  assert.match(result.markdown, /4-core \$0.05; 8-core \$0.09/);
-  assert.match(result.markdown, /planning estimates, not billed usage/);
+  assert.match(result.markdown, /Standard public-repository hosted compute: \$0/);
+  assert.match(result.markdown, /no paid larger-runner estimate applies/);
+  assert.doesNotMatch(result.markdown, /4-core|8-core|runner cost|monthly projections/);
 });
 
 for (const stage of stages) {

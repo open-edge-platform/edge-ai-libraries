@@ -126,10 +126,7 @@ export function buildSummary(directory, outcomes) {
     "Samples include other VM processes and filesystem contents, not just this job; brief peaks may be missed.", "",
     freeCompute ? "Standard public-repository hosted compute: $0 under GitHub's published pricing." :
       "Compute cost is not established for this repository; consult its billing plan.",
-    `Illustrative larger x64 Linux runner cost for measured stages: 4-core $${(minutes * 0.012).toFixed(2)}; 8-core $${(minutes * 0.022).toFixed(2)}.`,
-    `At five runs/month: $${(minutes * 0.012 * 5).toFixed(2)} / $${(minutes * 0.022 * 5).toFixed(2)}; at thirty: $${(minutes * 0.012 * 30).toFixed(2)} / $${(minutes * 0.022 * 30).toFixed(2)}.`,
-    "These are planning estimates, not billed usage. Stage minutes are conservatively rounded separately; checkout, tool setup, offline jobs, uploads, retries and storage are excluded.",
-    "Rates assumed: $0.012/min (4-core), $0.022/min (8-core); recheck GitHub pricing before selecting paid runners.",
+    "This workflow uses standard GitHub-hosted runners; no paid larger-runner estimate applies.",
     "No external inference API is used. This small CPU fixture does not qualify the default 9B model or Intel GPU behavior.", ""
   ];
   return {success, markdown: lines.join("\n")};

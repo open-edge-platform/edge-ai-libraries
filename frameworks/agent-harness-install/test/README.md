@@ -432,15 +432,10 @@ HOME directories, gateway certificates, full environment dumps or agent state.
 
 Standard GitHub-hosted compute is free for this public repository under
 [GitHub's published billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
-The report also estimates larger Linux x64 runner costs at $0.012/minute
-(4-core) and $0.022/minute (8-core), with five-run and thirty-run monthly
-projections. These are illustrative measured-stage estimates, not actual bills:
-checkout, tool setup, the offline job, uploads, retries and storage are excluded,
-and each measured stage is conservatively rounded up separately.
-Recheck [runner rates](https://docs.github.com/en/billing/reference/actions-runner-pricing)
-and configure an organization budget before selecting any paid runner.
-Use the first cold hosted runs to decide whether the standard VM has enough
-disk/RAM; switching to a paid runner requires a separate decision.
+This workflow uses standard GitHub-hosted runners and does not incur paid
+larger-runner charges. Use the first cold hosted runs to decide whether the
+standard VM has enough disk/RAM; any future move to paid runners would be a
+separate decision.
 
 There is no external inference API cost. CPU validation with this small fixture
 does not qualify the default 9B model, Intel GPU acceleration, browser interaction,
