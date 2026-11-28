@@ -163,9 +163,25 @@ DCODE_PINNED_VERSION="0.1.86"
 DCODE_PINNED_COMMIT="577e3f1f2376f8522c47aedc9423de3805e9deb8"
 DCODE_PINNED_SHA256="1961f5eb8d338e668b3f5afc34ad15e87e6602bdec56cfe261265462228d8639"
 
+# dcode_version_already_installed -- true when `dcode -v` already reports the
+# version this run would install. Extras/Python overrides and a custom installer
+# can change the build without changing the version, so those always reinstall.
+dcode_version_already_installed() {
+  local installed
+  [[ "${HARNESS_FORCE_REINSTALL:-}" != 1 && -z "${DCODE_INSTALL_URL:-}" \
+    && -z "${DEEPAGENTS_CODE_EXTRAS:-}" && -z "${DEEPAGENTS_CODE_PYTHON:-}" ]] || return 1
+  installed="$(PATH="$HOME/.local/bin:$PATH" dcode -v 2>/dev/null | head -1 | awk '{print $NF}')" || return 1
+  [[ -n "$installed" && "$installed" == "${DEEPAGENTS_CODE_VERSION:-$DCODE_PINNED_VERSION}" ]]
+}
+
 install_dcode() {
   local installer_url installer_sha256="${DCODE_INSTALL_SHA256:-}"
   local installer_tmp
+  if dcode_version_already_installed; then
+    ok "dcode ${DEEPAGENTS_CODE_VERSION:-$DCODE_PINNED_VERSION} is already installed; skipping the installer"
+    export PATH="$HOME/.local/bin:$PATH"
+    return 0
+  fi
   installer_tmp="$(mktemp)"
   if [[ -n "${DCODE_INSTALL_URL:-}" ]]; then
     installer_url="$DCODE_INSTALL_URL"
@@ -288,11 +304,28 @@ digest belongs to scripts/install.sh at that exact hermes-agent commit." ;;
     || error "HERMES_PINNED_SHA256 must be a 64-character lowercase SHA-256, got '${HERMES_PINNED_SHA256}'."
 }
 
+# hermes_pin_already_installed -- true when the Hermes installer already
+# completed for HERMES_PINNED_COMMIT (its bootstrap marker records the commit)
+# and the CLI still runs. Never true with a custom HERMES_INSTALL_URL, whose
+# installer may resolve a different release.
+hermes_pin_already_installed() {
+  local marker="${HERMES_HOME:-$HOME/.hermes}/hermes-agent/.hermes-bootstrap-complete"
+  [[ "${HARNESS_FORCE_REINSTALL:-}" != 1 && -z "${HERMES_INSTALL_URL:-}" ]] || return 1
+  [[ -f "$marker" ]] || return 1
+  grep -Eq "\"pinnedCommit\"[[:space:]]*:[[:space:]]*\"${HERMES_PINNED_COMMIT}\"" "$marker" || return 1
+  PATH="$HOME/.local/bin:$PATH" hermes --version >/dev/null 2>&1
+}
+
 install_hermes() {
   local installer_url installer_sha256="${HERMES_INSTALL_SHA256:-}"
   local -a installer_args=(--skip-setup --non-interactive)
   local installer_tmp
   validate_hermes_pin
+  if hermes_pin_already_installed; then
+    ok "Hermes Agent ${HERMES_PINNED_COMMIT:0:12} is already installed; skipping the installer"
+    export PATH="$HOME/.local/bin:$PATH"
+    return 0
+  fi
   installer_tmp="$(mktemp)"
   if [[ -n "${HERMES_INSTALL_URL:-}" ]]; then
     installer_url="$HERMES_INSTALL_URL"

@@ -19,6 +19,20 @@ sha256_of() {
   fi
 }
 
+# sha256_of_args ARG... — prints one SHA-256 over all arguments (NUL-separated),
+# used to fingerprint a configuration without storing its values.
+sha256_of_args() {
+  local digest
+  if command_exists sha256sum; then
+    digest="$(printf '%s\0' "$@" | sha256sum)"
+  elif command_exists shasum; then
+    digest="$(printf '%s\0' "$@" | shasum -a 256)"
+  else
+    error "No SHA-256 tool available (sha256sum/shasum)."
+  fi
+  printf '%s' "${digest%% *}"
+}
+
 # assert_shell_script file label — rejects a download that doesn't start
 # with a sh/bash shebang, so an HTML error page, redirect, or truncated
 # response can never be handed to `bash` as if it were the real installer.
