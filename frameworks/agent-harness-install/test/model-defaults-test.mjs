@@ -26,7 +26,8 @@ function fixture(t, agent = "openclaw") {
   t.after(() => fs.rmSync(home, {recursive: true, force: true}));
   const file = path.join(home, agent === "openclaw" ? ".openclaw/openclaw.json" : "config.yaml");
   fs.mkdirSync(path.dirname(file), {recursive: true});
-  const env = {...process.env, HOME: home, HERMES_HOME: home};
+  // Model-tuning tests run unrestricted; the toolset tests below opt into the restriction explicitly.
+  const env = {...process.env, HOME: home, HERMES_HOME: home, HARNESS_HERMES_TOOLSETS: "all"};
   function read() {
     if (agent === "openclaw") return JSON.parse(fs.readFileSync(file, "utf8"));
     return JSON.parse(execFileSync(python, ["-I", "-c", bootstrap +
@@ -38,8 +39,8 @@ function fixture(t, agent = "openclaw") {
     fs.writeFileSync(file, agent === "openclaw" ? json : execFileSync(python, ["-I", "-c", bootstrap +
       "import json; print(yaml.safe_dump(json.load(sys.stdin)))"], {input: json}));
   }
-  function apply(selected = model, mode = "apply") {
-    execFileSync(process.execPath, [helper, agent, selected, endpoint, mode], {env, stdio: "pipe"});
+  function apply(selected = model, mode = "apply", extraEnv = {}) {
+    execFileSync(process.execPath, [helper, agent, selected, endpoint, mode], {env: {...env, ...extraEnv}, stdio: "pipe"});
     return read();
   }
   write(agent === "openclaw" ? {
@@ -203,4 +204,56 @@ test("Hermes explicit overrides survive restart and switching away", hermesOptio
   assert.equal(switched.model.context_length, 16384);
   assert.deepEqual(switched.providers["harness-ovms-qwen"].extra_body,
     config.providers["harness-ovms-qwen"].extra_body);
+});
+
+const minimal = ["clarify", "todo", "memory", "session_search", "skills"];
+const risky = ["terminal", "file", "code_execution", "browser", "web", "vision",
+  "image_gen", "video_gen", "tts", "delegation", "cronjob", "computer_use"];
+
+test("Hermes tools default to the minimal allow-list and revert when it is lifted", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const config = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: ""});
+  assert.deepEqual(config.platform_toolsets.cli, minimal);
+  assert.deepEqual(config.agent.disabled_toolsets, risky);
+  assert.equal(config.userSetting, true);
+  assert.deepEqual(f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"}), config);
+  const lifted = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "all"});
+  assert.equal(lifted.platform_toolsets, undefined);
+  assert.equal(lifted.agent.disabled_toolsets, undefined);
+  assert.equal(lifted.userSetting, true);
+});
+
+test("Hermes custom tool allow-list disables only the remaining risky toolsets", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const config = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "memory, file,file"});
+  assert.deepEqual(config.platform_toolsets.cli, ["memory", "file"]);
+  assert.deepEqual(config.agent.disabled_toolsets, risky.filter(name => name !== "file"));
+});
+
+test("Hermes user tool selection is never overwritten", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const config = f.read();
+  config.platform_toolsets = {cli: ["terminal"]};
+  config.agent = {disabled_toolsets: ["web"]};
+  f.write(config);
+  const result = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  assert.deepEqual(result.platform_toolsets.cli, ["terminal"]);
+  assert.deepEqual(result.agent.disabled_toolsets, ["web"]);
+});
+
+test("Hermes's seeded default platform_toolsets.cli is replaced; other platforms are kept", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  const config = f.read();
+  config.platform_toolsets = {cli: ["hermes-cli"], telegram: ["hermes-telegram"]};
+  f.write(config);
+  const result = f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"});
+  assert.deepEqual(result.platform_toolsets.cli, minimal);
+  assert.deepEqual(result.platform_toolsets.telegram, ["hermes-telegram"]);
+  assert.deepEqual(f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: "minimal"}), result);
+});
+
+test("Hermes rejects unknown or empty tool allow-lists", hermesOptions, t => {
+  const f = fixture(t, "hermes");
+  for (const bad of ["bogus", "memory,,todo", "debugging", "../x"])
+    assert.throws(() => f.apply(model, "apply", {HARNESS_HERMES_TOOLSETS: bad}), /HARNESS_HERMES_TOOLSETS/);
 });

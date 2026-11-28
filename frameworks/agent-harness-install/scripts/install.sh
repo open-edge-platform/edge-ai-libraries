@@ -151,6 +151,9 @@ usage() {
     HARNESS_IR_PROVIDER_TYPE       LiteLLM provider-type prefix for the Router's provider entry (default: hosted_vllm)
     HARNESS_IR_ROUTING_POLICY      Balanced (default, only supported value today) | Intelligent — see Known limitations (Intelligent needs a classifier model this installer does not yet provision)
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
+    HARNESS_HERMES_TOOLSETS        Hermes tools enabled at install, host and OpenShell sandbox (default: minimal = clarify,todo,memory,session_search,skills;
+                                   terminal, file, code_execution, browser, web, delegation, cronjob and media tools are off).
+                                   all | default = no restriction; or a comma-separated toolset list. A host Hermes with its own platform_toolsets.cli is left alone
     HARNESS_HERMES_OTEL_PLUGIN     Plugin reference for 'hermes plugins install' (default: hermes_otel, the Hermes plugin catalog entry)
     HARNESS_HERMES_OTEL_REF        Pin the plugin install to this full 40-character commit SHA ('--ref'; default: v1.33.3 for hermes_otel; empty = the catalog's own pin)
     HARNESS_OPENCLAW_OTEL_PLUGIN   npm spec of OpenClaw's OTel plugin (default: @openclaw/diagnostics-otel at the installed OpenClaw version)

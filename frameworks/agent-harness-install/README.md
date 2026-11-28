@@ -58,6 +58,11 @@ sandbox defaults do not change host-mode model selection. See the
 [sandbox setup and policy boundaries](./docs/user-guide/agentic-ai-security/agent-sandboxing.md#getting-started)
 for prerequisites and limitations.
 
+Hermes is installed with a minimal tool allow-list by default (no shell, file,
+code-execution, browser, web, delegation or scheduling tools) in both runtimes.
+Set `HARNESS_HERMES_TOOLSETS=all` or a comma-separated list to widen it; see
+[Restrict Hermes Tools](./docs/user-guide/agentic-ai-security/agent-sandboxing.md#restrict-hermes-tools).
+
 For fresh and reused `hf-snapshot` models, the installer adds the tokenizer's
 EOS token to `generation_config.json` when missing, preserving existing stop
 IDs. For Qwen3.5 this prevents generation from continuing past `<|im_end|>` into

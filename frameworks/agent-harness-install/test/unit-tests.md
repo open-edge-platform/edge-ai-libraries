@@ -44,7 +44,7 @@ counts must not be added to the outer count as independent top-level results.
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
 | Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 63 |
-| Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
+| Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 14 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
 accept a case-name filter. Use the focused suite to reproduce a Bash failure.
@@ -366,17 +366,22 @@ helper against temporary files, not an LLM.
 | pre-existing empty configuration sections retain their identity and ordering | Keep existing empty sections and stable serialization across applications and model changes. |
 | Hermes Qwen defaults normalize into actual custom-provider request overrides | In the Hermes runtime, verify YAML settings, real provider normalization into request overrides, idempotence and removal of unchanged defaults when switching away. |
 | Hermes explicit overrides survive restart and switching away | In the Hermes runtime, preserve explicit context, sampling, output and reasoning overrides across restart and model changes. |
+| Hermes tools default to the minimal allow-list and revert when it is lifted | In the Hermes runtime, verify `platform_toolsets.cli` and `agent.disabled_toolsets` for the default, idempotence, and removal once `HARNESS_HERMES_TOOLSETS=all`. |
+| Hermes custom tool allow-list disables only the remaining risky toolsets | In the Hermes runtime, verify a custom list is de-duplicated and excluded from the deny-list. |
+| Hermes user tool selection is never overwritten | In the Hermes runtime, keep user-set `platform_toolsets.cli` and `agent.disabled_toolsets`. |
+| Hermes rejects unknown or empty tool allow-lists | In the Hermes runtime, fail on unknown, composite or empty toolset names. |
+| Hermes's seeded default platform_toolsets.cli is replaced; other platforms are kept | In the Hermes runtime, treat `[hermes-cli]` as unset, apply the allow-list and preserve other platforms' entries. |
 
 ### Hermes runtime-dependent cases
 
-The final two cases remain registered in every run with explicit skip reasons.
-The normal offline host/CI run executes seven cases and reports two image-required skips; it does not
+The final seven cases remain registered in every run with explicit skip reasons.
+The normal offline host/CI run executes seven cases and reports seven image-required skips; it does not
 probe or invoke Hermes, even if it is installed. Explicit Hermes mode requires
 the pinned runtime at `/home/node/.local/bin/hermes` and fails if it is missing.
 
 The separate automatic **Hermes image runtime gate** builds the production
 image and requires a complete, nonempty passing TAP report without failures or
-skips (currently nine cases). To reproduce it from the
+skips (currently fourteen cases). To reproduce it from the
 component directory (Docker and network access required for the build):
 
 ```bash

@@ -137,6 +137,26 @@ if (agent === "openclaw" && mode === "apply") {
   writeJson(file, config);
   writeJson(defaultsFile, {agent, entries: installedDefaults, containers: createdContainers});
 }
+// Hermes tool restriction (HARNESS_HERMES_TOOLSETS). Keep in sync with scripts/lib/agents.sh.
+// Unset or "minimal" allows only the first list; "default"/"all" leaves Hermes unrestricted;
+// otherwise a comma-separated list of the core toolsets below. MCP servers are unaffected.
+const HERMES_MINIMAL_TOOLSETS = ["clarify", "todo", "memory", "session_search", "skills"];
+const HERMES_RESTRICTABLE_TOOLSETS = ["terminal", "file", "code_execution", "browser", "web", "vision",
+  "image_gen", "video_gen", "tts", "delegation", "cronjob", "computer_use"];
+
+function hermesToolsetPolicy(spec) {
+  spec = (spec ?? "").replace(/\s+/g, "").toLowerCase() || "minimal";
+  if (spec === "default" || spec === "all") return null;
+  const allow = spec === "minimal" ? HERMES_MINIMAL_TOOLSETS : spec.split(",");
+  const known = new Set([...HERMES_MINIMAL_TOOLSETS, ...HERMES_RESTRICTABLE_TOOLSETS]);
+  const unknown = allow.filter(name => !known.has(name));
+  if (!allow.length || unknown.length)
+    throw Error(`Invalid HARNESS_HERMES_TOOLSETS ${JSON.stringify(spec)}: expected minimal, default, or a comma-separated list of ` +
+      `${[...known].join(", ")}${unknown.length ? ` (unknown: ${unknown.join(", ")})` : ""}`);
+  const allowed = [...new Set(allow)];
+  return {allowed, disabled: HERMES_RESTRICTABLE_TOOLSETS.filter(name => !allowed.includes(name))};
+}
+
 if (agent === "hermes" && (mode === "apply" || mode === "stage")) {
   const hermesHome = process.env.HERMES_HOME ?? "/home/node/.hermes";
   // Dependencies belong to the image installation, not the sandbox HOME.
@@ -160,6 +180,17 @@ if (agent === "hermes" && (mode === "apply" || mode === "stage")) {
   config.model.default = model;
   config.model.base_url = endpoint;
   config.model.provider = "custom";
+  // platform_toolsets.cli is the allow-list for the interactive CLI; agent.disabled_toolsets is applied
+  // last for every surface, so the same risky toolsets stay off for cron, gateway and API sessions too.
+  // Both are managed defaults: a value the user already set (or later edits) is never overwritten.
+  const policy = hermesToolsetPolicy(process.env.HARNESS_HERMES_TOOLSETS);
+  if (policy) {
+    // Hermes seeds this default composite into config.yaml; it is not a user choice.
+    const cli = config.platform_toolsets?.cli;
+    if (Array.isArray(cli) && cli.length === 1 && cli[0] === "hermes-cli") delete config.platform_toolsets.cli;
+    defaultAt(config, ["platform_toolsets", "cli"], policy.allowed);
+    if (policy.disabled.length) defaultAt(config, ["agent", "disabled_toolsets"], policy.disabled);
+  }
   if (qwen) {
     const provider = "harness-ovms-qwen";
     defaultAt(config, ["model", "context_length"], 65536);
