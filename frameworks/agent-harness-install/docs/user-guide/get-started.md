@@ -202,6 +202,10 @@ harness, and shows their state:
   earlier installer version lacks that group: re-run `./install.sh` once to
   recreate it before enabling. The choice is saved only after the file is
   ready, so a failed `enable` leaves the previous setting in place.
+- Router spans: the router only writes the file, so a small host-side bridge
+  also sends each request as a span to the same backend as the harness. It runs
+  with `--target all` (the default) or whenever `--backend` is given or saved;
+  see [Router spans](#router-spans).
 - `harness` (the installed agent: Hermes or OpenClaw; host
   runtime): turns on the agent's own OpenTelemetry exporter, see
   [Harness agents](#harness-agents). For a fresh setup, the
@@ -284,6 +288,33 @@ installed). Each agent keeps its own exporter; the installer only configures it.
   files owned by another user are refused.
 - OpenClaw spans carry no session id, so `show` reports `sessions: 0` for them.
 
+### Router spans
+
+The Router has no OpenTelemetry exporter. `enable` switches it to the
+[file backend](#router-telemetry-file), and a small host-side bridge reads that
+file and sends one trace per request (service `inference-router`) to the same
+backend as the harness.
+
+- **When it runs:** with `--target all` (the default; `sqlite` unless `--backend`
+  says otherwise), or with `--target router` when `--backend` is given or saved.
+  Without a backend, `--target router` only switches the Router to the file
+  backend. `--endpoint` needs `--backend jaeger`.
+- **What a trace holds:** a root span `inference-router.request` (provider,
+  model, token counts) and the Router's other events as child spans.
+  `--content preview` or `full` also attaches the events' metadata; the Router
+  records no prompt text.
+- **Where it goes:** `sqlite` writes
+  `~/.agent-harness-install/router-telemetry/ir_otel_live.db` (at most
+  `HARNESS_ROUTER_BRIDGE_MAX_ROWS` rows, default 200000), `jaeger` the managed
+  Jaeger or your `--endpoint`. `show` adds the bridge status (spans sent, spans
+  refused, last error).
+- **Stopping:** `disable` and uninstall stop the bridge; `--clean` also empties
+  its store. It does not survive a reboot: run `observability enable` again.
+- **Delivery:** after a restart it continues where it stopped. A collector that
+  refuses a batch (HTTP 400, 413, 415 or 422) loses it, counted in `show`; other
+  errors are retried. It connects to the collector directly; set
+  `HARNESS_ROUTER_BRIDGE_USE_PROXY=1` to use the proxy settings instead.
+
 ### Cleaning collected data and keeping Jaeger
 
 `disable` keeps what was collected unless you ask otherwise:
@@ -340,7 +371,8 @@ the exporter is built into the sandbox image and
 (the receiver for `sqlite`, the managed Jaeger for `jaeger`) through
 `host.openshell.internal`; `disable` removes it. The collected data stays on the
 host. Enabling or disabling OpenClaw restarts its sandbox so the gateway reloads
-its settings. For Hermes the
+its settings; the command then waits up to 60 seconds for the gateway to accept
+connections (and only warns if it does not). For Hermes the
 `hermes-otel` plugin is installed and enabled in the image (enabling downloads
 Python dependencies, which the default policy does not allow) but kept silent by a `hermes_otel.yaml` with `enabled: false`; `enable`
 rewrites that file inside the sandbox and stops the Hermes gateway process there,
@@ -369,6 +401,8 @@ Overrides:
 `HARNESS_OPENCLAW_OTEL_PLUGIN` (an npm spec, default
 `@openclaw/diagnostics-otel@<installed OpenClaw version>`),
 `HARNESS_OTLP_RECEIVER_PORT`, `HARNESS_OTLP_RECEIVER_MAX_ROWS`,
+`HARNESS_ROUTER_BRIDGE_MAX_ROWS`,
+`HARNESS_ROUTER_BRIDGE_USE_PROXY`,
 `HARNESS_IR_TELEMETRY_MAX_BYTES`, `HARNESS_IR_TELEMETRY_FILE_MODE`,
 `HARNESS_JAEGER_IMAGE`, `HARNESS_JAEGER_CONTAINER`,
 `HARNESS_JAEGER_UI_PORT`, `HARNESS_JAEGER_OTLP_PORT`.
@@ -414,8 +448,9 @@ can start and manage that Jaeger for you.
 ### Router telemetry file
 
 The Inference Router supports exactly two telemetry backends, `memory` and
-`file`; `observability enable` selects `file`. Nothing leaves
-the machine: the Router appends to a local file and does not export telemetry.
+`file`; `observability enable` selects `file`. The Router itself only appends to
+a local file. With [Router spans](#router-spans) on, a bridge also sends them to
+Jaeger, which is off-host when you give an external `--endpoint`.
 
 | | `memory` (default) | `file` (after `observability enable`) |
 |---|---|---|
