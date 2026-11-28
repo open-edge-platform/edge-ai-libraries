@@ -1,6 +1,6 @@
 ---
 name: vlm-model-selector
-description: "Select a Vision-Language Model (VLM) from the Hugging Face model hub for a specific vision analytics task (captioning, VQA, OCR/document understanding, chart/table reading, grounding/detection-by-description, counting, multi-image or video reasoning), constrained to run on Intel's Core Ultra portfolio (NPU and/or iGPU) and/or Intel discrete GPUs in the Xe architecture series (Arc A-/B-Series, Arc Pro). Use when a user asks to pick/choose/recommend a VLM, or needs a model for a vision task on Core Ultra/NPU/iGPU or an Arc discrete GPU that is accurate, compute-fit, and has a usable public/commercial license. Elicits task details, then asks whether to evaluate a user-provided shortlist or run an open hub search, and follows the matching procedure. Produces a ranked shortlist with rationale, not just one name. DO NOT USE FOR: training/fine-tuning a model, text-only LLM selection, or a classical CV model (YOLO/CLIP) when no language output is needed."
+description: "Select a Vision-Language Model (VLM) from the Hugging Face model hub for a specific vision analytics task (captioning, VQA, OCR/document understanding, chart/table reading, grounding/detection-by-description, counting, multi-image or video reasoning), constrained to run on Intel's Core Ultra portfolio (NPU and/or iGPU) and/or Intel discrete GPUs in the Xe architecture series (Arc A-/B-Series, Arc Pro). Use when a user asks to pick/choose/recommend a VLM, needs a model for a vision task on Core Ultra/NPU/iGPU or an Arc discrete GPU that is accurate, compute-fit, and has a usable public/commercial license, or asks for a vision analytics pipeline/architecture where a VLM is one component (e.g. alongside detection/tracking, audio, or identity-matching). Decomposes the task into its component capabilities first, elicits task details, then asks whether to evaluate a user-provided shortlist or run an open hub search, and follows the matching procedure. Produces a set of options with pros/cons rationale (not a forced single ranking), and names the surrounding non-VLM pipeline components explicitly when the task only partially needs a VLM. DO NOT USE FOR: training/fine-tuning a model, text-only LLM selection, or a classical CV model (YOLO/CLIP) when no language output is needed."
 license: Apache-2.0
 metadata:
   version: "1.0.0"
@@ -49,18 +49,57 @@ fetch.
   laptop?" or "will this run on my Arc GPU?" (treat it as a one-item
   user-provided shortlist — run Step 3 against that single candidate instead
   of searching).
+- The task may only partially need a VLM (e.g., it also needs
+  detection/tracking, audio, or identity-matching components) — still use
+  this skill for the VLM-needing portion(s), per Step 1's decomposition, and
+  name the non-VLM components explicitly rather than silently answering a
+  narrower question than what was asked.
 - Do not use this skill if the task has no language-output requirement at all
   (pure classification/detection/segmentation) — recommend a lighter CV-only
   pipeline instead (see Edge Cases).
 
 ## Procedure
 
-### Step 1 — Elicit the vision analytics task
+### Step 1 — Decompose the task, then elicit requirements
 
 Before searching, confirm these details with the user. Ask only for what is
 missing; do not re-ask what the user already stated. Use the `vscode_askQuestions`
 tool (or equivalent clarification mechanism) for a compact multi-question pass
 rather than one question at a time.
+
+**Decompose first, before asking about devices or search scope.** Break the
+user's stated task into its constituent capabilities and classify each one —
+this determines the shape of the rest of the investigation, not just the
+elicitation questions:
+- **Visual description/captioning/VQA/grounding** — this skill's core
+  territory; a VLM handles it.
+- **Counting, detection, tracking, or timing/proximity logic** (e.g., "is
+  this person unattended for N seconds," "how many vehicles") — not a VLM
+  task. Flag it as a specialist CV/detection model plus a rule engine,
+  explicitly out of this skill's model-selection scope, rather than asking a
+  VLM to do it.
+- **Audio/speech content** (spoken words, tone of voice, conversation
+  quality) — outside a vision-only VLM. If present, this changes Step 4's
+  search scope (see Step 4.1) to also cover omni/audio-capable models, or
+  points toward pairing a vision-only VLM with a separate ASR/audio
+  component.
+- **Identity/biometric matching** (recognizing *which specific* person) —
+  never assume the VLM should do this. Flag it as a separate,
+  consent-sensitive specialist component (face recognition vs. a
+  non-biometric alternative like badge/zone/schedule correlation) and
+  surface that trade-off to the user explicitly.
+- **A capability no public VLM reliably has** (open-ended anomaly/novelty
+  judgment, precise pixel segmentation, subjective soft-skill scoring like
+  "friendliness") — flag this explicitly per Edge Cases; don't let the final
+  answer imply a VLM solves it reliably.
+
+State this decomposition back to the user before moving on. If the task is
+only visual description/VQA, proceed as a single-VLM selection. If it also
+needs detection/tracking, audio, or identity-matching, say explicitly that
+the deliverable is a **pipeline recommendation** — this skill still selects
+the VLM component(s), but must name the non-VLM components too and how they
+fit together, rather than silently answering a narrower question than what
+was actually asked.
 
 Required:
 - **Task description**: what should the model do with the image/video (e.g.,
@@ -77,6 +116,45 @@ Required:
   "either, pick the better fit." If the user doesn't know, default to assuming
   a hybrid NPU+iGPU Core Ultra Series 2/3 system with 16–32 GB RAM and say so
   explicitly in the final recommendation.
+- **Compute placement relative to the sensor**: is the Intel device physically
+  attached to or co-located with the camera (true embedded edge inference
+  under power, weight, thermal, and/or connectivity limits — e.g., a
+  handheld, vehicle-, robot-, or drone-mounted system), or a separate nearby
+  gateway/workstation that receives a video/image feed (still edge per this
+  skill's scope, never cloud/data-center, but with a meaningfully larger
+  power/thermal budget than a sensor-mounted device)? This decides which end
+  of the device-tier budget above is actually realistic, and whether
+  bandwidth/connectivity to the sensor is itself a constraint.
+- **Data sensitivity / subject matter**: does the captured image/video include
+  identifiable people, vehicles, license plates, or other personal data,
+  and/or does the task involve monitoring people or a public/private space?
+  Treat this as surveillance-adjacent for the license-bucket gate
+  (`references/license-taxonomy.md`) regardless of how the user answers the
+  deployment-constraints question below — infer it from the task description
+  itself and confirm with the user, rather than relying solely on a
+  self-reported constraint checkbox, since a user may not think to flag their
+  own task as "surveillance."
+- **Consequential-decision check**: does the task's output feed a decision
+  about an identifiable individual with real-world stakes for them
+  (employment/discipline, access/eligibility, legal, financial,
+  law-enforcement-adjacent)? If so, this is a required deliverable, not
+  optional polish: name the specific risk categories that actually apply to
+  this task's decomposed components (e.g., biometric processing if
+  identity-matching is in scope, communications/audio-recording consent if
+  audio is in scope, automated-decision/human-oversight expectations under
+  frameworks like the EU AI Act or local equivalents), and carry a
+  human-in-the-loop recommendation (model output surfaced for human review,
+  not fed directly into the consequential decision) through to Step 6.
+- **Alert/detection semantics** (only if the task includes flagging anomalies
+  or unexpected events): is "unexpected" a fixed, enumerable set of
+  conditions (closed-set, e.g., "wrong-way driving," "stopped vehicle in a
+  travel lane") or fully open-ended ("anything unusual")? Open-ended
+  alerting is a known-unreliable capability for off-the-shelf VLMs (see Edge
+  Cases) — flag this explicitly rather than implying model choice alone
+  solves it. If closed-set, get the user's actual enumerated list of
+  conditions (even a draft one) before finalizing the search — prompt design
+  and any accuracy evaluation both depend on knowing the real trigger list,
+  not just the category.
 
 Helpful if available (ask if not given, but don't block on them):
 - Accuracy bar (a specific benchmark/number, or "best effort within constraints").
@@ -105,10 +183,10 @@ matching branch:
 
 ### Step 3 — Branch A: evaluate a user-provided shortlist
 
-1. Get the user's exact candidate list. If they give informal names ("the
-   Qwen vision model"), resolve each to its precise Hub repo ID
-   (`org/model-name`) before proceeding, and tell the user which exact
-   checkpoint you resolved it to. When resolving an informal family name,
+1. Get the user's exact candidate list. If they give informal names (e.g.,
+   "the latest vision model from <vendor>"), resolve each to its precise Hub
+   repo ID (`org/model-name`) before proceeding, and tell the user which
+   exact checkpoint you resolved it to. When resolving an informal family name,
    check the family's Hub org page (sorted by most-recently-created/updated)
    for its newest shipped generation/release rather than defaulting to
    whichever checkpoint is most familiar from training data — families ship
@@ -145,7 +223,11 @@ matching branch:
 ### Step 4 — Branch B: open search of the hub
 
 1. **Broad programmatic discovery (the actual top-of-funnel):** query the Hub
-   filtered on `pipeline_tag=image-text-to-text`, sorted by
+   filtered on `pipeline_tag=image-text-to-text` for vision-only tasks — and
+   also filter on `pipeline_tag=any-to-any` (or whichever omni/audio-capable
+   tag applies) when Step 1's decomposition identified an audio/speech
+   component, rather than defaulting to `image-text-to-text` alone and
+   missing omni-capable candidates — sorted by
    trending/downloads/most-recently-created (recency matters so new releases
    aren't missed), and cross-check the
    [Open VLM Leaderboard](https://huggingface.co/spaces/opencompass/open_vlm_leaderboard)
@@ -166,6 +248,16 @@ matching branch:
    are illustrations of a naming pattern (e.g., a family may version its
    releases as `<Family><N>` or `<Family> <major>.<minor>`), not a claim about
    which one currently ships.
+   Separately, if Step 1's decomposition matched a known specialist/vertical
+   domain (e.g., autonomous driving/traffic, medical imaging, document/OCR,
+   retail/industrial inspection, agriculture), explicitly search the Hub for
+   domain-specialist VLMs in that vertical — e.g., search model names/tags
+   for the domain keyword alongside the pipeline-tag filter, or check whether
+   a major family's org page has shipped a vertical-specific checkpoint — in
+   addition to general-purpose families. A specialist model can beat a
+   generalist on the task's actual judgment criteria even when it's
+   architecturally a fine-tune of a familiar base, and skipping this search
+   systematically misses it.
 2. **Cheap metadata triage (do this before any deep review):** for every
    discovered candidate, apply two checks:
    - **License bucket** (`references/license-taxonomy.md`) — bucket a clearly
@@ -200,7 +292,10 @@ matching branch:
    needs custom code, follow "Handling a model that requires custom code"
    below before retrying with it.
 4. **Accuracy signal with graceful fallback:** prefer leaderboard numbers
-   (third-party verified). If a candidate has no leaderboard entry, fall back
+   (third-party verified) — for a video-modality task, this includes checking
+   a video-specific benchmark leaderboard, not just the general-purpose Open
+   VLM Leaderboard (see Step 5's Accuracy review for the full procedure). If
+   a candidate has no leaderboard entry, fall back
    to self-reported model-card numbers (label as self-reported, lower
    confidence) or, failing that, community adoption (downloads/likes/recency)
    as a weak usability proxy — never silently present these as equivalent to
@@ -240,12 +335,28 @@ open its Hub model card and extract:
 
 - **Task relevance**: intended-use section, capability tags (grounding, OCR,
   chart/doc, video) — does it explicitly claim the capability the task needs?
+  For a specialist/vertical model (see Step 4.1), go further than the
+  capability label: verify its actual training/benchmark scenario (camera
+  viewpoint, sensor type, environment) matches the user's real deployment
+  scenario — a model can match the task category exactly on paper (e.g.
+  "driving") while its real data distribution (e.g. forward-facing
+  ego-vehicle dashcam) differs materially from the user's (e.g. an aerial
+  drone looking down at an intersection), which the capability label alone
+  won't surface.
 - **Accuracy**: benchmark numbers relevant to the task. Prefer third-party
   leaderboard numbers (Open VLM Leaderboard) over self-reported model-card
   numbers when both exist, since self-reported numbers can be cherry-picked.
   Match the benchmark to the task (e.g., OCRBench/DocVQA for documents,
   ChartQA for charts, MMMU/MMBench for general reasoning, MVBench/Video-MME
-  for video).
+  for video). **When the task's input modality is video** (per Step 1), the
+  general-purpose Open VLM Leaderboard often has no or thin video coverage —
+  before falling back to self-reported or adoption-proxy signals, separately
+  check a video-specific benchmark leaderboard (e.g., Video-MME, MVBench,
+  TempCompass, LongVideoBench — illustrative names, not an exhaustive or
+  currency claim; search the Hub's Spaces for "<benchmark> leaderboard" to
+  find whichever is currently maintained) for each shortlisted candidate, and
+  only drop to a lower-confidence signal once that check comes up empty for a
+  given candidate.
 - **Compute fit**: parameter count, available precisions (fp16/bf16, and
   critically int8/int4 or an existing OpenVINO IR / GGUF release), max image
   resolution or tiling behavior, video frame-count support. Cross-check
@@ -253,8 +364,9 @@ open its Hub model card and extract:
   Core Ultra NPU/iGPU tiers and discrete Arc GPU tiers.
 - **License**: the actual license terms, not just the short tag — follow
   `license_link`/`license_name` if the tag is `other`, and check for
-  acceptable-use-policy riders even on named licenses (Gemma, Qwen large
-  variants, MiniCPM). Use `references/license-taxonomy.md` to classify as
+  acceptable-use-policy riders even on named licenses (e.g., Gemma, MiniCPM,
+  Qwen large variants — alphabetical, not a priority order). Use
+  `references/license-taxonomy.md` to classify as
   usable / usable-with-conditions / not usable for the stated deployment.
   If the repo itself is gated (an access-request wall instead of, or in
   addition to, a license tag), follow "Handling a gated candidate" below
@@ -334,23 +446,41 @@ code is safe to run, so never enable this flag by default.
    later, unreviewed commit to the same repo can't silently change what code
    executes on a subsequent run.
 
-### Step 6 — Score, rank, and recommend
+### Step 6 — Build a decision-support comparison, not a forced ranking
 
-Build a comparison table across the 4 vectors (task relevance, accuracy,
-compute fit, license) for the shortlist (Branch A: the user's provided list;
-Branch B: the triaged ~8–10). For a Branch B table, also show each
-candidate's compute-fit tier (Validated/Plausible/Unknown) and the accuracy
-source confidence (leaderboard-verified / self-reported / adoption-proxy) so
-the user isn't comparing numbers of different trustworthiness as if
-equivalent. Pick one **primary recommendation** and one **fallback**, and
-state the reasoning — which vector decided it, and what the user would need
-to accept to pick a non-recommended alternative (e.g., "Model X scores higher
-on OCRBench but is gated under a non-commercial license and is disqualified
-for your public deployment").
+Build a comparison across the 4 vectors (task relevance, accuracy, compute
+fit, license) for the shortlist (Branch A: the user's provided list; Branch
+B: the triaged ~8–10). For a Branch B table, also show each candidate's
+compute-fit tier (Validated/Plausible/Unknown) and the accuracy source
+confidence (leaderboard-verified / self-reported / adoption-proxy) so the
+user isn't comparing numbers of different trustworthiness as if equivalent.
 
-Include deployment notes with the recommendation:
+Do not collapse this into a single ranked list or a lone forced "winner."
+For every candidate that passes the license and compute-fit gates, write
+explicit **pros and cons framed against this user's stated task and
+constraints** — not generic strengths. It is normal, and often preferable,
+for the final output to be a set of 2–4 viable options with genuine
+trade-offs rather than one pick, since the user is better positioned than the
+agent to weigh things like "a bit slower but a simpler license" against
+"faster but requires a license-conditions sign-off." Where it's useful, state
+which option best matches a specific stated priority (e.g., "if license
+simplicity matters most, X; if accuracy on <task metric> matters most, Y") —
+always as a conditional tied to a vector the user can judge themselves, never
+as an unqualified "best" they have to take on faith. If one candidate truly
+dominates every vector for this task, say so — but that should be the
+observed outcome of the comparison, not the default shape of the output.
+
+If Step 1 flagged a consequential-decision context, add auditability as an
+explicit comparison vector: a decomposed pipeline (separate detection/ASR/VLM
+components with inspectable intermediate outputs) is usually easier to
+justify in a review or dispute than a single opaque end-to-end model, even
+when the end-to-end model otherwise scores higher on the other vectors — call
+this trade-off out by name rather than leaving it implicit in the pros/cons.
+
+Include deployment notes for every viable option (not just a single chosen
+one):
 - Target device placement (Core Ultra NPU vs. iGPU vs. a discrete Arc GPU)
-  and why.
+  and why, informed by the compute-placement answer from Step 1.
 - Expected quantization path, e.g.:
   ```bash
   optimum-cli export openvino --model <hf-model-id> --weight-format int4 <output-dir>
@@ -363,11 +493,12 @@ Include deployment notes with the recommendation:
 
 ### Step 7 — Present results
 
-Show the comparison table and recommendation to the user in the response —
-this is the primary deliverable. State which approach was used (user-provided
-shortlist vs. open search) so the user knows the scope of what was and wasn't
-searched. Only write the analysis to a file if the user asks for it (e.g.,
-"save this analysis"); don't create files unprompted.
+Show the comparison and the pros/cons for each viable option in the response
+— this is the primary deliverable, not a single-line verdict. State which
+approach was used (user-provided shortlist vs. open search) so the user knows
+the scope of what was and wasn't searched. Only write the analysis to a file
+if the user asks for it (e.g., "save this analysis"); don't create files
+unprompted.
 
 ## Examples
 
@@ -377,35 +508,37 @@ searched. Only write the analysis to a file if the user asks for it (e.g.,
 and describes any visible defects in a short sentence, running on an NPU-only
 Core Ultra box with no internet access at runtime."
 
-**Expected output:** After confirming Step 2's choice is open search, a table
-comparing 3–5 candidates drawn from each matched family's *current*
-generation (verified live, not assumed) at the ~2B size scored on
-defect-description relevance (general captioning/VQA, not a specialized
-defect benchmark — flag this gap honestly), accuracy proxies from
-MMBench/MMMU, NPU-fit at INT4, and license. If a current-generation checkpoint
-has no published benchmark numbers yet, cite the same-size checkpoint from the
-newest generation that *does* have published numbers (naming both checkpoints
-explicitly) as a labeled cross-generation proxy rather than skipping the
-metric. One primary recommendation with the `optimum-cli` export command, and
-a note that offline operation requires the model and tokenizer to be
-pre-downloaded since the NPU box has no runtime internet access.
+**Expected output:** After confirming Step 2's choice is open search, a
+comparison of 3–5 candidates drawn from each matched family's *current*
+generation (verified live, not assumed) at the ~2B size, with pros/cons
+against this task scored on defect-description relevance (general
+captioning/VQA, not a specialized defect benchmark — flag this gap honestly),
+accuracy proxies from MMBench/MMMU, NPU-fit at INT4, and license. If a
+current-generation checkpoint has no published benchmark numbers yet, cite
+the same-size checkpoint from the newest generation that *does* have
+published numbers (naming both checkpoints explicitly) as a labeled
+cross-generation proxy rather than skipping the metric. Present 2–3 viable
+options with trade-offs and the `optimum-cli` export command for each, rather
+than a single forced pick, and note that offline operation requires the
+model and tokenizer to be pre-downloaded since the NPU box has no runtime
+internet access.
 
 ### Example: single-model check (user-provided shortlist of one)
 
-**Input:** "Will `Qwen/Qwen2.5-VL-7B-Instruct` run on my Core Ultra 7 laptop's
+**Input:** "Will `<org>/<Model>-7B-Instruct` run on my Core Ultra 7 laptop's
 iGPU for a document-QA chatbot?"
 
 **Expected output:** Treat this as Branch A with a one-item list — skip Step 4
 (open search); run Step 3 then Steps 5–6 against just this model — confirm
-it's on the OpenVINO supported-models list, check its license (verify it's the
-Apache-2.0-licensed size, since some Qwen variants differ by size), confirm 7B
-at INT4 fits a typical Core Ultra iGPU memory budget, and report fit/no-fit
-with reasoning and the export command. Also check the Qwen Hub org page for
-whether a newer generation's 7B-class checkpoint has since shipped and would
-be a straightforward upgrade — the user named a specific generation but
-didn't rule out a newer one, so surface it as an option (naming the exact
-newer checkpoint found) rather than silently assuming the named generation is
-still current.
+it's on the OpenVINO supported-models list, check its exact license (verify
+the specific size/variant named, since license terms can differ by size
+within the same family), confirm 7B at INT4 fits a typical Core Ultra iGPU
+memory budget, and report fit/no-fit with reasoning and the export command.
+Also check that family's Hub org page for whether a newer generation's
+7B-class checkpoint has since shipped and would be a straightforward upgrade
+— the user named a specific generation but didn't rule out a newer one, so
+surface it as an option (naming the exact newer checkpoint found) rather than
+silently assuming the named generation is still current.
 
 ## Edge Cases
 
@@ -434,6 +567,21 @@ still current.
 - **Task requires a capability no public VLM reliably has** (e.g., precise
   pixel-level segmentation): say so rather than overstating a VLM's fit, and
   suggest a hybrid pipeline (specialist CV model + VLM for the language part).
+- **Task requires open-ended anomaly/novelty alerting** (e.g., "tell me if
+  anything unusual happens"): say so explicitly — this is not a benchmarked
+  VLM capability the way captioning/VQA/grounding are (see Step 1's
+  alert/detection-semantics question). Recommend reframing to a closed,
+  enumerable set of conditions where possible, and flag that reliable
+  alerting needs validation of false-positive/false-negative rates on the
+  user's own footage plus supporting logic (temporal windowing, alert
+  de-duplication, human review) beyond the model call itself — picking a VLM
+  does not by itself solve reliable alerting.
+- **Task runs on a sensor-mounted/mobile platform** (drone, vehicle, robot,
+  wearable): don't size the model to a generic Core Ultra iGPU/Arc budget
+  without first confirming compute placement (Step 1) — a camera-side
+  embedded system has a materially smaller power/weight/thermal budget than a
+  nearby ground-station/gateway receiving the same feed, even though both are
+  within this skill's Intel-edge scope.
 - **Newest generation in a matched family lacks published benchmark/compute-fit
   data:** don't discard it or silently fall back to recommending the older
   generation instead — recommend the verified-newest checkpoint for actual
@@ -461,7 +609,25 @@ still current.
   equivalent size has no benchmark data yet — never as the primary
   recommendation when a newer same-size checkpoint exists and passes the same
   gates.
+- If this conversation already established a fact (current generation,
+  license text, benchmark number) earlier and a meaningfully later point in
+  time has since passed (e.g., a new calendar day, or the user returns after
+  a gap), treat it as due for a quick re-verification rather than silently
+  reusing it — a quick re-check of the relevant Hub org page or license page
+  is cheap insurance against a release that shipped in the interim.
 - `references/intel-core-ultra-compute-envelope.md` (Core Ultra NPU/iGPU *and*
   discrete Arc GPU tiers), `references/candidate-vlm-families.md`,
   and `references/license-taxonomy.md` are dated snapshots meant to seed the
   search, not replace live verification.
+- Family/model names used as illustrations anywhere in this skill's
+  instructions, examples, or reference files — including table row order —
+  carry no ranking or preference signal; they illustrate a naming pattern or
+  record a dated snapshot, nothing more. Do not let the frequency or position
+  with which any one family is named in this skill's own text bias which
+  families get searched for first, triaged in, or recommended. Weight every
+  family the live search surfaces purely on how it scores against the 4
+  vectors (task relevance, accuracy, compute fit, license) for this user's
+  stated task, and actively check whether your own shortlist is skewed toward
+  one family before presenting it — if it is, verify that's because it
+  genuinely scored best and not because it was simply the most familiar or
+  most-repeated name.
