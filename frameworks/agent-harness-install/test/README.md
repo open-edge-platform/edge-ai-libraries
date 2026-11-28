@@ -220,6 +220,20 @@ the same cases validate real YAML roundtrips and Hermes provider normalization
 into request overrides without inference/network access. Config checks are not
 proof of chat quality, latency or model-driven tool use.
 
+`node --test test/hermes-api-config-test.mjs` runs independently. It checks the
+`.env` block written by `./install.sh hermes-api enable|disable` (loopback-only
+host, generated 0600 key kept across re-runs, refusal of foreign `API_SERVER_*`
+settings, symlinked `.env` and invalid ports) and an authenticated `probe`
+against a local stub. It does not start a Hermes gateway: `hermes gateway
+install|restart`, the sandbox restart and `openshell forward service` need real
+Hermes/OpenShell hardware and are not covered offline.
+
+`bash test/hermes-api-uninstall-test.sh` (also run by `openshell-test.sh`) drives
+`remove_hermes_api_gateway` and `remove_hermes_package` with stub `hermes` and
+`systemctl` binaries and a throwaway `HOME`: it stops the gateway and removes
+only the unit it started for the Hermes home (also after `disable`), and leaves
+symlinked, foreign or other-home units alone.
+
 ## Opt-in prepared-runner gate
 
 See the [live integration test catalogue](integration-tests.md) for individual

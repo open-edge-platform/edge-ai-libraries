@@ -65,6 +65,13 @@ invented conversation turns. If repairing an already running deployment, restart
 its managed OVMS container after provisioning the model so it loads the updated
 configuration; reconnecting the TUI alone does not reload model settings.
 
+## Hermes API server
+
+`./install.sh hermes-api <enable|disable|status|key|forward>` turns on Hermes's
+OpenAI-compatible API server on the host or, with `--runtime openshell`, inside
+the sandbox. The server listens on loopback only and requires a generated key.
+See [Hermes API server](docs/user-guide/get-started.md#hermes-api-server).
+
 ## Observability
 
 `./install.sh observability enable|disable|show` manages telemetry for the

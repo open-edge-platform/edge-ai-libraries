@@ -4,6 +4,7 @@
 !scripts/
 !scripts/lib/
 !scripts/lib/*.sh
+!scripts/lib/hermes-api-config.mjs
 !openshell/
 !openshell/Dockerfile
 !openshell/agent-start.sh

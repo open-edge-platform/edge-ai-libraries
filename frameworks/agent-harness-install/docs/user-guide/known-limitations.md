@@ -41,11 +41,28 @@ For sandbox setup, architecture and lifecycle guidance, see
   necessary tool dependencies or credentials. Working LLM inference does not
   establish external web-tool connectivity. The host `mcp`/`skill` helpers
   reject OpenShell mode rather than modifying the wrong agent.
-- The Hermes messaging gateway is not enabled. Its built-in browser dashboard
+- The Hermes messaging gateway is not started by default. Its built-in browser dashboard
   can run without that gateway, using the Hermes-specific PTY policy and
   loopback forwarding. The installer does not start the dashboard automatically.
   Existing Hermes sandboxes need recreation with the new policy to gain this
   PTY access; back up needed data first.
+- The Hermes API server (`./install.sh hermes-api enable`) is the only supported
+  way to start the gateway, and no messaging platform is configured. Its key
+  grants full Hermes tool access, so the server stays on loopback.
+  - Host: the gateway runs as a systemd user service, so `enable` needs a user
+    systemd session (not available over a plain SSH login without D-Bus, in
+    containers, or in WSL without systemd). Without `enable-linger` the service
+    stops at logout. `hermes gateway restart` waits for active sessions to
+    finish, so `enable` and `disable` can take several minutes on a busy gateway.
+  - Host: if another program or Hermes profile already uses the port, the
+    readiness check fails; choose a free port with `--api-port`. A non-root user
+    cannot bind ports below 1024. A `.env` with CRLF line endings is not
+    recognized and must be converted to LF first.
+  - Uninstall stops the gateway and removes the `hermes-gateway*` user unit that
+    pins the Hermes home being removed, including after `hermes-api disable`.
+    Units it did not start for that home are left alone.
+  - OpenShell: `enable` and `disable` restart the sandbox and end open sessions.
+    A sandbox built before this feature must be recreated.
 - Automatic agent replacement, legacy-image migration, and backup/restore
   workflows are not provided. Normal model changes and sandbox stop/start are
   supported; they are not image upgrades or migration of host agent data.
