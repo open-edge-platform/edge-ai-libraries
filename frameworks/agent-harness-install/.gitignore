@@ -2,3 +2,5 @@
 node_modules/
 test/logs/
 .model_download_logs/
+openshell/skill-packs/*
+!openshell/skill-packs/manifest.json

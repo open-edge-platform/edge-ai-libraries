@@ -556,6 +556,15 @@ _install_openshell_agent() {
   ensure_state_dir >/dev/null
   (umask 077 && mkdir -p "$dir")
   assert_owned_by_current_user "$dir"
+  # Hermes skill packs are baked into the sandbox image; the pack set decides whether an existing sandbox is current.
+  local skills_hash="" skills_defaults=keep
+  if [[ "$agent" == hermes ]]; then
+    skills_openshell_prepare
+    skills_hash="$SKILLS_OPENSHELL_HASH"
+    skills_defaults="$SKILLS_OPENSHELL_DEFAULTS"
+  elif ((${#SKILL_PACK_SPECS[@]} > 0)); then
+    warn "--skills-pack is only supported for Hermes; ignored for ${agent}."
+  fi
   # Reuse the recorded identity after partial failure; never replace an existing owned sandbox.
   if [[ -f "$dir/profile.json" ]]; then
     openshell_load_profile
@@ -563,6 +572,7 @@ _install_openshell_agent() {
       || error "This profile uses model '${OPENSHELL_MODEL}'; refusing to change it implicitly."
     if openshell_resource_exists sandbox; then
       openshell_assert_owned
+      skills_openshell_assert_unchanged "$skills_hash"
       ok "Owned OpenShell sandbox already exists: ${OPENSHELL_NAME}; not replacing its state."
       return
     fi
@@ -603,9 +613,13 @@ _install_openshell_agent() {
     pin_args+=(--build-arg "HERMES_OTEL_PLUGIN=${HARNESS_HERMES_OTEL_PLUGIN:-hermes_otel}"
       --build-arg "HERMES_OTEL_REF=${otel_ref}")
   fi
-  docker build --build-arg "HARNESS_AGENT=$agent" "${pin_args[@]}" \
+  local build_rc=0
+  skills_openshell_stage_context "$agent"
+  docker build --build-arg "HARNESS_AGENT=$agent" --build-arg "HARNESS_SKILLS_DEFAULTS=$skills_defaults" "${pin_args[@]}" \
     --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg http_proxy --build-arg https_proxy \
-    -f "${SCRIPT_DIR}/openshell/Dockerfile" -t "$image" "$SCRIPT_DIR" \
+    -f "${SCRIPT_DIR}/openshell/Dockerfile" -t "$image" "$SCRIPT_DIR" || build_rc=$?
+  skills_openshell_clean_context
+  ((build_rc == 0)) \
     || error "Could not build the ${agent} sandbox image. Ownership record retained at ${dir}."
   local provider policy
   local -a agent_env
@@ -641,6 +655,9 @@ JS
     openshell provider create --name "$name" --type "$name" -g "$gateway"
   fi
   policy="$(openshell_policy_path "$agent")"
+  # Record the pack set the image was built with before the sandbox exists, so a retry after a
+  # failed or interrupted create is judged against what was actually baked.
+  skills_openshell_record_hash "$skills_hash"
   openshell sandbox create --name "$name" --from "$image" --provider "$name" \
     --policy "$policy" \
     --label "agent-harness.owner=$owner" --label "agent-harness.agent=$agent" \

@@ -37,6 +37,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 . "${SCRIPT_DIR}/scripts/lib/agents.sh"
 # shellcheck source=lib/harness-mcp.sh
 . "${SCRIPT_DIR}/scripts/lib/harness-mcp.sh"
+# shellcheck source=lib/skill-packs.sh
+. "${SCRIPT_DIR}/scripts/lib/skill-packs.sh"
 # shellcheck source=lib/metrics.sh
 . "${SCRIPT_DIR}/scripts/lib/metrics.sh"
 # shellcheck source=lib/openshell.sh
@@ -56,6 +58,7 @@ usage() {
     ./install.sh models <list|remove> [name]     List or delete exported OpenVINO models
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
+    ./install.sh skills <add|remove|list|verify|sync|restore-defaults> [id] [source]  Manage Hermes skill packs
     ./install.sh observability <enable|disable|show> [options]  Manage telemetry for the harness and the Inference Router
     ./install.sh status                          Show agent-harness-install/OVMS/agent health
     ./install.sh onboard                         Re-run onboarding only
@@ -86,6 +89,17 @@ usage() {
     --model-precision <int4|int8|fp16|fp32>  Weight precision (default: int8; model-download, docker-pull and export-model-py exporters)
     --model-device <CPU|GPU|NPU|HETERO:…>    Conversion target device (model-download exporter; default: CPU)
     --help, -h                        Show this help message and exit
+
+  Skill pack options (Hermes only; host and OpenShell). A pack is a directory or .tar.gz/.zip with pack.json and
+  skills/<name>/SKILL.md; it is installed read-only and added to Hermes's skills.external_dirs, never mixed with Hermes's own skills:
+    --skills-pack <id>=<dir|https-url>[#sha256=<hex>]  Install a pack during the install (repeatable; URL sources require the SHA-256 digest)
+    --skills-defaults <auto|keep|none>  Hermes's bundled default skills: auto (default) follows the packs' "defaults" setting;
+                                       none keeps only the essential skills (the rest are backed up and can be restored); keep leaves them
+                                       (sets HARNESS_HERMES_DEFAULT_SKILLS)
+    --skills-purge                     With none, also retire locally modified bundled skills (everything is backed up first)
+    Packs can also be declared as drop-in files in ~/.agent-harness-install/skill-packs.d/<id>.json, e.g.
+    {"id":"vss","source":{"type":"dir","path":"/opt/vss/skills"}} or {"id":"vss","source":{"type":"url","url":"https://…/vss.tar.gz","sha256":"…"}};
+    install and 'skills sync' apply them. With --runtime openshell the registered packs are baked into the sandbox image.
 
   Observability options (./install.sh observability ...):
     --backend <sqlite|jaeger>          enable only; where the harness (Hermes or OpenClaw) sends telemetry. sqlite = local store
@@ -159,6 +173,10 @@ usage() {
     HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker or a Router created without your group)
     HARNESS_JAEGER_IMAGE, HARNESS_JAEGER_CONTAINER, HARNESS_JAEGER_UI_PORT, HARNESS_JAEGER_OTLP_PORT  Managed Jaeger for 'observability enable --backend jaeger' (default: jaegertracing/all-in-one:1.76.0, 16686, 4318; loopback only)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
+    HARNESS_HERMES_DEFAULT_SKILLS  Same as --skills-defaults: auto (default) | keep | none
+    HARNESS_SKILLS_STRICT_NAMES    1 = reject packs whose skills do not start with '<pack-id>-' (default: warn only)
+    HARNESS_SKILLS_PURGE           1 = same as --skills-purge
+    HARNESS_SKILLS_MAX_BYTES, HARNESS_SKILLS_MAX_FILES, HARNESS_SKILLS_MAX_ARCHIVE_BYTES  Size limits for a skill pack (default: 64 MiB, 5000 files, 128 MiB archive)
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)
     HARNESS_BIND_HOST             Address Docker binds published ports to (default: same as HARNESS_ADVERTISED_HOST)
     HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, NO_PROXY  (either case) Forwarded into
@@ -500,6 +518,16 @@ main() {
         [[ -n "${2:-}" ]] || { usage; error "--model-device requires a value (CPU, GPU, NPU or HETERO:…)."; }
         HARNESS_MODEL_DEVICE="$2"; HARNESS_MODEL_OPTS_GIVEN+=" device"; shift ;;
       --agent) usage; error "--agent was renamed to --harness." ;;
+      --skills-pack)
+        [[ -n "${2:-}" ]] || { usage; error "--skills-pack requires <id>=<directory|https-url>[#sha256=<hex>]."; }
+        SKILL_PACK_SPECS+=("$2"); shift ;;
+      --skills-defaults)
+        case "${2:-}" in
+          auto | keep | none) HARNESS_HERMES_DEFAULT_SKILLS="$2" ;;
+          *) usage; error "--skills-defaults requires auto, keep or none." ;;
+        esac
+        shift ;;
+      --skills-purge) HARNESS_SKILLS_PURGE=1 ;;
       --hf-model) usage; error "--hf-model was renamed to --model." ;;
       --help | -h) usage; exit 0 ;;
       --) ;;
@@ -509,6 +537,12 @@ main() {
   done
   export NON_INTERACTIVE
   validate_runtime
+  case "${HARNESS_HERMES_DEFAULT_SKILLS:-auto}" in
+    auto | keep | none) ;;
+    *) error "HARNESS_HERMES_DEFAULT_SKILLS must be auto, keep or none." ;;
+  esac
+  export HARNESS_HERMES_DEFAULT_SKILLS="${HARNESS_HERMES_DEFAULT_SKILLS:-auto}"
+  export HARNESS_SKILLS_PURGE="${HARNESS_SKILLS_PURGE:-}"
   export HARNESS_AGENT HARNESS_HF_MODEL HARNESS_MODEL_HUB HARNESS_MODEL_HUB_WAS_SET HARNESS_MODEL_CONFIG_JSON HARNESS_MODEL_TYPE
   export HARNESS_MODEL_PRECISION HARNESS_MODEL_DEVICE HARNESS_MODEL_DOWNLOAD_REVISION HARNESS_HF_MODEL_REVISION
   apply_model_source_defaults
@@ -527,6 +561,11 @@ main() {
   case "${positional[0]:-}" in
     # Interactive connections must not hold a deployment-wide lock for a chat.
     status | connect) run_installer_command "${positional[@]}" ;;
+    # Read-only like status: usable while a long install holds the lock.
+    skills) case "${positional[1]:-}" in
+        list | verify) run_installer_command "${positional[@]}" ;;
+        *) with_deployment_lock run_installer_command "${positional[@]}" ;;
+      esac ;;
     # Read-only: like status, it must work while a long install holds the lock.
     observability) if [[ "${positional[1]:-}" == show ]]; then
         run_installer_command "${positional[@]}"
@@ -543,6 +582,10 @@ run_installer_command() {
   # and the harness check reports why a sandbox cannot be instrumented.
   if [[ "${positional[0]:-}" == "observability" ]]; then
     run_metrics_command "${positional[@]:1}"
+    exit 0
+  fi
+  if [[ "${positional[0]:-}" == "skills" ]]; then
+    run_skills_command "${positional[@]:1}"
     exit 0
   fi
   if [[ "${HARNESS_RUNTIME:-host}" == "openshell" ]]; then
@@ -647,7 +690,9 @@ required to install openclaw -- was it skipped via SKIP_NODEJS=1? Run
 ./startup.sh --skip-docker --skip-python to install just Node.js, then
 re-run ./install.sh."
   fi
+  skills_pre_agent_install
   install_selected_agent
+  skills_post_agent_install
 
   step 3 "$TOTAL_STEPS" "Onboarding"
   run_agent_onboard

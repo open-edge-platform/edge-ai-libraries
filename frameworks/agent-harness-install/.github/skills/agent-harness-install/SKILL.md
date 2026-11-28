@@ -92,6 +92,7 @@ See the [model sources table](https://github.com/open-edge-platform/edge-ai-libr
 ./install.sh models remove <name>
 ./install.sh mcp register <name> <url> <agent>     # Hermes and OpenClaw built in; others need HARNESS_MCP_REGISTER_CMD
 ./install.sh skill <install|list|remove> [path|name]   # Hermes skills only
+./install.sh skills <add|remove|list|verify|sync|restore-defaults>   # Hermes skill packs (bundles of skills); see docs/user-guide/get-started/skill-packs.md
 ./uninstall.sh --yes --harness <agent> [--keep-models] [--keep-agent-data]
 ```
 

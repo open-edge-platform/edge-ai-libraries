@@ -41,6 +41,11 @@ For sandbox setup, architecture and lifecycle guidance, see
   necessary tool dependencies or credentials. Working LLM inference does not
   establish external web-tool connectivity. The host `mcp`/`skill` helpers
   reject OpenShell mode rather than modifying the wrong agent.
+- Hermes skill packs are baked into the sandbox image. A sandbox built with a
+  different set of packs (or default-skills policy) is not updated in place:
+  installing again fails until the sandbox is recreated. Skill packs are
+  supported for Hermes only. Very small models (for example Qwen3-0.6B) list
+  skills but can fail to load them; use a model that supports tool calling.
 - The Hermes messaging gateway is not enabled. Its built-in browser dashboard
   can run without that gateway, using the Hermes-specific PTY policy and
   loopback forwarding. The installer does not start the dashboard automatically.

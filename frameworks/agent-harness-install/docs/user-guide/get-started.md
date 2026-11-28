@@ -510,7 +510,12 @@ Other commands:
 ./install.sh models remove <name>                  # delete one (and its OVMS config entry)
 ./install.sh mcp register <name> <url> [agent]     # register an MCP endpoint (Hermes, OpenClaw, or HARNESS_MCP_REGISTER_CMD)
 ./install.sh skill <install|list|remove> [path|name]   # Hermes skills only
+./install.sh skills <add|remove|list|verify|sync|restore-defaults>   # Hermes skill packs (see Hermes Skill Packs)
 ```
+
+See [Hermes Skill Packs](./get-started/skill-packs.md) to install bundles of
+skills from a consumer such as a video search deployment, optionally retiring
+Hermes's default skills.
 
 See [Run Without a Checkout](./get-started/run-without-a-checkout.md)
 and [Uninstall](./get-started/uninstall.md) for the rest of the usage surface.
@@ -520,6 +525,7 @@ and [Uninstall](./get-started/uninstall.md) for the rest of the usage surface.
 :hidden:
 
 ./get-started/run-without-a-checkout.md
+./get-started/skill-packs.md
 ./get-started/uninstall.md
 
 :::

@@ -93,6 +93,9 @@ for details.
   Ollama, remote URL and the other Model Download hubs).
 - [Run Without a Checkout](./docs/user-guide/get-started/run-without-a-checkout.md):
   the standalone `curl | bash` bootstrap path.
+- [Hermes Skill Packs](./docs/user-guide/get-started/skill-packs.md):
+  install bundles of skills from an application and optionally retire Hermes's
+  default skills, on the host or in an OpenShell sandbox.
 - [Uninstall](./docs/user-guide/get-started/uninstall.md).
 - [Known Limitations](./docs/user-guide/known-limitations.md).
 
@@ -119,6 +122,8 @@ for details.
 │       ├── inference-router.sh     # Inference Router (always run in front of OVMS or an external endpoint; agents are wired to it, not to the model server directly)
 │       ├── agents.sh               # Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
 │       ├── harness-mcp.sh          # registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
+│       ├── skill-packs.sh          # Hermes skill packs: CLI, sources (directory/archive/URL+digest/drop-in), OpenShell image hooks
+│       ├── skill-packs.py          # skill-pack validation, safe extraction, registry, config merge, default-skill retirement
 │       └── metrics.sh              # observability commands for Router and Hermes telemetry
 ├── docs/
 │   └── user-guide/                 # usage documentation (see Documentation above)

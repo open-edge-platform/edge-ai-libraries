@@ -49,6 +49,11 @@ installed harness.
 - **MCP and Skills**: registers an MCP endpoint with the installed agent
   (`mcp register`), and ships an install skill that lets an agent drive the
   installation.
+- **Hermes Skill Packs**: `./install.sh skills add|remove|list|verify|sync`
+  installs versioned bundles of skills from any consumer (a directory, an
+  archive, or an HTTPS URL with a SHA-256 digest, or a drop-in file), on the
+  host or baked into an OpenShell sandbox. A pack can ask for Hermes's default
+  skills to be retired, with a backup and `skills restore-defaults`.
 - **Run Without a Checkout**: a standalone `curl | bash` bootstrap, and an
   `uninstall.sh` that removes the Router, OVMS, the installed agent, and the
   state directory, keeping downloaded models on request (`--keep-models`).

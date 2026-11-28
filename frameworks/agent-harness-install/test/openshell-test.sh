@@ -4,7 +4,7 @@
 # Offline regression tests: no real Docker/OpenShell operations or external network.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-for lib in colors state agents openshell; do
+for lib in colors state agents skill-packs openshell; do
   # shellcheck disable=SC1090
   . "$SCRIPT_DIR/scripts/lib/$lib.sh"
 done
