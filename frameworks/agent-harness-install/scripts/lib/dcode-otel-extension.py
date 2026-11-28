@@ -407,12 +407,22 @@ async def extension(d) -> None:  # noqa: ANN001, RUF029  # Extension factories a
     if _handler is None:
         if cfg is None:
             return
-        from langchain_core.tracers.context import register_configure_hook
+        try:
+            from langchain_core.tracers.context import register_configure_hook
 
-        _handler = _OtelHandler()
-        # The default (not .set()) is what every run context sees, as in dcode's cost recorder.
-        register_configure_hook(ContextVar("agent_harness_otel_handler", default=_handler), inheritable=True)
-        d.on_shutdown(_handler.flush)
+            handler = _OtelHandler()
+            # The default (not .set()) is what every run context sees, as in dcode's cost recorder.
+            register_configure_hook(ContextVar("agent_harness_otel_handler", default=handler), inheritable=True)
+        except Exception:  # noqa: BLE001
+            # A langchain-core without this hook API: dcode keeps starting, without telemetry.
+            logger.warning("agent-harness OpenTelemetry export disabled: cannot register the LangChain hook", exc_info=True)
+            return
+        _handler = handler
+        try:
+            d.on_shutdown(_handler.flush)
+        except Exception:  # noqa: BLE001
+            # The hook above cannot be undone; root runs still flush themselves.
+            logger.warning("agent-harness OpenTelemetry export could not register its shutdown flush", exc_info=True)
     try:
         _handler.configure(cfg)
     except Exception:  # noqa: BLE001

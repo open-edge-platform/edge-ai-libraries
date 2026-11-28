@@ -157,7 +157,11 @@ For sandbox setup, architecture and lifecycle guidance, see
   extensions in `~/.deepagents/extensions/` while telemetry is enabled. If the
   collector is down, dcode runs normally (a few seconds slower at exit) and that
   run's spans are lost. If dcode is killed with SIGKILL, the root `agent` span is
-  missing and dcode's `langgraph dev` server can keep running.
+  missing and dcode's `langgraph dev` server can keep running. The extension
+  loader and its `on_shutdown` hook are documented by dcode but experimental, so
+  a newer dcode may change them: if the extension cannot register, it logs a
+  warning in dcode's debug log and telemetry stays off, and
+  `./install.sh observability show` reports that no dcode span has arrived.
 - `./install.sh observability` for OpenClaw with the
   `sqlite` backend starts a loopback OTLP receiver that does not survive a
   reboot and accepts writes from any local user (it listens on 127.0.0.1 only);

@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 87 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 88 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -321,7 +321,8 @@ codes and resulting state, not real containers.
 | `dcode_openshell_needs_a_sandbox` | dcode on OpenShell without a sandbox | Fail before any egress rule or state change when the sandbox does not exist. |
 | `openshell_dcode_lifecycle` | OpenShell dcode lifecycle (real sandbox script, scratch home) | Check the packages and image, copy the extension, settings and marked `.env` block into the sandbox profile with the receiver and egress rule; keep the user's `.env` (LF and CRLF); disable removes only the managed files and the rule; an external traces URL is used as given; foreign files, a symlinked directory and an image without the extension are refused. |
 | `dcode_extension_compiles` | Extension file | Parse the extension as Python and check it carries the managed marker. |
-| `dcode_extension_exports_spans` | Extension behaviour | Drive the callback handler with LangChain events and read the spans back from the real receiver: parenting through skipped chains, token usage, session id, content, error status, and no spans once the settings are switched off. Skipped without `langchain-core` and the OpenTelemetry OTLP exporter (set `HARNESS_TEST_DCODE_PYTHON` to dcode's Python). |
+| `dcode_show_hints_when_no_spans_arrived` | Deep Agents Code `show` | With the harness enabled on the local store, `show` says that no dcode span has arrived (and how to load the extension) until the store holds a span; it stays quiet once the harness is disabled. |
+| `dcode_extension_exports_spans` | Extension behaviour | Drive the callback handler with LangChain events and read the spans back from the real receiver: parenting through skipped chains, token usage, session id, content, error status, no spans once the settings are switched off, and still loading when dcode's extension API has no `on_shutdown`. Skipped without `langchain-core` and the OpenTelemetry OTLP exporter (set `HARNESS_TEST_DCODE_PYTHON` to dcode's Python). |
 | `foreign_jaeger_is_never_reused_or_removed` | Jaeger ownership | Refuse to reuse, and leave in place on removal, a same-named container without the installer's label. |
 | `docker_query_failure_is_not_absence` | Docker query failure | Fail instead of treating a failed container query as an absent container. |
 | `rejected_endpoint_is_not_echoed` | Endpoint errors | Never print the rejected endpoint, which may carry credentials. |

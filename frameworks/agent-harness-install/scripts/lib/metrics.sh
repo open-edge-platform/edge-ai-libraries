@@ -1493,6 +1493,20 @@ metrics_openshell_sandbox_removed() {
   info "Harness telemetry for the removed sandbox was switched off (collected data and any managed Jaeger were kept; './install.sh observability disable --target harness --runtime openshell --clean' removes them)."
 }
 
+# metrics_store_has_spans <db> -- true when the store holds a span (also when it cannot be checked).
+metrics_store_has_spans() {
+  [[ -f "$1" ]] || return 1
+  command_exists python3 || return 0
+  python3 - "$1" <<'PY' 2>/dev/null
+import sqlite3, sys, urllib.parse
+try:
+    con = sqlite3.connect("file:" + urllib.parse.quote(sys.argv[1]) + "?mode=ro", uri=True, timeout=5)
+    sys.exit(0 if con.execute("SELECT 1 FROM events WHERE kind='span' LIMIT 1").fetchone() else 1)
+except sqlite3.Error:
+    sys.exit(0)
+PY
+}
+
 metrics_show_harness_receiver() {
   local pid
   if pid="$(metrics_receiver_pid)" && metrics_receiver_healthy; then
@@ -1541,6 +1555,10 @@ metrics_show_harness() {
     info "Local store not created yet (${store}); it appears after the first ${name} turn"
   fi
   if [[ "$M_AGENT" == hermes && "$enabled" == true ]] && ! metrics_openshell; then metrics_show_harness_plugin_errors "$home"; fi
+  if [[ "$M_AGENT" == deepagents-code && "$enabled" == true && "${backend:-sqlite}" == sqlite ]] && ! metrics_store_has_spans "$store"; then
+    warn "No dcode spans recorded yet. Start dcode again and send a prompt (extensions load only at start, with DEEPAGENTS_CODE_EXPERIMENTAL=1).
+If the store stays empty, dcode may have changed its extension loader: check '/extensions' in dcode and its debug log."
+  fi
   if [[ "$enabled" == true && "$backend" != sqlite && "$(metrics_state_get harness.managed_jaeger)" != true && -n "$endpoint" ]]; then
     info "Full trace view: open the UI of the backend receiving ${endpoint}"
   fi

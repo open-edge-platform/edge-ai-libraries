@@ -1008,6 +1008,30 @@ dcode_enable_disable() {
   [[ "$(cat "$envf")" == $'A=1\r' ]]
 }
 
+dcode_show_hints_when_no_spans_arrived() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  dcode_fixture
+  local out store
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  store="$(metrics_harness_store "$M_AGENT")"
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'No dcode spans recorded yet' <<<"$out"
+  grep -Fq 'DEEPAGENTS_CODE_EXPERIMENTAL=1' <<<"$out"
+  # A store holding spans silences the hint.
+  make_hermes_store
+  mv "$HERMES_HOME/hermes_otel_live.db" "$store"
+  out="$(metrics_show_harness 2>&1)"
+  refute grep -Fq 'No dcode spans recorded yet' <<<"$out"
+  # Only an empty store (spans cleared) warns again, and never once the harness is disabled.
+  python3 -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("DELETE FROM events"); c.commit()' "$store"
+  out="$(metrics_show_harness 2>&1)"
+  grep -Fq 'No dcode spans recorded yet' <<<"$out"
+  metrics_disable_harness
+  out="$(metrics_show_harness 2>&1)"
+  refute grep -Fq 'No dcode spans recorded yet' <<<"$out"
+}
+
 dcode_jaeger_and_content() {
   dcode_fixture
   local settings="$DEEPAGENTS_HOME/agent-harness-otel.json"
@@ -1167,6 +1191,15 @@ try:
     asyncio.run(mod.extension(API()))
     h.on_chain_start({}, {}, run_id=uuid.uuid4(), name="agent2")
     assert not h._spans
+
+    # A dcode whose extension API lacks on_shutdown does not stop the extension from loading.
+    with open(cfg, "w") as f:
+        json.dump({"enabled": True, "endpoint": f"http://127.0.0.1:{port}/v1/traces", "content": "off"}, f)
+    spec2 = importlib.util.spec_from_file_location("agent_harness_otel_ext2", f"{lib}/dcode-otel-extension.py")
+    mod2 = importlib.util.module_from_spec(spec2)
+    spec2.loader.exec_module(mod2)
+    asyncio.run(mod2.extension(object()))
+    assert mod2._handler is not None
     print("dcode extension ok")
 finally:
     proc.terminate()
@@ -2300,6 +2333,7 @@ run_case 'OpenClaw plugin install retries from npm when ClawHub fails' openclaw_
 run_case 'a timed-out OpenClaw foreign-exporter check fails closed' openclaw_foreign_check_times_out_closed
 run_case 'OpenClaw disable also turns content capture off' openclaw_disable_turns_content_capture_off
 run_case 'dcode extension, settings and .env block are installed and removed; the user .env is kept' dcode_enable_disable
+run_case 'dcode show hints when no span has arrived' dcode_show_hints_when_no_spans_arrived
 run_case 'dcode with Jaeger: managed container, external endpoint, preview content' dcode_jaeger_and_content
 run_case 'dcode refuses foreign extension/settings files and symlinked directories' dcode_refuses_foreign_files
 run_case 'dcode needs its data directory and CLI before anything is changed' dcode_cli_and_data_dir_are_required

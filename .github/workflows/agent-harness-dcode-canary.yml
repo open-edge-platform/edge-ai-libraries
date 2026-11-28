@@ -1,0 +1,52 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Agent Harness] dcode release canary"
+
+# Informational, not a required gate: runs the dcode telemetry extension test against the latest
+# deepagents-code release (the installer pins an older one) to catch extension-API or langchain-core drift early.
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  canary:
+    name: Latest dcode release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+      - name: Install the latest deepagents-code
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/dcode-venv"
+          "$RUNNER_TEMP/dcode-venv/bin/pip" install --quiet deepagents-code
+          "$RUNNER_TEMP/dcode-venv/bin/pip" show deepagents-code langchain-core langgraph-api
+      - name: Telemetry dependencies still ship with dcode
+        run: |
+          set -euo pipefail
+          # The same imports 'metrics enable' requires of dcode's own environment.
+          "$RUNNER_TEMP/dcode-venv/bin/python" -c 'import langchain_core, opentelemetry.sdk.trace, opentelemetry.exporter.otlp.proto.http.trace_exporter'
+      - name: dcode still has the extension hooks the telemetry extension uses
+        run: |
+          set -euo pipefail
+          site="$("$RUNNER_TEMP/dcode-venv/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          for needle in DEEPAGENTS_CODE_EXPERIMENTAL on_shutdown; do
+            grep -rqF --include='*.py' "$needle" "$site"/deepagents* \
+              || { echo "::error::deepagents-code no longer mentions $needle"; exit 1; }
+          done
+      - name: Telemetry extension against the latest dcode
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          HARNESS_TEST_DCODE_PYTHON="$RUNNER_TEMP/dcode-venv/bin/python" HARNESS_TEST_REQUIRE_DCODE_DEPS=1 \
+            bash test/metrics-test.sh
