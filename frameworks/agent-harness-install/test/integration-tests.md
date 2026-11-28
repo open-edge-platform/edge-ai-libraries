@@ -24,9 +24,13 @@ Run this suite:
   sessions. Builds, inference requests and local image tags consume or affect
   shared machine resources even though test sandbox ownership is isolated.
 
-It is **not** an automatic PR or `main`-push job. Those events run the offline
-gate. Live CI requires explicit manual dispatch and a protected prepared runner.
-Use only reviewed code on a machine with Docker/gateway privileges.
+The [GitHub-hosted live validation workflow](README.md#automatic-github-hosted-live-validation)
+runs this same suite automatically for relevant PRs and on a weekly schedule;
+it also supports manual dispatch and reusable calls. It does not trigger on a
+`main` push. It provisions the required inference and OpenShell services on a
+fresh hosted VM. The separate prepared-runner job requires explicit manual
+dispatch and a protected runner. Use only reviewed code on a prepared machine
+with Docker/gateway privileges.
 
 This document describes implemented cases, not an execution report. Record the
 commit, environment, date, pass/fail/skips and TAP evidence for each actual run.
@@ -110,7 +114,8 @@ These nine fixture-based cases check prepared-service reuse, offline fail-fast,
 fresh opt-in preparation without an explicit model switch, refusal without
 consent, conflicting inference, incompatible OpenShell, custom fresh-model
 refusal, live-failure propagation and missing argument diagnostics. They also
-run in the CI reporting-regression step; they do not run live integration in CI.
+run in the CI reporting-regression step; those fixture cases do not themselves
+execute live integration.
 
 ### Direct live-suite execution
 
@@ -158,6 +163,10 @@ script rather than sourcing it or manually calling its internal functions.
 
 ## Execute through GitHub Actions
 
+For automatic GitHub-hosted PR and scheduled runs, see the
+[hosted workflow instructions](README.md#automatic-github-hosted-live-validation).
+They run the same 31 cases catalogued below on a disposable VM.
+
 The [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml)
 contains a prepared-runner job. Administrators must first configure the
 `openshell-validation` runner label and protected environment, including
@@ -167,7 +176,8 @@ maintainer approval and suitable branch restrictions.
    reviewed ref.
 2. Enable the `live` input and supply the exact already-served `model` ID.
 3. Approve the protected environment if required.
-4. The live job runs only after the offline job succeeds.
+4. The prepared-runner live job runs only after static, offline and Hermes
+  runtime checks succeed.
 5. Review the job result and download the integration TAP artifact.
 
 A new workflow may not appear in manual-dispatch UI until it exists on the
