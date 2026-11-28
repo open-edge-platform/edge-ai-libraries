@@ -289,9 +289,10 @@ For sandbox setup, architecture and lifecycle guidance, see
   recreated, so a container from an older version of this installer (no
   label, or created before this network existed) is replaced once on the
   next run, along with any changed GPU/proxy/port/model configuration.
-  `HARNESS_FORCE_REINSTALL=1` always recreates both. The hash covers the image
-  tag (not its digest) and the model graph/config files, not the `.bin`
-  weights.
+  `HARNESS_FORCE_REINSTALL=1` always recreates both, including on
+  OpenShell installs. The hash covers the image id, the model `config.json`,
+  `graph.pbtxt`, `generation_config.json` and `.xml` files anywhere below the
+  models directory, but not the `.bin` weights.
   OpenShell installs reuse healthy existing inference on a no-model rerun;
   an explicit `--model` or pending model transition triggers reconfiguration.
 - Published ports of OVMS (`8000`) and the Inference Router (`8010`) bind to

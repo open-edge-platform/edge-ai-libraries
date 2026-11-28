@@ -140,7 +140,11 @@ _openshell_ensure_shared_inference() {
   pending="$(harness_state_root)/openshell-model-pending.json"
   containers="$(docker container ls -a --format '{{.Names}}')" \
     || error "Cannot inspect shared inference containers; check the Docker daemon and permissions."
-  if [[ -n "${OPENSHELL_MODEL_REQUESTED:-}" || -f "$pending" ]] ||
+  if [[ "${HARNESS_FORCE_REINSTALL:-}" == 1 && -z "${OPENSHELL_MODEL_REQUESTED:-}" && ! -f "$pending" ]] &&
+     grep -Fxq "$HARNESS_IR_CONTAINER" <<<"$containers"; then
+    # Same model, so only the containers are recreated; there is no model transition to preflight.
+    ensure_inference_backend
+  elif [[ -n "${OPENSHELL_MODEL_REQUESTED:-}" || -f "$pending" ]] ||
      ! grep -Fxq "$HARNESS_IR_CONTAINER" <<<"$containers"; then
     # Never reinterpret a partial/older installation as a fresh deployment.
     if [[ -z "${OPENSHELL_MODEL_REQUESTED:-}" && ! -f "$pending" ]] &&

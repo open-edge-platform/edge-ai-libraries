@@ -1046,15 +1046,16 @@ ensure_backend_network() {
 }
 
 # ovms_models_fingerprint — hashes the files OVMS reads at startup (config.json,
-# graph.pbtxt, generation_config.json, openvino_model.xml), so a changed or
-# re-exported model forces a reload.
+# graph.pbtxt, generation_config.json and every model .xml anywhere below the
+# models dir, which may itself be a symlink), so a changed or re-exported model
+# forces a reload. Hidden top-level dirs (installer venvs) are skipped.
 ovms_models_fingerprint() {
   local file
   [[ -d "$HARNESS_MODELS_DIR" ]] || return 0
   while IFS= read -r -d '' file; do
     printf '%s %s\n' "$file" "$(sha256_of "$file")"
-  done < <(find "$HARNESS_MODELS_DIR" -maxdepth 3 -type f ! -path "${HARNESS_MODELS_DIR%/}/.*" \
-    \( -name config.json -o -name graph.pbtxt -o -name generation_config.json -o -name openvino_model.xml \) -print0 | sort -z)
+  done < <(find -H "$HARNESS_MODELS_DIR" -path "${HARNESS_MODELS_DIR%/}/.*" -prune -o -type f \
+    \( -name config.json -o -name graph.pbtxt -o -name generation_config.json -o -name '*.xml' \) -print0 | sort -z)
 }
 
 ensure_openvino_model_server() {
@@ -1083,7 +1084,8 @@ parser from the model's chat template by themselves." ;;
     error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
   fi
   # Everything that shapes the container, so an unchanged, running one is kept.
-  config_hash="$(sha256_of_args "$HARNESS_OVMS_IMAGE" "$bind_host" "$HARNESS_OVMS_REST_PORT" \
+  config_hash="$(sha256_of_args "$HARNESS_OVMS_IMAGE" "$(docker image inspect -f '{{.Id}}' "$HARNESS_OVMS_IMAGE" 2>/dev/null || true)" \
+    "$bind_host" "$HARNESS_OVMS_REST_PORT" \
     "$HARNESS_BACKEND_NETWORK" "$HARNESS_MODELS_DIR" "$gpu_args" "$group_add_args" \
     "$HARNESS_OVMS_EXTRA_ARGS" "${proxy_args[@]}" "$(ovms_models_fingerprint)")"
   if container_is_current "$HARNESS_OVMS_CONTAINER" "$config_hash"; then

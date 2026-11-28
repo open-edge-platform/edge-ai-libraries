@@ -220,6 +220,33 @@ partial_provisioning() {
   expect_failure 'Shared inference is incomplete' openshell_ensure_shared_inference
   [[ ! -s "$ACTIONS" ]]
 }
+forced_provisioning() {
+  fixture
+  mock_provisioning
+  CONTAINERS="$HARNESS_IR_CONTAINER"$'\n'"$HARNESS_OVMS_CONTAINER"
+  HARNESS_LLM_MODEL=existing-model
+  HARNESS_FORCE_REINSTALL=1 openshell_ensure_shared_inference
+  [[ "$(grep -c '^provision ' "$ACTIONS")" == 1 ]]
+  [[ ! -e "$(harness_state_root)/openshell-model-pending.json" ]]
+  [[ "$(cat "$(harness_state_root)/openshell-model")" == existing-model ]]
+}
+model_fingerprint() {
+  fixture
+  local real="$HOME/real-models" before
+  mkdir -p "$real/a/b/c/d" "$real/.export-venv"
+  printf '1' >"$real/a/b/c/d/graph.pbtxt"
+  printf '1' >"$real/a/openvino_language_model.xml"
+  printf '1' >"$real/.export-venv/config.json"
+  ln -s "$real" "$HOME/linked-models"
+  HARNESS_MODELS_DIR="$HOME/linked-models"
+  before="$(ovms_models_fingerprint)"
+  [[ "$before" == *graph.pbtxt* && "$before" == *openvino_language_model.xml* && "$before" != *.export-venv* ]]
+  printf '2' >"$real/a/b/c/d/graph.pbtxt"
+  [[ "$(ovms_models_fingerprint)" != "$before" ]]
+  before="$(ovms_models_fingerprint)"
+  printf '2' >"$real/a/openvino_language_model.xml"
+  [[ "$(ovms_models_fingerprint)" != "$before" ]]
+}
 docker_unavailable() {
   fixture
   docker() { return 1; }
@@ -417,6 +444,8 @@ run_case 'symlinked saved model is rejected' symlink_saved
 run_case 'shared model selection takes precedence over an older agent profile' profile_model
 run_case 'fresh provisioning persists model and rerun does not reprovision' fresh_provisioning
 run_case 'existing shared inference is validated without replacement' existing_provisioning
+run_case 'forced reinstall reprovisions existing shared inference' forced_provisioning
+run_case 'model fingerprint covers nested, xml and symlinked model files' model_fingerprint
 run_case 'partial inference deployment requires explicit repair' partial_provisioning
 run_case 'Docker failure is not treated as a fresh host' docker_unavailable
 run_case 'route mismatch does not provision or persist a model' invalid_route

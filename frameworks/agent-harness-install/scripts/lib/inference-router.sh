@@ -294,7 +294,9 @@ ${HARNESS_IR_WORKSPACE_DIR}/config.yaml."
   fi
   # Everything that shapes the container (config.yaml included), so an unchanged, running one is kept.
   # The OVMS container id is included so a recreated OVMS also restarts the Router in front of it.
-  config_hash="$(sha256_of_args "$HARNESS_IR_IMAGE" "$bind_host" "$HARNESS_IR_PORT" \
+  # The image id is included so a rebuilt (e.g. re-pinned source) or re-pulled image replaces the container.
+  config_hash="$(sha256_of_args "$HARNESS_IR_IMAGE" "$(docker image inspect -f '{{.Id}}' "$HARNESS_IR_IMAGE" 2>/dev/null || true)" \
+    "$bind_host" "$HARNESS_IR_PORT" \
     "$(docker inspect -f '{{.Id}}' "$HARNESS_OVMS_CONTAINER" 2>/dev/null || true)" \
     "$(inference_router_workspace_dir)" "$gpu_args" "$group_add_args" "$telemetry_group" \
     "${network_args[@]}" "${proxy_args[@]}" "${external_args[@]}" \
