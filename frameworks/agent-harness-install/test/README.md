@@ -372,6 +372,11 @@ job only starts after those checks pass. On a fresh disposable VM it:
   GitHub discards the VM after execution, including when a hard cancellation
   prevents either cleanup attempt.
 
+The live suite's [31 individual cases and objectives](integration-tests.md#individual-cases-and-objectives)
+describe the checks for each agent, including inference, policy boundaries,
+restart persistence and cleanup. The hosted preflight, provisioning and full
+runtime uninstall above are workflow stages outside those top-level TAP cases.
+
 Runs are serialized per ref and the live job has a 120-minute timeout. A run
 must not weaken sandbox policies or disable kernel security controls to pass.
 Kernel/runtime incompatibilities or insufficient disk/RAM are failures to
