@@ -50,7 +50,10 @@ Before running the profiling tool, ensure the target application is deployed and
 1. **Clone the repository** (if not already done):
 
    ```bash
-   git clone <repository-url>
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.3.0
    cd edge-ai-libraries/tools/genai-applications-profiling
    ```
 
