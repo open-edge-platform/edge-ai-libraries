@@ -17,6 +17,11 @@ COPY scripts/lib/colors.sh scripts/lib/verify.sh scripts/lib/state.sh scripts/li
 USER node
 ENV NPM_CONFIG_PREFIX=/home/node/.local
 ENV PATH=/home/node/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Hermes skill packs with defaults:none (scripts/lib/skill-packs.sh): the marker must exist before the Hermes install
+# so its bundled skills are never seeded. Packs themselves are added in a late layer below.
+ARG HARNESS_SKILLS_DEFAULTS=keep
+RUN if [ "$HARNESS_AGENT" = hermes ] && [ "$HARNESS_SKILLS_DEFAULTS" = none ]; then \
+    install -d -m 700 /home/node/.hermes && : > /home/node/.hermes/.no-bundled-skills; fi
 # Reuse host-mode version pins and installer verification instead of maintaining separate pins.
 RUN bash -euc 'for lib in colors verify state sudo shim nodejs agents; do source /opt/harness/lib/$lib.sh; done; \
     case "$1" in openclaw) install_openclaw ;; deepagents-code) install_dcode ;; hermes) install_hermes ;; *) error "Unsupported sandbox agent" ;; esac' \
@@ -38,7 +43,12 @@ USER root
 COPY openshell/agent-start.sh /usr/local/bin/harness-agent-start
 COPY openshell/model-config.mjs /opt/harness/model-config.mjs
 COPY openshell/observability-config.mjs /opt/harness/observability-config.mjs
-RUN chmod 755 /usr/local/bin/harness-agent-start
+COPY scripts/lib/skill-packs.py /opt/harness/skill-packs.py
+COPY openshell/skills-config.mjs /opt/harness/skills-config.mjs
+COPY openshell/skill-packs/ /opt/harness/skills/
+RUN chmod 755 /usr/local/bin/harness-agent-start \
+    && chmod -R a-w /opt/harness/skills
 USER node
+RUN if [ "$HARNESS_AGENT" = hermes ]; then node /opt/harness/skills-config.mjs; fi
 RUN if [ "$HARNESS_AGENT" = hermes ]; then HERMES_HOME=/home/node/.hermes node /opt/harness/observability-config.mjs hermes-disable no-restart; fi
 WORKDIR /sandbox

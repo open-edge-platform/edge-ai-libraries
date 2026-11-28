@@ -118,6 +118,10 @@ remove_state_dir() {
   [[ -d "$state_root" ]] || return 0
   assert_state_path_safe "$state_root"
   models_dir="$HARNESS_MODELS_DIR"
+  # Installed skill packs are read-only; make them removable.
+  if [[ -d "$state_root/skill-packs" && ! -L "$state_root/skill-packs" ]]; then
+    chmod -R u+w -- "$state_root/skill-packs" 2>/dev/null || true
+  fi
   for entry in "$state_root"/* "$state_root"/.[!.]*; do
     [[ -e "$entry" ]] || continue
     if [[ -z "$DELETE_MODELS" ]]; then

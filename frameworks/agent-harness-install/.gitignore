@@ -2,3 +2,4 @@
 node_modules/
 test/logs/
 .model_download_logs/
+openshell/skill-packs/

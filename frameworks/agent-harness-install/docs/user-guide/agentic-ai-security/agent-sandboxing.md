@@ -104,7 +104,9 @@ updates, and messaging need explicit additional policy and any required tool
 dependencies/credentials.
 Working LLM inference does not establish external web-tool connectivity.
 The host `mcp`/`skill` helpers reject OpenShell mode rather than modifying the
-wrong agent.
+wrong agent. Hermes skill packs are the exception: registered packs are baked
+into the Hermes sandbox image (see
+[Hermes Skill Packs](../get-started/skill-packs.md)).
 
 OpenShell applies Landlock with `best_effort` compatibility; enforcement may
 vary with the host kernel. Desktop/computer-use workflows are not enabled.

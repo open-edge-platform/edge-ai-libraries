@@ -38,9 +38,12 @@ corruption or an unexpected response (HTML error page, redirect, etc)."
 fetch_and_verify() {
   local url="$1" dest="$2" label="$3" expected_sha256="${4:-}"
   [[ "$url" == https://* ]] || error "$label URL must use https://: $url"
-  local curl_rc=0
+  local curl_rc=0 size_args=()
+  # Optional download cap (bytes); curl enforces it when the server announces a length.
+  [[ "${HARNESS_FETCH_MAX_BYTES:-}" =~ ^[0-9]+$ ]] && size_args=(--max-filesize "$HARNESS_FETCH_MAX_BYTES")
   curl -fsSL --proto '=https' --proto-redir '=https' \
     --retry 3 --retry-delay 2 --retry-all-errors \
+    ${size_args[@]+"${size_args[@]}"} \
     "$url" -o "$dest" || curl_rc=$?
   # curl exits: 35 SSL connect, 51/60 peer cert, 58/59/77 local cert/cipher/CA file, 82/83 CRL/issuer.
   case "$curl_rc" in

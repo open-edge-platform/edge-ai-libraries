@@ -4,8 +4,11 @@
 !scripts/
 !scripts/lib/
 !scripts/lib/*.sh
+!scripts/lib/skill-packs.py
 !openshell/
 !openshell/Dockerfile
 !openshell/agent-start.sh
 !openshell/model-config.mjs
 !openshell/observability-config.mjs
+!openshell/skills-config.mjs
+!openshell/skill-packs/
