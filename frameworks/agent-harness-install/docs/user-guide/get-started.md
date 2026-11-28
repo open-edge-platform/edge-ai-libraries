@@ -482,6 +482,8 @@ What clears the file:
 - `POST /v1/metrics/reset` on the Router truncates it.
 - Deleting it by hand is safe; the next `observability enable`
   recreates it with the right permissions.
+- A `telemetry.jsonl` (and `telemetry.jsonl.1`) left by an earlier installer is
+  moved to the new name the next time the installer prepares the file.
 - Rotation: when the installer next prepares the file (an install, or
   `observability enable`) and it is larger than
   `HARNESS_IR_TELEMETRY_MAX_BYTES` (default 20 MiB; `0` turns rotation off),

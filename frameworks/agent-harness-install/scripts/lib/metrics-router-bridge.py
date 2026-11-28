@@ -24,12 +24,17 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import metrics_store  # noqa: E402
+
 CHUNK = 1 << 20
 MAX_VALUE = 2000
 PREVIEW = 200
 MAX_DEPTH = 3
 BATCH = 200
 HEAD_BYTES = 256
+# A Router that was running when the file was rotated keeps appending to <file>.1 until it restarts.
+DRAIN_SECONDS = 60
 # Status codes that mean the batch itself is unacceptable (bad request, too large, wrong type, invalid).
 REJECTED = (400, 413, 415, 422)
 GATED_KEYS = {"metadata", "details"}
@@ -37,13 +42,6 @@ SKIP_KEYS = {"event_type", "timestamp", "request_id", "provider_name", "final_mo
              "total_input_tokens", "total_output_tokens"}
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 SERVICE = "inference-router"
-
-SCHEMA = (
-    "CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, "
-    "ts INTEGER NOT NULL, data TEXT NOT NULL, trace_id TEXT, span_id TEXT, parent_span_id TEXT, "
-    "session_id TEXT, name TEXT, status TEXT, start_ns INTEGER, end_ns INTEGER, duration_ms REAL, "
-    "level INTEGER, logger TEXT, value REAL)"
-)
 
 
 class Transient(Exception):
@@ -153,17 +151,7 @@ class SqliteSink:
 
     def __init__(self, path, max_rows):
         self.max_rows, self.inserted = max_rows, 0
-        os.umask(0o077)
-        self.con = sqlite3.connect(path, timeout=10)
-        self.con.execute("PRAGMA journal_mode=WAL")
-        self.con.execute(SCHEMA)
-        # Stores written before span ids were unique may hold replayed duplicates; keep the first of each.
-        self.con.execute(
-            "DELETE FROM events WHERE kind = 'span' AND seq NOT IN "
-            "(SELECT MIN(seq) FROM events WHERE kind = 'span' GROUP BY trace_id, span_id)")
-        self.con.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS events_span_ids ON events (trace_id, span_id) WHERE kind = 'span'")
-        self.con.commit()
+        self.con = metrics_store.open_store(path)
 
     def send(self, spans):
         rows = [(
@@ -172,13 +160,11 @@ class SqliteSink:
             max(s["end"] - s["start"], 0) / 1e6,
         ) for s in spans]
         try:
-            self.con.executemany(
-                "INSERT OR IGNORE INTO events (kind, ts, data, trace_id, span_id, parent_span_id, session_id, name, status, "
-                "start_ns, end_ns, duration_ms) VALUES ('span', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+            self.con.executemany(metrics_store.INSERT_SPAN, rows)
             self.inserted += len(rows)
-            if self.max_rows and self.inserted >= 500:
+            if self.max_rows and self.inserted >= metrics_store.PRUNE_EVERY:
                 self.inserted = 0
-                self.con.execute("DELETE FROM events WHERE seq <= (SELECT MAX(seq) FROM events) - ?", (self.max_rows,))
+                metrics_store.prune(self.con, self.max_rows)
             self.con.commit()
         except sqlite3.Error as exc:
             self.con.rollback()
@@ -258,6 +244,9 @@ class Tailer:
         self.path, self.checkpoint, self.sink, self.content, self.sink_id = path, checkpoint, sink, content, sink_id
         self.inode, self.offset, self.head, self.spans, self.error = None, 0, "", 0, ""
         self.dropped, self.drop_reason = 0, ""
+        self.drain = None
+        self.drain_handle = None
+        self.draining = False
         try:
             with open(checkpoint, "r", encoding="utf-8") as handle:
                 saved = json.load(handle)
@@ -269,16 +258,22 @@ class Tailer:
                 self.spans = int(saved.get("spans", 0))
                 self.dropped = int(saved.get("dropped", 0))
                 self.drop_reason = str(saved.get("drop_reason", ""))
-        except (OSError, ValueError, TypeError, AttributeError):
+                if isinstance(saved.get("drain"), dict):
+                    d = saved["drain"]
+                    self.drain = {"inode": int(d["inode"]), "offset": int(d["offset"]), "head": str(d.get("head", "")),
+                                  "until": float(d["until"])}
+        except (OSError, ValueError, TypeError, AttributeError, KeyError):
             pass
 
     def save(self):
+        if self.draining:
+            return  # the checkpoint always describes the live file
         tmp = f"{self.checkpoint}.tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as handle:
                 json.dump({"sink": self.sink_id, "inode": self.inode, "offset": self.offset, "head": self.head,
                            "spans": self.spans, "error": self.error, "dropped": self.dropped,
-                           "drop_reason": self.drop_reason}, handle)
+                           "drop_reason": self.drop_reason, "drain": self.drain}, handle)
             os.replace(tmp, self.checkpoint)
         except OSError as exc:
             raise Fatal(f"cannot save {self.checkpoint}: {exc}")
@@ -296,34 +291,49 @@ class Tailer:
         except OSError:
             return False
 
+    def _open_rotated(self, inode, head):
+        """Opens <file>.1 if it is the generation with this inode and head; the handle outlives a later rotation."""
+        try:
+            handle = open(f"{self.path}.1", "rb")
+        except OSError:
+            return None
+        want = bytes.fromhex(head)
+        if os.fstat(handle.fileno()).st_ino != inode or handle.read(len(want)) != want:
+            handle.close()
+            return None
+        return handle
+
     def _consume(self, path, size):
         with open(path, "rb") as handle:
-            while self.offset < size:
-                handle.seek(self.offset)
-                chunk = handle.read(min(CHUNK, size - self.offset))
-                cut = chunk.rfind(b"\n")
-                if cut < 0:
-                    if len(chunk) < CHUNK:
-                        return  # a line still being written
-                    log("skipped an oversized line in the Router telemetry file")
-                    self.offset += len(chunk)
-                    continue
-                lines = chunk[:cut + 1].split(b"\n")[:-1]
-                # One checkpoint per batch, so a failed send never repeats batches the sink already took.
-                for i in range(0, len(lines), BATCH):
-                    part = lines[i:i + BATCH]
-                    spans = self._spans(part, self.offset)
-                    if spans:
-                        lost = self.sink.send(spans) or 0
-                        self.spans += len(spans) - lost
-                        if lost:
-                            self.dropped += lost
-                            self.drop_reason = self.sink.last_drop[:300]
-                    self.offset += sum(len(raw) + 1 for raw in part)
-                    if not self.head:
-                        handle.seek(0)
-                        self.head = handle.read(min(HEAD_BYTES, self.offset)).hex()
-                    self.save()
+            self._read(handle, size)
+
+    def _read(self, handle, size):
+        while self.offset < size:
+            handle.seek(self.offset)
+            chunk = handle.read(min(CHUNK, size - self.offset))
+            cut = chunk.rfind(b"\n")
+            if cut < 0:
+                if len(chunk) < CHUNK:
+                    return  # a line still being written
+                log("skipped an oversized line in the Router telemetry file")
+                self.offset += len(chunk)
+                continue
+            lines = chunk[:cut + 1].split(b"\n")[:-1]
+            # One checkpoint per batch, so a failed send never repeats batches the sink already took.
+            for i in range(0, len(lines), BATCH):
+                part = lines[i:i + BATCH]
+                spans = self._spans(part, self.offset)
+                if spans:
+                    lost = self.sink.send(spans) or 0
+                    self.spans += len(spans) - lost
+                    if lost:
+                        self.dropped += lost
+                        self.drop_reason = self.sink.last_drop[:300]
+                self.offset += sum(len(raw) + 1 for raw in part)
+                if not self.head:
+                    handle.seek(0)
+                    self.head = handle.read(min(HEAD_BYTES, self.offset)).hex()
+                self.save()
 
     def _spans(self, lines, offset):
         spans = []
@@ -339,6 +349,39 @@ class Tailer:
                 continue
         return spans
 
+    def _end_drain(self):
+        if self.drain_handle is not None:
+            self.drain_handle.close()
+        self.drain, self.drain_handle = None, None
+
+    def _drain_rotated(self):
+        drain = self.drain
+        if drain is None:
+            return
+        if time.time() > drain["until"]:
+            self._end_drain()
+            self.save()
+            return
+        if self.drain_handle is None:
+            # After a restart: the generation is still there only if it was not rotated away meanwhile.
+            self.drain_handle = self._open_rotated(drain["inode"], drain["head"])
+            if self.drain_handle is None:
+                self._end_drain()
+                self.save()
+                return
+        size = os.fstat(self.drain_handle.fileno()).st_size
+        if size > drain["offset"]:
+            live = (self.inode, self.offset, self.head)
+            self.inode, self.offset, self.head = drain["inode"], drain["offset"], drain["head"]
+            self.draining = True
+            try:
+                self._read(self.drain_handle, size)
+            finally:
+                self.draining = False
+                drain["offset"] = self.offset
+                self.inode, self.offset, self.head = live
+            self.save()
+
     def poll(self):
         try:
             stat = os.stat(self.path)
@@ -346,18 +389,23 @@ class Tailer:
             return
         if self.inode is not None and stat.st_ino != self.inode:
             # Rotated: the old generation is now <file>.1; finish it before starting the new file.
-            rotated = f"{self.path}.1"
-            try:
-                old = os.stat(rotated)
-            except OSError:
-                old = None
-            if old is not None and old.st_ino == self.inode and self._head_matches(rotated):
-                self._consume(rotated, old.st_size)
+            self._drain_rotated()  # the generation before it, which a second rotation has just removed
+            self._end_drain()
+            old = self._open_rotated(self.inode, self.head)
+            if old is not None:
+                try:
+                    self._read(old, os.fstat(old.fileno()).st_size)
+                except BaseException:
+                    old.close()
+                    raise
+                self.drain, self.drain_handle = {"inode": self.inode, "offset": self.offset, "head": self.head,
+                                                 "until": time.time() + DRAIN_SECONDS}, old
             self._reset(stat.st_ino)
         elif self.inode is None:
             self._reset(stat.st_ino)
         elif stat.st_size < self.offset or not self._head_matches(self.path):
             self._reset(stat.st_ino)  # truncated (reset or clean) and possibly regrown
+        self._drain_rotated()
         self._consume(self.path, stat.st_size)
         if self.error:
             self.error = ""

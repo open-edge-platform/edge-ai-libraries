@@ -697,17 +697,28 @@ metrics_remove_dcode_managed() {
 metrics_receiver_pidfile() { printf '%s/metrics-otlp-receiver.pid' "$(harness_state_root)"; }
 metrics_receiver_logfile() { printf '%s/metrics-otlp-receiver.log' "$(harness_state_root)"; }
 
-# metrics_receiver_pid -- prints the pid of this installer's receiver when it is
+# metrics_process_args <pid> -- the command line of a live process, words joined by single spaces.
+metrics_process_args() {
+  local args
+  args="$({ tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null || ps -p "$1" -o args= 2>/dev/null; })" || return 1
+  args="${args#"${args%%[![:space:]]*}"}"
+  args="${args%"${args##*[![:space:]]}"}"
+  [[ -n "$args" ]] || return 1
+  printf '%s' "$args"
+}
+
+# metrics_daemon_pid <pidfile> <script name> -- prints the pid of a daemon this installer started while it is
 # alive (the pidfile alone is not trusted: the pid may have been reused).
-metrics_receiver_pid() {
-  local pidfile pid
-  pidfile="$(metrics_receiver_pidfile)"
-  [[ -f "$pidfile" && ! -L "$pidfile" ]] || return 1
-  pid="$(cat "$pidfile" 2>/dev/null)" || return 1
+metrics_daemon_pid() {
+  local pid
+  [[ -f "$1" && ! -L "$1" ]] || return 1
+  pid="$(cat "$1" 2>/dev/null)" || return 1
   [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-  tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null | grep -Fq "metrics-otlp-receiver" || return 1
+  metrics_process_args "$pid" | grep -Fq "$2" || return 1
   printf '%s' "$pid"
 }
+
+metrics_receiver_pid() { metrics_daemon_pid "$(metrics_receiver_pidfile)" metrics-otlp-receiver; }
 
 metrics_receiver_check() {
   command_exists curl || error "curl is required to check the local OTLP receiver behind --backend sqlite."
@@ -745,12 +756,27 @@ metrics_receiver_stop() {
   ok "OTLP receiver stopped"
 }
 
-# metrics_receiver_start <agent> <store> <content> -- (re)starts the receiver
-# detached from this shell, listening on 127.0.0.1 only. It does not survive a
+# metrics_receiver_start <agent> <store> <content> -- starts the receiver detached
+# from this shell, listening on 127.0.0.1 only; one already running with the same
+# settings is kept, so spans sent meanwhile are not lost. It does not survive a
 # reboot; 'observability enable' starts it again.
 metrics_receiver_start() {
-  local agent="$1" store="$2" content="$3" log
+  local agent="$1" store="$2" content="$3" log pid pidfile lib IFS=' '
+  local -a cmd
   metrics_receiver_check
+  pidfile="$(metrics_receiver_pidfile)"
+  lib="$(dirname "$METRICS_RECEIVER_SCRIPT")"
+  cmd=(python3 "$METRICS_RECEIVER_SCRIPT" --port "$HARNESS_OTLP_RECEIVER_PORT" --db "$store"
+    --agent "$agent" --content "$content" --max-rows "$HARNESS_OTLP_RECEIVER_MAX_ROWS"
+    --pidfile "$pidfile")
+  # The pidfile is written when the receiver starts, so newer scripts mean an installer upgrade it has not loaded;
+  # a missing store means it is writing to a file that was deleted underneath it.
+  if pid="$(metrics_receiver_pid)" && metrics_receiver_healthy && [[ -f "$store" ]] \
+    && [[ "$(metrics_process_args "$pid")" == "${cmd[*]}" ]] \
+    && [[ ! "$METRICS_RECEIVER_SCRIPT" -nt "$pidfile" && ! "${lib}/metrics_store.py" -nt "$pidfile" ]]; then
+    ok "OTLP receiver already listening on 127.0.0.1:${HARNESS_OTLP_RECEIVER_PORT} (store: ${store})"
+    return 0
+  fi
   metrics_receiver_stop
   if metrics_receiver_healthy; then
     error "Port ${HARNESS_OTLP_RECEIVER_PORT} is already served by another process; set HARNESS_OTLP_RECEIVER_PORT to a free port."
@@ -762,9 +788,7 @@ metrics_receiver_start() {
   [[ ! -L "$log" ]] || error "Refusing to write through a symlink: ${log}"
   # fd 200 is the deployment/state lock (see with_deployment_lock): a daemon that
   # inherited it would hold the lock, and block every later command, until it exits.
-  nohup setsid python3 "$METRICS_RECEIVER_SCRIPT" --port "$HARNESS_OTLP_RECEIVER_PORT" --db "$store" \
-    --agent "$agent" --content "$content" --max-rows "$HARNESS_OTLP_RECEIVER_MAX_ROWS" \
-    --pidfile "$(metrics_receiver_pidfile)" >"$log" 2>&1 </dev/null 200>&- &
+  nohup setsid "${cmd[@]}" >"$log" 2>&1 </dev/null 200>&- &
   disown 2>/dev/null || true
   for _ in $(seq 1 20); do
     metrics_receiver_healthy && break
@@ -1638,6 +1662,21 @@ metrics_router_max_bytes_is_valid() {
   [[ "$HARNESS_IR_TELEMETRY_MAX_BYTES" =~ ^[0-9]{1,15}$ ]]
 }
 
+# Earlier installers named the file telemetry.jsonl; moving it (and its rotated generation) keeps that history
+# readable and exportable instead of leaving it behind, unreachable by rotation and --clean.
+metrics_router_migrate_legacy_file() {
+  local dir suffix legacy current
+  dir="$(inference_router_workspace_dir)"
+  for suffix in "" .1; do
+    legacy="${dir}/telemetry.jsonl${suffix}"
+    current="${dir}/${METRICS_ROUTER_JSONL_NAME}${suffix}"
+    [[ -f "$legacy" && ! -L "$legacy" && ! -e "$current" && ! -L "$current" ]] || continue
+    mv -- "$legacy" "$current" || error "Could not move ${legacy} to ${current}."
+    [[ -z "$suffix" ]] || chmod 600 "$current" || error "Could not restrict ${current}."
+    info "Moved the previous Router telemetry file ${legacy} to ${current}"
+  done
+}
+
 metrics_router_prepare_file() {
   local file mode size max
   file="$(metrics_router_telemetry_file)"
@@ -1646,6 +1685,7 @@ metrics_router_prepare_file() {
   # 10# keeps a leading zero (e.g. 08) from being read as invalid octal.
   max=$((10#$HARNESS_IR_TELEMETRY_MAX_BYTES))
   mkdir -p "$(inference_router_workspace_dir)"
+  metrics_router_migrate_legacy_file
   # Rotated while the Router is stopped or about to restart, so nothing appends
   # to the moved file; the previous generation is replaced.
   if (( max > 0 )) && [[ -f "$file" ]]; then
@@ -1690,17 +1730,8 @@ metrics_router_bridge_logfile() { printf '%s/metrics-router-bridge.log' "$(harne
 metrics_router_bridge_checkpoint() { printf '%s/metrics-router-bridge.json' "$(harness_state_root)"; }
 metrics_router_store() { printf '%s/router-telemetry/ir_otel_live.db' "$(harness_state_root)"; }
 
-# Prints the pid of this installer's bridge when it is alive (the pid alone is not trusted: it may be reused).
-metrics_router_bridge_pid() {
-  local pidfile pid
-  pidfile="$(metrics_router_bridge_pidfile)"
-  [[ -f "$pidfile" && ! -L "$pidfile" ]] || return 1
-  pid="$(cat "$pidfile" 2>/dev/null)" || return 1
-  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-  { tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null || ps -p "$pid" -o args= 2>/dev/null; } \
-    | grep -Fq "metrics-router-bridge" || return 1
-  printf '%s' "$pid"
-}
+# Prints the pid of this installer's bridge when it is alive.
+metrics_router_bridge_pid() { metrics_daemon_pid "$(metrics_router_bridge_pidfile)" metrics-router-bridge; }
 
 metrics_router_bridge_check() {
   command_exists python3 || error "python3 is required for the Router telemetry bridge (--backend sqlite|jaeger)."
@@ -1903,11 +1934,28 @@ metrics_router_start_export() {
   metrics_router_bridge_start
   if [[ "$R_MANAGED" != true ]]; then
     metrics_state_set router.managed_jaeger false
-    if [[ "$prev_managed" == true ]] && ! metrics_jaeger_in_use_by harness; then
-      # Switching away from a Jaeger that was in use.
+    if [[ "$prev_managed" == true && -z "${M_DEFER_JAEGER_REMOVAL:-}" ]] && ! metrics_jaeger_in_use_by harness; then
+      # Switching away from a Jaeger that was in use (--target all waits until the harness has succeeded).
       metrics_remove_jaeger
     fi
   fi
+}
+
+# metrics_router_release_jaeger <previous router.managed_jaeger> -- removes the managed Jaeger the Router stopped
+# using (its removal was deferred by M_DEFER_JAEGER_REMOVAL) once nothing else needs it.
+metrics_router_release_jaeger() {
+  [[ "$1" == true && "$(metrics_state_get router.managed_jaeger)" != true ]] || return 0
+  if metrics_jaeger_in_use_by harness; then return 0; fi
+  metrics_remove_jaeger
+}
+
+# metrics_router_restore_export <backend> <endpoint> <content> <managed_jaeger> -- puts back a span export that a
+# failed command replaced (its Jaeger, saved state and bridge).
+metrics_router_restore_export() {
+  local now_managed
+  now_managed="$(metrics_state_get router.managed_jaeger)"
+  R_BACKEND="$1" R_ENDPOINT="$2" R_CONTENT="${3:-off}" R_MANAGED="${4:-false}"
+  metrics_router_start_export "${now_managed:-false}"
 }
 
 # Stops the bridge and gives up the managed Jaeger unless the harness (or --keep-jaeger) still needs it.
@@ -1959,7 +2007,7 @@ metrics_disable_router() {
 # Router back to memory, so nothing is appending to it; the restart also reset
 # the in-memory counters.
 metrics_clean_router() {
-  local file lines
+  local file lines legacy
   file="$(metrics_router_telemetry_file)"
   if [[ -L "$file" || -L "${file}.1" ]]; then
     warn "Refusing to clean a symlinked telemetry file: ${file}"
@@ -1973,6 +2021,11 @@ metrics_clean_router() {
     rm -f -- "${file}.1" || { warn "Could not remove ${file}.1; remove it manually."; return 1; }
     ok "Removed the rotated file ${file}.1"
   fi
+  for legacy in "$(inference_router_workspace_dir)/telemetry.jsonl" "$(inference_router_workspace_dir)/telemetry.jsonl.1"; do
+    [[ -f "$legacy" && ! -L "$legacy" ]] || continue
+    rm -f -- "$legacy" || { warn "Could not remove ${legacy}; remove it manually."; return 1; }
+    ok "Removed the earlier installer's telemetry file ${legacy}"
+  done
   if [[ ! -f "$file" ]]; then
     info "No Router telemetry file to clean (${file})"
     return 0
@@ -2172,13 +2225,17 @@ run_metrics_command() {
 # (which has more steps that can still fail, such as fetching the plugin); if
 # the harness fails, a Router change made by this command is undone.
 metrics_enable_all() {
-  local run_harness="$1" prev_router="" prev_bridge="" rc=0
+  local run_harness="$1" prev_router="" prev_bridge="" prev_endpoint="" prev_content="" prev_managed="" rc=0 rc_restore=0
   if metrics_wants router; then
     prev_router="$(metrics_state_get router.enabled)"
     prev_bridge="$(metrics_state_get router.bridge)"
-    metrics_enable_router
+    prev_endpoint="$(metrics_state_get router.endpoint)"
+    prev_content="$(metrics_state_get router.content)"
+    prev_managed="$(metrics_state_get router.managed_jaeger)"
+    # A Jaeger the Router stops using is kept until the harness has succeeded, so a rollback gets its traces back.
+    M_DEFER_JAEGER_REMOVAL=1 metrics_enable_router
   fi
-  [[ -n "$run_harness" ]] || return 0
+  [[ -n "$run_harness" ]] || { metrics_router_release_jaeger "$prev_managed"; return 0; }
   # errexit is switched off around the subshell so that its own failures are
   # reported through rc instead of being masked by the caller's context.
   set +e
@@ -2196,7 +2253,18 @@ metrics_enable_all() {
       set +e
       ( set -e; metrics_router_bridge_disable )
       set -e
+    elif metrics_wants router && [[ -n "$prev_bridge" ]] \
+      && [[ "$(metrics_state_get router.bridge)" != "$prev_bridge" || "$(metrics_state_get router.endpoint)" != "$prev_endpoint" \
+        || "$(metrics_state_get router.content)" != "$prev_content" ]]; then
+      warn "Harness telemetry could not be enabled; restoring the Router span export that this command replaced."
+      set +e
+      ( set -e; metrics_router_restore_export "$prev_bridge" "$prev_endpoint" "$prev_content" "$prev_managed" )
+      rc_restore=$?
+      set -e
+      (( rc_restore == 0 )) \
+        || warn "The previous Router span export could not be restored; run 'observability enable --target router' again."
     fi
     exit "$rc"
   fi
+  metrics_router_release_jaeger "$prev_managed"
 }

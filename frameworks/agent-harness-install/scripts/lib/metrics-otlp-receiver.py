@@ -18,20 +18,19 @@ import os
 import signal
 import sqlite3
 import struct
+import sys
 import threading
 import zlib
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import metrics_store  # noqa: E402
 
 MAX_BODY = 16 * 1024 * 1024
 MAX_VALUE = 2000
 MAX_CONTENT = 20000
 PREVIEW = 200
-
-SCHEMA = (
-    "CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, "
-    "ts INTEGER NOT NULL, data TEXT NOT NULL, trace_id TEXT, span_id TEXT, parent_span_id TEXT, "
-    "session_id TEXT, name TEXT, status TEXT, start_ns INTEGER, end_ns INTEGER, duration_ms REAL, "
-    "level INTEGER, logger TEXT, value REAL)"
-)
+# Requests decoded at once; more are told to retry, which bounds memory to about this many MAX_BODY buffers.
+MAX_CONCURRENT = 8
 
 OPENCLAW_SPANS = {
     "openclaw.run",
@@ -207,11 +206,7 @@ class Store:
         self.agent, self.content, self.max_rows = agent, content, max_rows
         self.lock = threading.Lock()
         self.inserted = 0
-        os.umask(0o077)
-        self.con = sqlite3.connect(path, check_same_thread=False, timeout=10)
-        self.con.execute("PRAGMA journal_mode=WAL")
-        self.con.execute(SCHEMA)
-        self.con.commit()
+        self.con = metrics_store.open_store(path, check_same_thread=False)
 
     def add(self, spans):
         rows = []
@@ -228,14 +223,11 @@ class Store:
             return
         with self.lock:
             try:
-                self.con.executemany(
-                    "INSERT INTO events (kind, ts, data, trace_id, span_id, parent_span_id, session_id, name, status, "
-                    "start_ns, end_ns, duration_ms) VALUES ('span', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+                self.con.executemany(metrics_store.INSERT_SPAN, rows)
                 self.inserted += len(rows)
-                if self.max_rows and self.inserted >= 500:
+                if self.max_rows and self.inserted >= metrics_store.PRUNE_EVERY:
                     self.inserted = 0
-                    self.con.execute(
-                        "DELETE FROM events WHERE seq <= (SELECT MAX(seq) FROM events) - ?", (self.max_rows,))
+                    metrics_store.prune(self.con, self.max_rows)
                 self.con.commit()
             except sqlite3.Error:
                 self.con.rollback()
@@ -268,6 +260,8 @@ def read_body(handler):
 
 
 def make_handler(store):
+    slots = threading.BoundedSemaphore(MAX_CONCURRENT)
+
     class Handler(http.server.BaseHTTPRequestHandler):
         timeout = REQUEST_TIMEOUT
 
@@ -288,6 +282,15 @@ def make_handler(store):
                 return self._reply(404, "text/plain")
             if "protobuf" not in (self.headers.get("Content-Type") or ""):
                 return self._reply(415, "text/plain")
+            if not slots.acquire(blocking=False):
+                # Exporters retry a 503; reading the body now would cost the memory this limit protects.
+                return self._reply(503, "text/plain")
+            try:
+                self._ingest()
+            finally:
+                slots.release()
+
+        def _ingest(self):
             try:
                 body = read_body(self)
                 if (self.headers.get("Content-Encoding") or "").lower() == "gzip":

@@ -108,6 +108,16 @@ jobs:
           for file in "${files[@]}"; do
             node --check "$file"
           done
+      - name: Python static analysis (undefined names, unused imports)
+        working-directory: frameworks/agent-harness-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/lint-venv"
+          "$RUNNER_TEMP/lint-venv/bin/pip" install --quiet pyflakes==4.1.0
+          mapfile -d '' files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f -name '*.py' -print0)
+          ((${#files[@]} > 0))
+          "$RUNNER_TEMP/lint-venv/bin/python" -m pyflakes "${files[@]}"
 
   offline:
     name: OpenShell offline gate
@@ -170,7 +180,12 @@ jobs:
         working-directory: frameworks/agent-harness-install
         run: |
           set -euo pipefail
-          bash test/metrics-test.sh | tee "$RUNNER_TEMP/openshell-offline/metrics.tap"
+          # The dcode extension test needs these; with HARNESS_TEST_REQUIRE_DCODE_DEPS=1 a missing one fails instead of skipping.
+          python3 -m venv "$RUNNER_TEMP/dcode-test-venv"
+          "$RUNNER_TEMP/dcode-test-venv/bin/pip" install --quiet \
+            langchain-core==1.8.5 opentelemetry-sdk==1.45.2 opentelemetry-exporter-otlp-proto-http==1.45.2
+          HARNESS_TEST_DCODE_PYTHON="$RUNNER_TEMP/dcode-test-venv/bin/python" HARNESS_TEST_REQUIRE_DCODE_DEPS=1 \
+            bash test/metrics-test.sh | tee "$RUNNER_TEMP/openshell-offline/metrics.tap"
       - name: Observability CLI entry point
         id: metrics-cli
         if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}

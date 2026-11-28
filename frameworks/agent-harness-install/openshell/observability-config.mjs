@@ -28,7 +28,7 @@ const hermesConfig = path.join(hermesHome, "hermes_otel.yaml");
 const hermesPlugin = path.join(hermesHome, "plugins", "hermes_otel", "plugin.yaml");
 // The sandbox user's HOME is /sandbox, but the image installs Hermes under /home/node.
 const hermesBin = process.env.HERMES_BIN || "/home/node/.local/bin/hermes";
-const hermesMarker = "# Managed by agent-harness-install (metrics)";
+const managedMarker = "# Managed by agent-harness-install (metrics)";
 // dcode: the extension is baked into the image; enabling copies it into the profile's extensions directory and
 // switches extension loading on through the profile .env. Markers match scripts/lib/metrics.sh.
 const dcodeHome = process.env.DEEPAGENTS_HOME || path.join(home, ".deepagents");
@@ -114,7 +114,7 @@ function openclawApply() {
 // A hermes_otel.yaml this installer did not write is never replaced.
 function hermesConfigState() {
   if (!fs.existsSync(hermesConfig)) return "absent";
-  return fs.readFileSync(hermesConfig, "utf8").split("\n")[0] === hermesMarker ? "managed" : "foreign";
+  return fs.readFileSync(hermesConfig, "utf8").split("\n")[0] === managedMarker ? "managed" : "foreign";
 }
 
 function assertHermesConfigWritable() {
@@ -141,7 +141,7 @@ function restartHermesGateway() {
 }
 
 function hermesInert() {
-  writeFile(hermesConfig, `${hermesMarker}\nenabled: false\n`);
+  writeFile(hermesConfig, `${managedMarker}\nenabled: false\n`);
 }
 
 function lstatOrNull(file) {
@@ -163,7 +163,7 @@ function dcodeFileState(file, mark) {
 function assertDcodeWritable() {
   for (const dir of [dcodeHome, dcodeExtensionDir, dcodeEnv])
     if (lstatOrNull(dir)?.isSymbolicLink()) throw Error(`Refusing to write through a symlink: ${dir}`);
-  if (dcodeFileState(dcodeExtension, hermesMarker) === "foreign")
+  if (dcodeFileState(dcodeExtension, managedMarker) === "foreign")
     throw Error(`${dcodeExtension} exists and is not managed by this installer; move it aside and retry`);
   if (dcodeFileState(dcodeSettings, dcodeSettingsMark) === "foreign")
     throw Error(`${dcodeSettings} exists and is not managed by this installer; move it aside and retry`);
@@ -260,7 +260,7 @@ switch (command) {
     validContent(content);
     assertHermesConfigWritable();
     // "off" must stay quoted: bare off is a YAML 1.1 boolean.
-    writeFile(hermesConfig, [hermesMarker, `content_capture: "${content}"`, "backends:", "  - type: otlp",
+    writeFile(hermesConfig, [managedMarker, `content_capture: "${content}"`, "backends:", "  - type: otlp",
       `    endpoint: "${tracesUrl}"`, "    metrics: false", "    logs: false", ""].join("\n"));
     restartHermesGateway();
     break;
@@ -282,7 +282,7 @@ switch (command) {
     break;
   }
   case "dcode-disable":
-    if (dcodeFileState(dcodeExtension, hermesMarker) === "managed") fs.rmSync(dcodeExtension);
+    if (dcodeFileState(dcodeExtension, managedMarker) === "managed") fs.rmSync(dcodeExtension);
     if (dcodeFileState(dcodeSettings, dcodeSettingsMark) === "managed") fs.rmSync(dcodeSettings);
     if (!lstatOrNull(dcodeEnv)?.isSymbolicLink() && fs.existsSync(dcodeEnv) && fs.readFileSync(dcodeEnv, "utf8").includes(dcodeEnvBegin)) dcodeEnvSet(false);
     break;
@@ -303,7 +303,7 @@ switch (command) {
       console.log(`diagnostics-otel plugin ${pluginInstalled() ? "installed" : "not installed"}`);
       console.log(`diagnostics.otel.enabled: ${otel?.enabled === true}${otel?.endpoint ? ` (${otel.endpoint})` : ""}`);
     } else if (agent === "deepagents-code") {
-      const installed = dcodeFileState(dcodeExtension, hermesMarker) === "managed";
+      const installed = dcodeFileState(dcodeExtension, managedMarker) === "managed";
       console.log(`dcode telemetry extension ${installed ? `installed (${dcodeExtension})` : "not installed"}`);
       if (dcodeFileState(dcodeSettings, dcodeSettingsMark) === "managed") {
         const settings = readJson(dcodeSettings);

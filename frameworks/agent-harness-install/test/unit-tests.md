@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 80 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 87 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -310,7 +310,7 @@ codes and resulting state, not real containers.
 | `jaeger_port_mismatch_is_rejected` | Existing Jaeger with other ports | Fail instead of reusing a container that is not published on exactly the two configured loopback ports (wildcard, IPv6-any, wrong or extra ports). |
 | `openclaw_enable_disable` | OpenClaw lifecycle (stub CLI) | Install the plugin once, merge the `diagnostics` config pointing at the receiver with content capture on, start the receiver; disable turns the exporter and plugin off and stops the receiver; a later enable re-enables the installed plugin without a second install. |
 | `openclaw_jaeger_and_foreign_exporter` | OpenClaw with Jaeger and a foreign exporter | Point the exporter at the Jaeger OTLP base URL and stop the receiver; refuse to overwrite a `diagnostics.otel` exporter this installer did not set up; reject `--content preview` with Jaeger. |
-| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the OpenClaw spans it needs (every dcode span is kept), honour the content modes (including dcode's `langfuse.observation.*` fields), answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, and answer 400 for a negative `Content-Length` or an oversized chunk. |
+| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the OpenClaw spans it needs (every dcode span is kept), honour the content modes (including dcode's `langfuse.observation.*` fields), answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, answer 400 for a negative `Content-Length` or an oversized chunk, ignore replayed spans, and answer 503 beyond the concurrent-request limit. |
 | `openclaw_disable_needs_installer_ownership` | OpenClaw disable without a recorded enable | Leave the user's own exporter and plugin alone. |
 | `only_one_harness_exporter_is_recorded` | Two agents, one exporter | Refuse to enable another agent while one owns the exporter; `show` and `disable` follow the recorded owner. |
 | `openclaw_failed_enable_can_be_disabled` | OpenClaw enable that fails midway | Record the enable first so `disable` turns the exporter off and stops the receiver. |
@@ -362,10 +362,16 @@ codes and resulting state, not real containers.
 | `router_bridge_external_endpoint_and_switching` | External endpoint and sink switch | Send Router spans to an `--endpoint`, and switch back from the managed Jaeger. |
 | `router_bridge_preflight_fails_before_any_change` | Bridge prerequisites | Fail before the Router config or state is changed. |
 | `router_bridge_start_failure_rolls_back` | Failed bridge start | Roll back the config, state and a newly started Jaeger, and restart the bridge that was running before the switch. |
-| `router_bridge_tailer_resumes_without_duplicates` | Bridge tailer | Resume per batch, replay for a new sink, fail on an unwritable checkpoint. |
+| `router_bridge_tailer_resumes_without_duplicates` | Bridge tailer | Resume per batch, replay for a new sink, fail on an unwritable checkpoint, and keep forwarding lines the Router appends to `<file>.1` for a limited time after a rotation, also across a second rotation and a daemon restart (the drain is saved in the checkpoint and dropped if `<file>.1` was replaced). |
 | `router_bridge_sinks_are_idempotent_and_keep_paths` | Bridge sinks | Ignore replayed spans in SQLite and keep an explicit OTLP endpoint path. |
 | `router_bridge_otlp_errors_are_retried_or_counted` | OTLP endpoint errors | Retry 401/403/404/5xx without moving the checkpoint; drop 400/413/415/422 batches and record the count and reason in the checkpoint. |
 | `router_bridge_daemon_forwards_events` | Bridge daemon | Forward Router events into the SQLite store and stop cleanly. |
+| `router_legacy_telemetry_file_is_migrated` | Earlier file name | Move `telemetry.jsonl` and its rotated generation to `ir_metrics.jsonl` (the rotated one with mode 600), never over a current file or through a symlink. |
+| `router_clean_removes_the_earlier_installers_files` | Earlier file name, `--clean` | Remove leftover `telemetry.jsonl` and `.1` on `disable --clean`, never through a symlink. |
+| `all_target_keeps_the_previous_jaeger_until_the_harness_succeeds` | Combined-target Jaeger handover | Keep the Jaeger the Router gives up while the harness can still fail; remove it after the harness succeeds, or at once for `--target router`. |
+| `all_target_restores_a_replaced_router_export` | Combined-target failure handling | Put the previous Router span export back when the harness fails after the export was replaced. |
+| `process_and_daemon_pid_helpers` | Daemon pid lookup | Read a command line from `/proc` or `ps`, and distrust a pidfile whose process is not the daemon. |
+| `receiver_is_kept_when_its_settings_match` | OTLP receiver restart | Keep a running receiver with identical settings; replace it when they change, when the scripts are newer, or when its store was deleted. |
 | `harness_show_and_disable_follow_the_recorded_owner` | Recorded exporter owner | Let `show` and `disable` use the recorded agent even when the selected harness is unsupported. |
 | `openshell_openclaw_stage_off_keeps_ownership_until_applied` | OpenShell OpenClaw disable | Keep exporter ownership until the disable is applied, so a failed restart can be retried. |
 

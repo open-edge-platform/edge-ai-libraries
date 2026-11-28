@@ -1077,11 +1077,19 @@ dcode_extension_compiles() {
 }
 
 # Needs langchain-core and the OpenTelemetry OTLP exporter; HARNESS_TEST_DCODE_PYTHON can point at dcode's own Python.
+# HARNESS_TEST_REQUIRE_DCODE_DEPS=1 (CI) turns a missing dependency into a failure instead of a skip.
 dcode_extension_exports_spans() {
-  local py="${HARNESS_TEST_DCODE_PYTHON:-python3}"
-  command -v "$py" >/dev/null || { echo "# skipped: $py not found"; return 0; }
-  "$py" -c 'import langchain_core, opentelemetry.sdk.trace, opentelemetry.exporter.otlp.proto.http.trace_exporter' >/dev/null 2>&1 \
-    || { echo "# skipped: langchain-core or the OpenTelemetry OTLP exporter is not installed"; return 0; }
+  local py="${HARNESS_TEST_DCODE_PYTHON:-python3}" why=""
+  if ! command -v "$py" >/dev/null; then
+    why="$py not found"
+  elif ! "$py" -c 'import langchain_core, opentelemetry.sdk.trace, opentelemetry.exporter.otlp.proto.http.trace_exporter' >/dev/null 2>&1; then
+    why="langchain-core or the OpenTelemetry OTLP exporter is not installed"
+  fi
+  if [[ -n "$why" ]]; then
+    [[ "${HARNESS_TEST_REQUIRE_DCODE_DEPS:-}" != 1 ]] || { echo "required dcode test dependency missing: $why" >&2; return 1; }
+    echo "# skipped: $why"
+    return 0
+  fi
   "$py" - "$SCRIPT_DIR/scripts/lib" "$TEST_ROOT" <<'PY'
 import asyncio, importlib.util, json, os, socket, sqlite3, subprocess, sys, time, urllib.request, uuid
 
@@ -1187,8 +1195,8 @@ def ld(field, body):
     return varint(field << 3 | 2) + varint(len(body)) + body
 
 
-def span(name, attrs, parent=b"", status=0):
-    m = ld(1, b"\xaa" * 16) + ld(2, b"\x01" * 8) + (ld(4, parent) if parent else b"") + ld(5, name.encode())
+def span(name, attrs, parent=b"", status=0, sid=1):
+    m = ld(1, b"\xaa" * 16) + ld(2, bytes([sid]) * 8) + (ld(4, parent) if parent else b"") + ld(5, name.encode())
     m += varint(7 << 3 | 1) + struct.pack("<Q", 1_000_000) + varint(8 << 3 | 1) + struct.pack("<Q", 3_000_000)
     for key, val in attrs.items():
         m += ld(9, ld(1, key.encode()) + ld(2, ld(1, val.encode())))
@@ -1243,14 +1251,18 @@ def run(agent, content, body_fn):
 
 
 prompt = {"gen_ai.prompt": "x" * 500, "gen_ai.tool.call.arguments": "y" * 500, "gen_ai.system_instructions": "z" * 500, "openclaw.model": "m"}
-oc = request(span("openclaw.run", prompt), span("openclaw.model.call", {}, status=2), span("http.noise", {}))
+oc_spans = lambda n: request(span("openclaw.run", prompt, sid=n), span("openclaw.model.call", {}, status=2, sid=n + 10), span("http.noise", {}, sid=n + 20))
+oc = oc_spans(1)
 
 
 def oc_body(port):
     assert post(port, oc) == 200
-    assert post(port, gzip.compress(oc), headers={"Content-Encoding": "gzip"}) == 200
+    # A replayed export (a retry after a timeout) is acknowledged but not stored twice.
+    assert post(port, oc) == 200
+    assert post(port, gzip.compress(oc_spans(2)), headers={"Content-Encoding": "gzip"}) == 200
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-    conn.request("POST", "/v1/traces", body=iter([oc[:7], oc[7:]]), headers={"Content-Type": "application/x-protobuf"}, encode_chunked=True)
+    chunked = oc_spans(3)
+    conn.request("POST", "/v1/traces", body=iter([chunked[:7], chunked[7:]]), headers={"Content-Type": "application/x-protobuf"}, encode_chunked=True)
     assert conn.getresponse().status == 200
     conn.close()
     assert post(port, b"{}", "application/json") == 415
@@ -1281,7 +1293,7 @@ for content in ("off", "preview", "full"):
         assert "x" * 500 in run_row[3] and "y" * 500 in run_row[3]
 
 # dcode: every span is kept; the Langfuse observation fields are content like the gen_ai ones.
-dc = request(span("chat m", {"gen_ai.request.model": "m", "langfuse.observation.input": "x" * 500, "gen_ai.input.messages": "y" * 500}), span("agent", {"session.id": "s1"}))
+dc = request(span("chat m", {"gen_ai.request.model": "m", "langfuse.observation.input": "x" * 500, "gen_ai.input.messages": "y" * 500}, sid=1), span("agent", {"session.id": "s1"}, sid=2))
 for content in ("off", "preview", "full"):
     got = run("deepagents-code", content, lambda port: post(port, dc) == 200 or sys.exit("post failed"))
     assert [r[0] for r in got] == ["chat m", "agent"], got
@@ -1305,6 +1317,31 @@ try:
     assert post(port, oc) == 503
     assert post(port, b"\xff\xff") == 400
 finally:
+    proc.terminate()
+    proc.wait(10)
+
+# Requests beyond the concurrency limit are told to retry; the slots free up when they finish.
+proc, port = start("openclaw", "off", f"{root}/busy.db")
+holders = []
+try:
+    for _ in range(8):
+        s = socket.create_connection(("127.0.0.1", port), timeout=5)
+        s.sendall(b"POST /v1/traces HTTP/1.1\r\nHost: x\r\nContent-Type: application/x-protobuf\r\nContent-Length: 100\r\n\r\n")
+        holders.append(s)
+    time.sleep(1)
+    assert post(port, oc) == 503
+    for s in holders:
+        s.close()
+    holders = []
+    for _ in range(50):
+        if post(port, oc) == 200:
+            break
+        time.sleep(0.2)
+    else:
+        raise SystemExit("receiver did not free its slots")
+finally:
+    for s in holders:
+        s.close()
     proc.terminate()
     proc.wait(10)
 
@@ -1772,6 +1809,83 @@ try:
     raise SystemExit("expected a fatal error")
 except b.Fatal:
     pass
+
+# A Router that was still running at rotation keeps appending to <file>.1 until it restarts; nothing is lost,
+# and the old generation is only followed for a limited time.
+rot, rck = os.path.join(d, "rot.jsonl"), os.path.join(d, "rot.json")
+with open(rot, "w") as h:
+    h.write(line("o1") + line("o2"))
+sink = Sink()
+t = b.Tailer(rot, rck, sink, "off", "r")
+t.poll()
+assert len(sink.got) == 2
+os.replace(rot, rot + ".1")
+with open(rot, "w") as h:
+    h.write(line("n1"))
+t.poll()
+assert len(sink.got) == 3
+with open(rot + ".1", "a") as h:
+    h.write(line("late1"))
+t.poll()
+assert len(sink.got) == 4, len(sink.got)
+# The checkpoint keeps describing the live file, so a restart never replays it from the start.
+import json
+with open(rck) as h:
+    saved = json.load(h)
+assert saved["inode"] == os.stat(rot).st_ino and saved["offset"] == os.path.getsize(rot), saved
+with open(rot, "a") as h:
+    h.write(line("n2"))
+t.poll()
+assert len(sink.got) == 5
+t.drain["until"] = 0
+with open(rot + ".1", "a") as h:
+    h.write(line("too-late"))
+t.poll()
+assert t.drain is None and len(sink.got) == 5, len(sink.got)
+
+# A second rotation deletes the first rotated file, but its late lines were already being followed.
+dr, dck = os.path.join(d, "dbl.jsonl"), os.path.join(d, "dbl.json")
+with open(dr, "w") as h:
+    h.write(line("a1"))
+sink = Sink()
+t = b.Tailer(dr, dck, sink, "off", "r")
+t.poll()
+os.replace(dr, dr + ".1")
+with open(dr, "w") as h:
+    h.write(line("b1"))
+t.poll()
+assert len(sink.got) == 2
+with open(dr + ".1", "a") as h:
+    h.write(line("late-a"))
+os.replace(dr, dr + ".1")  # the file holding a1 and late-a is now unlinked
+with open(dr, "w") as h:
+    h.write(line("c1"))
+t.poll()
+assert len(sink.got) == 4, len(sink.got)  # late-a and c1
+
+# The drain survives a restart of the daemon, unless the rotated file was replaced meanwhile.
+rr, rck2 = os.path.join(d, "rst.jsonl"), os.path.join(d, "rst.json")
+with open(rr, "w") as h:
+    h.write(line("r1"))
+sink = Sink()
+b.Tailer(rr, rck2, sink, "off", "r").poll()
+os.replace(rr, rr + ".1")
+with open(rr, "w") as h:
+    h.write(line("r2"))
+b.Tailer(rr, rck2, sink, "off", "r").poll()
+assert len(sink.got) == 2
+with open(rr + ".1", "a") as h:
+    h.write(line("r-late"))
+restarted = b.Tailer(rr, rck2, sink, "off", "r")
+assert restarted.drain is not None
+restarted.poll()
+assert len(sink.got) == 3, len(sink.got)
+with open(os.path.join(d, "other"), "w") as h:
+    h.write(line("unrelated"))
+os.replace(os.path.join(d, "other"), rr + ".1")
+replaced = b.Tailer(rr, rck2, sink, "off", "r")
+replaced.poll()
+assert replaced.drain is None and len(sink.got) == 3, len(sink.got)
 print("tailer ok")
 PY
 }
@@ -1810,7 +1924,7 @@ assert count(db) == 3, count(db)
 # A store written before span ids were unique is deduplicated when opened.
 old = os.path.join(d, "old.db")
 con = sqlite3.connect(old)
-con.execute(b.SCHEMA)
+con.execute(b.metrics_store.SCHEMA)
 for _ in range(2):
     con.execute("INSERT INTO events (kind, ts, data, trace_id, span_id, name, status, start_ns, end_ns, duration_ms) "
                 "VALUES ('span', 2, '{}', 't', 'x', 'n', 'OK', 1, 2, 0)")
@@ -2000,6 +2114,127 @@ router_bridge_daemon_forwards_events() {
   refute kill -0 "$pid"
 }
 
+router_legacy_telemetry_file_is_migrated() {
+  fixture
+  local dir="$HARNESS_IR_WORKSPACE_DIR"
+  printf 'old\n' >"$dir/telemetry.jsonl"
+  printf 'older\n' >"$dir/telemetry.jsonl.1"
+  metrics_router_prepare_file
+  [[ "$(cat "$dir/ir_metrics.jsonl")" == old && "$(cat "$dir/ir_metrics.jsonl.1")" == older ]]
+  [[ ! -e "$dir/telemetry.jsonl" && ! -e "$dir/telemetry.jsonl.1" ]]
+  [[ "$(uname -s)" != Linux || "$(stat -c '%a' "$dir/ir_metrics.jsonl.1")" == 600 ]]
+  # A current file is never overwritten.
+  printf 'legacy\n' >"$dir/telemetry.jsonl"
+  metrics_router_prepare_file
+  [[ "$(cat "$dir/ir_metrics.jsonl")" == old && "$(cat "$dir/telemetry.jsonl")" == legacy ]]
+  # A symlink is never followed.
+  rm -f -- "$dir/ir_metrics.jsonl" "$dir/ir_metrics.jsonl.1" "$dir/telemetry.jsonl"
+  printf 'keep\n' >"$HOME/elsewhere"
+  ln -s "$HOME/elsewhere" "$dir/telemetry.jsonl" 2>/dev/null || { echo "# skipped: symlinks unavailable"; return 0; }
+  metrics_router_prepare_file
+  [[ -L "$dir/telemetry.jsonl" && ! -s "$dir/ir_metrics.jsonl" && "$(cat "$HOME/elsewhere")" == keep ]]
+}
+
+router_clean_removes_the_earlier_installers_files() {
+  fixture
+  local dir="$HARNESS_IR_WORKSPACE_DIR"
+  printf 'old\n' >"$dir/telemetry.jsonl"
+  printf 'older\n' >"$dir/telemetry.jsonl.1"
+  metrics_clean_router >/dev/null
+  [[ ! -e "$dir/telemetry.jsonl" && ! -e "$dir/telemetry.jsonl.1" ]]
+  # A symlink is neither followed nor removed.
+  printf 'keep\n' >"$HOME/elsewhere"
+  ln -s "$HOME/elsewhere" "$dir/telemetry.jsonl" 2>/dev/null || { echo "# skipped: symlinks unavailable"; return 0; }
+  metrics_clean_router >/dev/null
+  [[ -L "$dir/telemetry.jsonl" && "$(cat "$HOME/elsewhere")" == keep ]]
+}
+
+all_target_keeps_the_previous_jaeger_until_the_harness_succeeds() {
+  fixture
+  run_metrics_command enable --target router --backend jaeger >/dev/null
+  [[ "$(metrics_state_get router.managed_jaeger)" == true ]]
+  : >"$ACTIONS"
+  # The Router moves to sqlite and the harness fails: the Jaeger, with its traces, is still there for the rollback.
+  TEST_HERMES_FAILS=install expect_failure . run_metrics_command enable --target all --backend sqlite
+  refute grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  [[ "$(metrics_state_get router.bridge)" == jaeger && "$(metrics_state_get router.managed_jaeger)" == true ]]
+  # When the harness succeeds, the Jaeger the Router no longer uses is removed afterwards.
+  : >"$ACTIONS"
+  run_metrics_command enable --target all --backend sqlite >/dev/null
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  [[ "$(grep -E '^(hermes install|docker rm)' "$ACTIONS" | tail -1)" == "docker rm $HARNESS_JAEGER_CONTAINER" ]]
+  [[ "$(metrics_state_get router.managed_jaeger)" == false && "$(metrics_state_get router.bridge)" == sqlite ]]
+  # Router alone has no harness to wait for.
+  run_metrics_command enable --target router --backend jaeger >/dev/null
+  : >"$ACTIONS"
+  run_metrics_command enable --target router --backend sqlite >/dev/null
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+}
+
+all_target_restores_a_replaced_router_export() {
+  fixture
+  run_metrics_command enable --target router --backend sqlite --content preview >/dev/null
+  [[ "$(metrics_state_get router.bridge)" == sqlite && "$(metrics_state_get router.content)" == preview ]]
+  : >"$ACTIONS"
+  # The harness fails after the Router export was switched to Jaeger: the previous export comes back.
+  TEST_HERMES_FAILS=install expect_failure . \
+    run_metrics_command enable --target all --backend jaeger --endpoint http://collector:4318/v1/traces --content full
+  grep -Fxq 'bridge start jaeger full' "$ACTIONS"
+  [[ "$(grep '^bridge start' "$ACTIONS" | tail -1)" == 'bridge start sqlite preview' ]]
+  [[ "$(metrics_state_get router.enabled)" == true && "$(metrics_state_get router.bridge)" == sqlite ]]
+  [[ "$(metrics_state_get router.content)" == preview && -z "$(metrics_state_get router.endpoint)" ]]
+}
+
+process_and_daemon_pid_helpers() {
+  [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs /proc"; return 0; }
+  fixture
+  [[ "$(metrics_process_args "$$")" == *metrics-test* ]]
+  refute metrics_process_args 999999999
+  if command -v ps >/dev/null; then
+    # Without /proc/<pid>/cmdline (macOS, restricted /proc) ps answers instead.
+    [[ "$(tr() { return 1; }; metrics_process_args "$$")" == *metrics-test* ]]
+  fi
+  printf '%s' "$$" >"$HOME/daemon.pid"
+  [[ "$(metrics_daemon_pid "$HOME/daemon.pid" metrics-test)" == "$$" ]]
+  # A reused pid whose command line is not the daemon's is not trusted.
+  refute metrics_daemon_pid "$HOME/daemon.pid" metrics-otlp-receiver
+  printf 'x' >"$HOME/daemon.pid"
+  refute metrics_daemon_pid "$HOME/daemon.pid" metrics-test
+  refute metrics_daemon_pid "$HOME/missing.pid" metrics-test
+}
+
+receiver_is_kept_when_its_settings_match() {
+  [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs /proc"; return 0; }
+  command -v python3 >/dev/null && command -v curl >/dev/null || { echo "# skipped: python3 or curl not found"; return 0; }
+  fixture
+  local store="$HOME/spans.db" pid out
+  HARNESS_OTLP_RECEIVER_PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+  trap 'metrics_receiver_stop >/dev/null 2>&1 || true' EXIT
+  metrics_receiver_start openclaw "$store" off >/dev/null 2>&1
+  pid="$(metrics_receiver_pid)"
+  [[ -n "$pid" ]]
+  # Same settings: the running receiver is kept, so spans sent in the meantime are not lost.
+  out="$(metrics_receiver_start openclaw "$store" off 2>&1)"
+  grep -Fq 'already listening' <<<"$out"
+  [[ "$(metrics_receiver_pid)" == "$pid" ]]
+  # Scripts newer than the running receiver (an installer upgrade): it is replaced even with identical settings.
+  touch -d '1 hour ago' "$(metrics_receiver_pidfile)"
+  metrics_receiver_start openclaw "$store" off >/dev/null 2>&1
+  [[ "$(metrics_receiver_pid)" != "$pid" ]]
+  refute kill -0 "$pid"
+  pid="$(metrics_receiver_pid)"
+  # Different content mode: it is replaced.
+  metrics_receiver_start openclaw "$store" preview >/dev/null 2>&1
+  [[ "$(metrics_receiver_pid)" != "$pid" ]]
+  refute kill -0 "$pid"
+  pid="$(metrics_receiver_pid)"
+  # A store deleted underneath it (the old one is unlinked): it is replaced and the store comes back.
+  rm -f -- "$store" "$store-wal" "$store-shm"
+  metrics_receiver_start openclaw "$store" preview >/dev/null 2>&1
+  [[ "$(metrics_receiver_pid)" != "$pid" && -f "$store" ]]
+  refute kill -0 "$pid"
+}
+
 dispatch() {
   fixture
   with_deployment_lock() { printf 'lock\n' >>"$ACTIONS"; "$@"; }
@@ -2091,4 +2326,10 @@ run_case 'Router bridge to OTLP: endpoint errors are retried, refused batches ar
 run_case 'Harness show and disable follow the recorded owner even when the selected harness is unsupported' harness_show_and_disable_follow_the_recorded_owner
 run_case 'OpenShell OpenClaw keeps ownership of the exporter until the disable is applied' openshell_openclaw_stage_off_keeps_ownership_until_applied
 run_case 'Router bridge daemon forwards events into the sqlite store and stops cleanly' router_bridge_daemon_forwards_events
+run_case 'a Router telemetry.jsonl from an earlier installer is moved to ir_metrics.jsonl, never over a current file' router_legacy_telemetry_file_is_migrated
+run_case '--target all puts the previous Router export back when the harness fails' all_target_restores_a_replaced_router_export
+run_case 'process command lines and daemon pids are read from /proc or ps and not trusted from a pidfile alone' process_and_daemon_pid_helpers
+run_case 'a running OTLP receiver with the same settings is kept; changed settings replace it' receiver_is_kept_when_its_settings_match
+run_case 'Router --clean also removes the earlier installer telemetry files, never through a symlink' router_clean_removes_the_earlier_installers_files
+run_case '--target all keeps the Jaeger the Router gives up until the harness has succeeded' all_target_keeps_the_previous_jaeger_until_the_harness_succeeds
 finish_tests

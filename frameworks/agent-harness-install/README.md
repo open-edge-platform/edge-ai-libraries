@@ -67,7 +67,7 @@ SQLite store, and optionally exports them to a
 managed or external Jaeger. Deep Agents Code gets a small extension installed by
 the installer (host runtime and OpenShell). For OpenClaw and dcode a small loopback OTLP
 receiver fills the local store.
-Harness telemetry also works in OpenShell sandboxes for OpenClaw and Hermes (`--runtime openshell`).
+Harness telemetry also works in OpenShell sandboxes for OpenClaw, Hermes and dcode (`--runtime openshell`).
 With `--target all` (or when `--backend` is given or saved), a host-side bridge also turns each Router
 request into a span (service `inference-router`) in the same store or Jaeger,
 without changing the Router.
@@ -106,8 +106,9 @@ scripts/lib/inference-router.sh  Inference Router (always run in front of OVMS o
 scripts/lib/agents.sh         Agent Harness Installer's agent catalog: openclaw / deepagents-code (dcode) / hermes
 scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes and OpenClaw built in; others via HARNESS_MCP_REGISTER_CMD)
 scripts/lib/metrics.sh       observability commands for Router and harness telemetry
-scripts/lib/metrics-otlp-receiver.py  loopback OTLP receiver behind --backend sqlite for OpenClaw
+scripts/lib/metrics-otlp-receiver.py  loopback OTLP receiver behind --backend sqlite for OpenClaw, dcode and Hermes in OpenShell
 scripts/lib/metrics-router-bridge.py  host-side bridge that tails the Router's ir_metrics.jsonl and exports one span trace per request
+scripts/lib/metrics_store.py          SQLite events store shared by the receiver and the bridge
 docs/user-guide/              usage documentation (see Documentation above)
 test/metrics-test.sh          observability behavior tests (Docker and agent CLIs stubbed)
 test/metrics-cli-test.sh      observability CLI entry-point tests
