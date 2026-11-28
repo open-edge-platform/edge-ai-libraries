@@ -681,9 +681,12 @@ metrics_write_dcode_config() {
 metrics_remove_dcode_managed() {
   local home path
   home="$(metrics_dcode_home)"
+  if [[ -L "$home" || -L "${home}/extensions" ]]; then
+    warn "${home} or its extensions directory is a symlink, so the dcode telemetry files in it were left in place; remove them yourself."
+  fi
   [[ -d "$home" && ! -L "$home" ]] || return 0
   path="$(metrics_dcode_extension_file)"
-  if [[ -f "$path" && ! -L "$path" ]] && grep -Fq "$METRICS_CONFIG_MARKER" "$path"; then rm -f -- "$path"; fi
+  if [[ ! -L "${home}/extensions" && -f "$path" && ! -L "$path" ]] && grep -Fq "$METRICS_CONFIG_MARKER" "$path"; then rm -f -- "$path"; fi
   path="$(metrics_dcode_settings_file)"
   if [[ -f "$path" && ! -L "$path" ]] && grep -Fq "$METRICS_DCODE_SETTINGS_MARK" "$path"; then rm -f -- "$path"; fi
   path="$(metrics_dcode_env_file)"
@@ -1889,7 +1892,7 @@ metrics_router_apply() {
 }
 
 metrics_enable_router() {
-  local prev_managed prev_enabled prev_bridge prev_endpoint prev_content jaeger_existed=false was_running=false rc=0
+  local prev_managed prev_kept prev_enabled prev_bridge prev_endpoint prev_content jaeger_existed=false was_running=false rc=0
   prev_enabled="$(metrics_state_get router.enabled)"
   prev_bridge="$(metrics_state_get router.bridge)"
   prev_endpoint="$(metrics_state_get router.endpoint)"
@@ -1902,6 +1905,7 @@ metrics_enable_router() {
     return 0
   fi
   prev_managed="$(metrics_state_get router.managed_jaeger)"
+  prev_kept="$(metrics_state_get router.kept_jaeger)"
   if metrics_container_exists "$HARNESS_JAEGER_CONTAINER"; then jaeger_existed=true; fi
   # errexit is off around the subshell so a failure is reported through rc and can be rolled back.
   set +e
@@ -1918,7 +1922,7 @@ metrics_enable_router() {
         metrics_remove_jaeger
       fi
       metrics_state_set router.bridge "$prev_bridge" router.endpoint "$prev_endpoint" router.content "$prev_content" \
-        router.managed_jaeger "${prev_managed:-false}"
+        router.managed_jaeger "${prev_managed:-false}" router.kept_jaeger "${prev_kept:-false}"
       if [[ "$prev_enabled" != true ]]; then
         metrics_router_apply false
         metrics_router_secure_file

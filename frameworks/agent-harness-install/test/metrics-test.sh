@@ -1301,6 +1301,14 @@ def oc_body(port):
     assert post(port, b"{}", "application/json") == 415
     assert post(port, oc, path="/other") == 404
     assert post(port, b"\xff\xff") == 400
+    # A request that would decode into too many spans or attributes is refused and stores nothing.
+    assert post(port, request(span("openclaw.run", {f"k{i}": "v" for i in range(600)}))) == 400
+    assert post(port, request(*[span("openclaw.run", {}) for _ in range(10001)])) == 400
+    # Repeating one key still counts, and so do the items nested in one attribute.
+    entry = ld(9, ld(1, b"k") + ld(2, ld(1, b"v")))
+    assert post(port, request(span("openclaw.run", {}) + entry * 600)) == 400
+    items = b"".join(ld(1, ld(1, b"x")) for _ in range(6000))
+    assert post(port, request(span("openclaw.run", {}) + ld(9, ld(1, b"k") + ld(2, ld(5, items))))) == 400
     # A negative length or an oversized chunk is refused before any body is read.
     for extra, tail in ((b"Content-Length: -1\r\n", b""), (b"Transfer-Encoding: chunked\r\n", b"ffffffff\r\n")):
         s = socket.create_connection(("127.0.0.1", port), timeout=5)
@@ -2278,6 +2286,55 @@ dispatch() {
   expect_failure 'Unknown command: metrics' main metrics show --target router
 }
 
+dcode_disable_does_not_follow_symlinked_directories() {
+  dcode_fixture
+  local real="$HOME/real-extensions"
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  mv "$DEEPAGENTS_HOME/extensions" "$real"
+  ln -s "$real" "$DEEPAGENTS_HOME/extensions"
+  metrics_remove_dcode_managed 2>&1 | grep -q 'symlink'
+  test -f "$real/agent_harness_otel.py"
+  # The same holds for the sandbox helper.
+  command -v node >/dev/null || { echo "# skipped sandbox half: node not found"; return 0; }
+  local profile="$HOME/sandbox-profile" elsewhere="$HOME/sandbox-elsewhere"
+  mkdir -p "$profile" "$elsewhere"
+  printf '%s\n' "$METRICS_CONFIG_MARKER" >"$elsewhere/agent_harness_otel.py"
+  ln -s "$elsewhere" "$profile/extensions"
+  DEEPAGENTS_HOME="$profile" node "$SCRIPT_DIR/openshell/observability-config.mjs" dcode-disable 2>&1 | grep -q 'symlink'
+  test -f "$elsewhere/agent_harness_otel.py"
+}
+
+router_failed_enable_restores_the_kept_jaeger_flag() {
+  fixture
+  metrics_container_exists() { return 0; }
+  run_metrics_command enable --target router --backend jaeger >/dev/null
+  run_metrics_command disable --target router --keep-jaeger >/dev/null
+  [[ "$(metrics_state_get router.kept_jaeger)" == true ]]
+  metrics_router_bridge_start() { error "bridge boom"; }
+  expect_failure 'bridge boom' run_metrics_command enable --target router --backend jaeger
+  [[ "$(metrics_state_get router.kept_jaeger)" == true ]]
+}
+
+store_prune_keeps_the_newest_rows_across_seq_gaps() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  python3 - "$SCRIPT_DIR/scripts/lib" "$TEST_ROOT" <<'PY'
+import sys, tempfile
+sys.path.insert(0, sys.argv[1])
+import metrics_store
+
+con = metrics_store.open_store(tempfile.mkdtemp(dir=sys.argv[2]) + "/s.db")
+for i in range(1, 11):
+    con.execute(metrics_store.INSERT_SPAN, (i, "{}", "t", f"s{i}", None, None, "n", "OK", i, i, 0))
+# Removed duplicates leave holes in seq, so MAX(seq) - n is not the n-th newest row.
+con.execute("DELETE FROM events WHERE seq IN (2, 4, 6, 8)")
+metrics_store.prune(con, 3)
+assert [r[0] for r in con.execute("SELECT seq FROM events ORDER BY seq")] == [7, 9, 10]
+metrics_store.prune(con, 5)
+assert con.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 3
+PY
+}
+
 run_case 'metrics flags default and parse in both --flag value and --flag=value form' parse_defaults
 run_case 'metrics rejects invalid, unsafe and misplaced arguments' parse_rejections
 run_case 'router enable/disable rewrites only the telemetry block and restarts IR' router_toggle
@@ -2366,4 +2423,7 @@ run_case 'process command lines and daemon pids are read from /proc or ps and no
 run_case 'a running OTLP receiver with the same settings is kept; changed settings replace it' receiver_is_kept_when_its_settings_match
 run_case 'Router --clean also removes the earlier installer telemetry files, never through a symlink' router_clean_removes_the_earlier_installers_files
 run_case '--target all keeps the Jaeger the Router gives up until the harness has succeeded' all_target_keeps_the_previous_jaeger_until_the_harness_succeeds
+run_case 'dcode disable never removes files through a symlinked extensions or profile directory' dcode_disable_does_not_follow_symlinked_directories
+run_case 'a failed Router enable restores the kept-Jaeger flag' router_failed_enable_restores_the_kept_jaeger_flag
+run_case 'store pruning keeps the newest rows even when seq has gaps' store_prune_keeps_the_newest_rows_across_seq_gaps
 finish_tests

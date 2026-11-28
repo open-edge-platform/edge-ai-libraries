@@ -281,11 +281,16 @@ switch (command) {
     dcodeEnvSet(true);
     break;
   }
-  case "dcode-disable":
-    if (dcodeFileState(dcodeExtension, managedMarker) === "managed") fs.rmSync(dcodeExtension);
-    if (dcodeFileState(dcodeSettings, dcodeSettingsMark) === "managed") fs.rmSync(dcodeSettings);
-    if (!lstatOrNull(dcodeEnv)?.isSymbolicLink() && fs.existsSync(dcodeEnv) && fs.readFileSync(dcodeEnv, "utf8").includes(dcodeEnvBegin)) dcodeEnvSet(false);
+  case "dcode-disable": {
+    // A symlinked profile or extensions directory could point the removal outside the sandbox profile.
+    const homeLinked = lstatOrNull(dcodeHome)?.isSymbolicLink();
+    const extLinked = homeLinked || lstatOrNull(dcodeExtensionDir)?.isSymbolicLink();
+    if (extLinked) console.error(`Warning: ${homeLinked ? dcodeHome : dcodeExtensionDir} is a symlink, so the telemetry files in it were left in place; remove them yourself.`);
+    if (!extLinked && dcodeFileState(dcodeExtension, managedMarker) === "managed") fs.rmSync(dcodeExtension);
+    if (!homeLinked && dcodeFileState(dcodeSettings, dcodeSettingsMark) === "managed") fs.rmSync(dcodeSettings);
+    if (!homeLinked && !lstatOrNull(dcodeEnv)?.isSymbolicLink() && fs.existsSync(dcodeEnv) && fs.readFileSync(dcodeEnv, "utf8").includes(dcodeEnvBegin)) dcodeEnvSet(false);
     break;
+  }
   case "status": {
     const [agent] = args;
     if (agent === "hermes") {

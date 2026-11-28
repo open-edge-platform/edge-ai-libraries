@@ -40,6 +40,11 @@ OPENCLAW_SPANS = {
     "openclaw.harness.run",
 }
 MAX_DEPTH = 16
+# Decoded objects per request: a 16 MiB body of tiny entries would otherwise expand to millions of Python objects.
+MAX_SPANS = 10000
+MAX_ATTRS = 512
+# Array and map items nested inside one span's attributes.
+MAX_NESTED = 5000
 REQUEST_TIMEOUT = 30
 
 CONTENT_KEYS = {
@@ -131,9 +136,11 @@ def _fields(buf):
         yield field, wire, val
 
 
-def _any_value(buf, depth=0):
+def _any_value(buf, depth=0, budget=None):
     if depth > MAX_DEPTH:
         raise ValueError("value nested too deeply")
+    if budget is None:
+        budget = [MAX_NESTED]
     for field, wire, val in _fields(buf):
         if field == 1 and wire == 2:
             return val.decode("utf-8", "replace")
@@ -144,26 +151,43 @@ def _any_value(buf, depth=0):
         if field == 4 and wire == 1:
             return struct.unpack("<d", val)[0]
         if field == 5 and wire == 2:
-            return [_any_value(v, depth + 1) for f, w, v in _fields(val) if f == 1 and w == 2]
+            items = []
+            for f, w, v in _fields(val):
+                if f == 1 and w == 2:
+                    _spend(budget)
+                    items.append(_any_value(v, depth + 1, budget))
+            return items
         if field == 6 and wire == 2:
-            return dict(_key_value(v, depth + 1) for f, w, v in _fields(val) if f == 1 and w == 2)
+            pairs = []
+            for f, w, v in _fields(val):
+                if f == 1 and w == 2:
+                    _spend(budget)
+                    pairs.append(_key_value(v, depth + 1, budget))
+            return dict(pairs)
         if field == 7 and wire == 2:
             return val.hex()
     return None
 
 
-def _key_value(buf, depth=0):
+def _spend(budget):
+    budget[0] -= 1
+    if budget[0] < 0:
+        raise ValueError("too many nested values")
+
+
+def _key_value(buf, depth=0, budget=None):
     key, val = "", None
     for field, wire, v in _fields(buf):
         if field == 1 and wire == 2:
             key = v.decode("utf-8", "replace")
         elif field == 2 and wire == 2:
-            val = _any_value(v, depth)
+            val = _any_value(v, depth, budget)
     return key, val
 
 
 def _span(buf):
     span = {"trace_id": "", "span_id": "", "parent": "", "name": "", "start": 0, "end": 0, "status": 0, "attrs": {}}
+    attr_count, budget = 0, [MAX_NESTED]
     for field, wire, val in _fields(buf):
         if field == 1 and wire == 2:
             span["trace_id"] = val.hex()
@@ -178,7 +202,10 @@ def _span(buf):
         elif field == 8 and wire == 1:
             span["end"] = struct.unpack("<Q", val)[0]
         elif field == 9 and wire == 2:
-            key, v = _key_value(val)
+            attr_count += 1
+            if attr_count > MAX_ATTRS:
+                raise ValueError("too many span attributes")
+            key, v = _key_value(val, 0, budget)
             span["attrs"][key] = v
         elif field == 15 and wire == 2:
             for f, w, v in _fields(val):
@@ -188,6 +215,7 @@ def _span(buf):
 
 
 def parse_export_request(buf):
+    count = 0
     for f1, w1, resource_spans in _fields(buf):
         if f1 != 1 or w1 != 2:
             continue
@@ -196,6 +224,9 @@ def parse_export_request(buf):
                 continue
             for f3, w3, span in _fields(scope_spans):
                 if f3 == 2 and w3 == 2:
+                    count += 1
+                    if count > MAX_SPANS:
+                        raise ValueError("too many spans")
                     yield _span(span)
 
 

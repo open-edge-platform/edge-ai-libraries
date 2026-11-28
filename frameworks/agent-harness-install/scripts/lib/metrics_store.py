@@ -44,4 +44,7 @@ def open_store(path, check_same_thread=True):
 
 def prune(con, max_rows):
     """Keeps the newest `max_rows` rows; the caller commits."""
-    con.execute("DELETE FROM events WHERE seq <= (SELECT MAX(seq) FROM events) - ?", (max_rows,))
+    if max_rows < 1:
+        return
+    # seq has gaps once duplicates are deleted, so the boundary is the max_rows-th newest row, not MAX(seq) - max_rows.
+    con.execute("DELETE FROM events WHERE seq < (SELECT seq FROM events ORDER BY seq DESC LIMIT 1 OFFSET ?)", (max_rows - 1,))

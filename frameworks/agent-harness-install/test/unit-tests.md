@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 88 |
+| Telemetry (`observability enable\|disable\|show`) | `bash test/metrics-test.sh` | 91 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -310,7 +310,7 @@ codes and resulting state, not real containers.
 | `jaeger_port_mismatch_is_rejected` | Existing Jaeger with other ports | Fail instead of reusing a container that is not published on exactly the two configured loopback ports (wildcard, IPv6-any, wrong or extra ports). |
 | `openclaw_enable_disable` | OpenClaw lifecycle (stub CLI) | Install the plugin once, merge the `diagnostics` config pointing at the receiver with content capture on, start the receiver; disable turns the exporter and plugin off and stops the receiver; a later enable re-enables the installed plugin without a second install. |
 | `openclaw_jaeger_and_foreign_exporter` | OpenClaw with Jaeger and a foreign exporter | Point the exporter at the Jaeger OTLP base URL and stop the receiver; refuse to overwrite a `diagnostics.otel` exporter this installer did not set up; reject `--content preview` with Jaeger. |
-| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the OpenClaw spans it needs (every dcode span is kept), honour the content modes (including dcode's `langfuse.observation.*` fields), answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, answer 400 for a negative `Content-Length` or an oversized chunk, ignore replayed spans, and answer 503 beyond the concurrent-request limit. |
+| `receiver_stores_filtered_spans` | OTLP receiver | Decode hand-built OTLP protobuf (plain, chunked and gzip bodies), keep only the OpenClaw spans it needs (every dcode span is kept), honour the content modes (including dcode's `langfuse.observation.*` fields), answer 415 for JSON and 404 for other paths, drop tool arguments and system instructions unless content is on, answer 400 for a negative `Content-Length`, an oversized chunk, or a request with too many spans, span attributes (repeated keys count) or nested array/map items, ignore replayed spans, and answer 503 beyond the concurrent-request limit. |
 | `openclaw_disable_needs_installer_ownership` | OpenClaw disable without a recorded enable | Leave the user's own exporter and plugin alone. |
 | `only_one_harness_exporter_is_recorded` | Two agents, one exporter | Refuse to enable another agent while one owns the exporter; `show` and `disable` follow the recorded owner. |
 | `openclaw_failed_enable_can_be_disabled` | OpenClaw enable that fails midway | Record the enable first so `disable` turns the exporter off and stops the receiver. |
@@ -374,6 +374,9 @@ codes and resulting state, not real containers.
 | `process_and_daemon_pid_helpers` | Daemon pid lookup | Read a command line from `/proc` or `ps`, and distrust a pidfile whose process is not the daemon. |
 | `receiver_is_kept_when_its_settings_match` | OTLP receiver restart | Keep a running receiver with identical settings; replace it when they change, when the scripts are newer, or when its store was deleted. |
 | `harness_show_and_disable_follow_the_recorded_owner` | Recorded exporter owner | Let `show` and `disable` use the recorded agent even when the selected harness is unsupported. |
+| `dcode_disable_does_not_follow_symlinked_directories` | dcode removal | Leave a managed-looking extension in place, and say so, when the profile's `extensions` directory is a symlink, on the host and in the sandbox helper. |
+| `router_failed_enable_restores_the_kept_jaeger_flag` | Router rollback | Put `router.kept_jaeger` back when a Router enable fails after the flag was cleared. |
+| `store_prune_keeps_the_newest_rows_across_seq_gaps` | Store pruning | Keep exactly the newest rows when deleted duplicates have left holes in `seq`. |
 | `openshell_openclaw_stage_off_keeps_ownership_until_applied` | OpenShell OpenClaw disable | Keep exporter ownership until the disable is applied, so a failed restart can be retried. |
 
 ## Agent model defaults
