@@ -104,6 +104,8 @@ usage() {
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
     HARNESS_RUNTIME             host (default) | openshell
+    HARNESS_FORCE_REINSTALL     1 = always rerun the Hermes/dcode installers and recreate the OVMS/Router containers
+                                  (default: skip them when the pinned versions are installed and the containers are running unchanged)
     HARNESS_OPENSHELL_GATEWAY   OpenShell gateway name (default: openshell); profile records it
     HERMES_INSTALL_URL            Custom Hermes installer URL (default: scripts/install.sh at a pinned hermes-agent commit, checksum built in)
     HERMES_INSTALL_SHA256         Expected SHA-256 of the Hermes installer (required with HERMES_INSTALL_URL unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)

@@ -240,7 +240,7 @@ EOF
 # docker-setup.sh already provides (confirmed acceptable to run both on one
 # GPU).
 ensure_inference_router() {
-  local model_name="${1:-}" gpu_args group_add_args no_proxy_combined bind_host external_host="" telemetry_group=""
+  local model_name="${1:-}" gpu_args group_add_args no_proxy_combined bind_host external_host="" telemetry_group="" config_hash
   local -a proxy_args=() network_args=() external_args=()
   # Lets the container's uid append to the group-writable telemetry file
   # (see metrics_router_prepare_file) without a world-writable mode.
@@ -269,13 +269,6 @@ LAN address or host.docker.internal instead." ;;
   fi
   write_inference_router_config "$model_name" || error "Could not write
 ${HARNESS_IR_WORKSPACE_DIR}/config.yaml."
-  if docker inspect "$HARNESS_IR_CONTAINER" >/dev/null 2>&1; then
-    # Recreated, not just restarted -- see the matching comment in
-    # ensure_openvino_model_server; every run already forces a full IR
-    # restart either way, so this costs nothing extra while actually
-    # picking up a changed GPU/proxy/network/port configuration.
-    docker rm -f "$HARNESS_IR_CONTAINER" >/dev/null 2>&1 || true
-  fi
   gpu_args="$(intel_gpu_docker_device_args)"
   group_add_args=""
   [[ -n "$gpu_args" ]] && group_add_args="$(intel_gpu_docker_group_add_args)"
@@ -296,12 +289,30 @@ ${HARNESS_IR_WORKSPACE_DIR}/config.yaml."
     no_proxy_combined="${no_proxy_combined:+${no_proxy_combined},}${HARNESS_OVMS_CONTAINER}"
     proxy_args+=(-e "NO_PROXY=${no_proxy_combined}" -e "no_proxy=${no_proxy_combined}")
   fi
-  info "Starting Inference Router on port ${HARNESS_IR_PORT}…"
   if ! bind_host="$(resolve_bind_host)" || [[ -z "$bind_host" ]]; then
     error "Could not resolve the address to publish the Inference Router on; refusing to publish on all interfaces."
   fi
+  # Everything that shapes the container (config.yaml included), so an unchanged, running one is kept.
+  # The OVMS container id is included so a recreated OVMS also restarts the Router in front of it.
+  config_hash="$(sha256_of_args "$HARNESS_IR_IMAGE" "$bind_host" "$HARNESS_IR_PORT" \
+    "$(docker inspect -f '{{.Id}}' "$HARNESS_OVMS_CONTAINER" 2>/dev/null || true)" \
+    "$(inference_router_workspace_dir)" "$gpu_args" "$group_add_args" "$telemetry_group" \
+    "${network_args[@]}" "${proxy_args[@]}" "${external_args[@]}" \
+    "${HARNESS_LLM_ROUTER_API_KEY:-}" "$(sha256_of "$(inference_router_workspace_dir)/config.yaml" 2>/dev/null || true)")"
+  if container_is_current "$HARNESS_IR_CONTAINER" "$config_hash"; then
+    if wait_for_inference_router_ready; then
+      ok "Inference Router is already running with the current configuration"
+      return 0
+    fi
+    warn "The running Inference Router is not healthy; recreating it."
+  fi
+  # Recreated, not just restarted -- a plain `docker restart` keeps whatever
+  # GPU/proxy/network/port args the container was first created with.
+  docker rm -f "$HARNESS_IR_CONTAINER" >/dev/null 2>&1 || true
+  info "Starting Inference Router on port ${HARNESS_IR_PORT}…"
   # shellcheck disable=SC2086
   docker run -d --name "$HARNESS_IR_CONTAINER" --restart unless-stopped \
+    --label "${HARNESS_CONFIG_LABEL}=${config_hash}" \
     "${network_args[@]}" \
     -p "${bind_host}:${HARNESS_IR_PORT}:8000" $gpu_args $group_add_args \
     ${telemetry_group:+--group-add "$telemetry_group"} \
@@ -325,7 +336,7 @@ wait_for_inference_router_ready() {
   probe_host="$(resolve_probe_host)" || probe_host="127.0.0.1"
   endpoint="http://${probe_host}:${HARNESS_IR_PORT}/health"
   for _ in $(seq 1 30); do
-    curl -sf "$endpoint" >/dev/null 2>&1 && return 0
+    curl -sf --max-time 3 "$endpoint" >/dev/null 2>&1 && return 0
     sleep 2
   done
   warn "Inference Router did not report healthy within 60s (checked

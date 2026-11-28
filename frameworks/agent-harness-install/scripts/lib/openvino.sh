@@ -1045,8 +1045,20 @@ ensure_backend_network() {
     || error "Could not create backend network '${HARNESS_BACKEND_NETWORK}'."
 }
 
+# ovms_models_fingerprint — hashes the files OVMS reads at startup (config.json,
+# graph.pbtxt, generation_config.json, openvino_model.xml), so a changed or
+# re-exported model forces a reload.
+ovms_models_fingerprint() {
+  local file
+  [[ -d "$HARNESS_MODELS_DIR" ]] || return 0
+  while IFS= read -r -d '' file; do
+    printf '%s %s\n' "$file" "$(sha256_of "$file")"
+  done < <(find "$HARNESS_MODELS_DIR" -maxdepth 3 -type f ! -path "${HARNESS_MODELS_DIR%/}/.*" \
+    \( -name config.json -o -name graph.pbtxt -o -name generation_config.json -o -name openvino_model.xml \) -print0 | sort -z)
+}
+
 ensure_openvino_model_server() {
-  local gpu_args group_add_args bind_host
+  local gpu_args group_add_args bind_host config_hash
   local -a proxy_args=()
   # Per-model graph options on the server command line make OVMS exit at
   # startup under --config_path, and --restart unless-stopped then loops it.
@@ -1059,16 +1071,6 @@ parser from the model's chat template by themselves." ;;
   ensure_ovms_config
   ensure_ovms_models_readable
   ensure_backend_network
-  if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
-    # Recreated, not just restarted -- a plain `docker restart` keeps
-    # whatever GPU/proxy/network/port args the container was first created
-    # with, silently ignoring any change to those in the current run (e.g.
-    # a GPU that's now present, a newly-set HTTP_PROXY, or a changed
-    # HARNESS_OVMS_REST_PORT/HARNESS_BIND_HOST). Every run already forces a
-    # full OVMS restart (and model reload) either way, so recreating costs
-    # nothing extra over the restart this replaces.
-    docker rm -f "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 || true
-  fi
   gpu_args="$(intel_gpu_docker_device_args)"
   # --device alone doesn't grant GPU access -- the server runs as the
   # image's own fixed non-root user (see the config.json permission fix
@@ -1080,10 +1082,22 @@ parser from the model's chat template by themselves." ;;
   if ! bind_host="$(resolve_bind_host)" || [[ -z "$bind_host" ]]; then
     error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
   fi
+  # Everything that shapes the container, so an unchanged, running one is kept.
+  config_hash="$(sha256_of_args "$HARNESS_OVMS_IMAGE" "$bind_host" "$HARNESS_OVMS_REST_PORT" \
+    "$HARNESS_BACKEND_NETWORK" "$HARNESS_MODELS_DIR" "$gpu_args" "$group_add_args" \
+    "$HARNESS_OVMS_EXTRA_ARGS" "${proxy_args[@]}" "$(ovms_models_fingerprint)")"
+  if container_is_current "$HARNESS_OVMS_CONTAINER" "$config_hash"; then
+    ok "OpenVINO Model Server is already running with the current configuration"
+    return 0
+  fi
+  # Recreated, not just restarted -- a plain `docker restart` keeps whatever
+  # GPU/proxy/network/port args the container was first created with.
+  docker rm -f "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 || true
   info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
   local docker_run_output
   # shellcheck disable=SC2086
   if ! docker_run_output="$(docker run -d --name "$HARNESS_OVMS_CONTAINER" --restart unless-stopped \
+    --label "${HARNESS_CONFIG_LABEL}=${config_hash}" \
     --network "$HARNESS_BACKEND_NETWORK" \
     -p "${bind_host}:${HARNESS_OVMS_REST_PORT}:8000" $gpu_args $group_add_args \
     "${proxy_args[@]}" \
@@ -1117,11 +1131,12 @@ wait_for_ovms_model_ready() {
   probe_host="$(resolve_probe_host)" || probe_host="127.0.0.1"
   endpoint="http://${probe_host}:${HARNESS_OVMS_REST_PORT}/v2/models/${model_name}/ready"
   for _ in $(seq 1 30); do
-    curl -sf "$endpoint" >/dev/null 2>&1 && return 0
+    curl -sf --max-time 3 "$endpoint" >/dev/null 2>&1 && return 0
     sleep 2
   done
   warn "Model '${model_name}' did not report ready within 60s (checked
-${endpoint}); it may still be loading. Retry if the next step fails."
+${endpoint}); it may still be loading. Retry if the next step fails, or re-run
+with HARNESS_FORCE_REINSTALL=1 to recreate the container."
   return 1
 }
 
@@ -1154,7 +1169,10 @@ ensure_inference_backend() {
           || error "Invalid --model '${HARNESS_HF_MODEL}' for hub '${model_hub_for_validation}': ${model_invalid_reason}."
       fi
       record_ovms_managed 1
-      ensure_openvino_model_server
+      # With --model the server is (re)started once after the export below;
+      # the exporters create config.json themselves, so a start here would be
+      # a second, redundant model load.
+      [[ -n "${HARNESS_HF_MODEL:-}" ]] || ensure_openvino_model_server
       # Exporters other than model-download always register what they
       # export; model-download reports whether the download was served by
       # OVMS (it contains a graph.pbtxt) via HARNESS_LAST_MODEL_REGISTERED.

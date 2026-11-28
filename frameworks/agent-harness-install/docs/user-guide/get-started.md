@@ -150,6 +150,28 @@ Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
 `--model-precision <int4|int8|fp16|fp32>`, `--model-device <device>`; run
 `./install.sh --help` for the full list of options and environment variables.
 
+### Reinstalling
+
+Running `./install.sh` again skips work that is already done:
+
+- **Agents:** OpenClaw, Deep Agents Code (dcode) and Hermes are not
+  reinstalled when the pinned version is already present.
+- **Inference services:** OVMS and the Inference Router are kept when the
+  container is running and its configuration (image, ports, GPU/proxy
+  settings, model files) is unchanged. The Router is also recreated when OVMS
+  is recreated or its health check fails.
+- **Changes:** a different model, port, image or exported model file recreates
+  only the affected container. With `--model`, OVMS is started once rather
+  than twice.
+
+To bypass these checks for Hermes, dcode and the inference containers, set
+`HARNESS_FORCE_REINSTALL=1` (OpenClaw is only reinstalled when its version is
+below the pin):
+
+```bash
+HARNESS_FORCE_REINSTALL=1 ./install.sh --harness hermes --model <org/name>
+```
+
 ### Tool calls
 
 Agents that call tools need OVMS to parse the model's tool-call output into

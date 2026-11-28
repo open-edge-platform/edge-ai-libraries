@@ -344,6 +344,20 @@ intel_gpu_docker_group_add_args() {
   done
 }
 
+HARNESS_CONFIG_LABEL="agent-harness-install.config-hash"
+
+# container_is_current NAME HASH — true when the container is running (not
+# crash-looping) and was created with the configuration fingerprint HASH, so
+# recreating it would change nothing. HARNESS_FORCE_REINSTALL=1 disables this.
+container_is_current() {
+  local name="$1" hash="$2" state label
+  [[ "${HARNESS_FORCE_REINSTALL:-}" != 1 ]] || return 1
+  state="$(docker inspect -f '{{.State.Running}} {{.State.Restarting}}' "$name" 2>/dev/null)" || return 1
+  [[ "$state" == "true false" ]] || return 1
+  label="$(docker inspect -f "{{ index .Config.Labels \"${HARNESS_CONFIG_LABEL}\" }}" "$name" 2>/dev/null)" || return 1
+  [[ -n "$label" && "$label" == "$hash" ]]
+}
+
 # docker_proxy_env_args_into arr_name — appends -e KEY=VALUE docker args for
 # any set proxy env var to the named array (nameref). Docker does not forward
 # the host's proxy environment into containers automatically, so without this

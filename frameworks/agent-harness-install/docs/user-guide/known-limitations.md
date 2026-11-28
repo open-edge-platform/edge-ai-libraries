@@ -283,11 +283,15 @@ For sandbox setup, architecture and lifecycle guidance, see
   IR can reach OVMS by container name on OVMS's internal port — IR runs in
   its own container and cannot reach OVMS via the install host's
   loopback/advertised address or a host-published port that is bound
-  loopback-only by default (`resolve_bind_host`). Both containers are
-  recreated (not just restarted) on host-mode installs when they
-  already exist, so a container from an older version of this installer
-  (before this network existed) picks it up automatically, along with any
-  other changed GPU/proxy/port configuration, on the next host-mode run.
+  loopback-only by default (`resolve_bind_host`). Each container carries a
+  configuration hash label and is kept on a rerun when the label matches and
+  the container is running (and, for the Router, healthy). Otherwise it is
+  recreated, so a container from an older version of this installer (no
+  label, or created before this network existed) is replaced once on the
+  next run, along with any changed GPU/proxy/port/model configuration.
+  `HARNESS_FORCE_REINSTALL=1` always recreates both. The hash covers the image
+  tag (not its digest) and the model graph/config files, not the `.bin`
+  weights.
   OpenShell installs reuse healthy existing inference on a no-model rerun;
   an explicit `--model` or pending model transition triggers reconfiguration.
 - Published ports of OVMS (`8000`) and the Inference Router (`8010`) bind to
